@@ -22,15 +22,27 @@ How it got there, because the shape of it is the lesson: Kotlin source errors,
 then build DSL errors, then three rounds of dependency metadata, then test
 source errors, then four real test failures. Every layer was hiding the next.
 
-The dependency ceiling still matters and is now enforceable locally. Lifecycle
-is pinned to **2.10.0**: the 2.11.0 family drags in
-`lifecycle-runtime-compose-android`, which demands `minCompileSdk=37` and AGP
-9.1, and it arrives transitively so pinning the direct artifacts cannot fix it.
-`tools/transitive_sweep.py` resolves the whole graph and checks every AAR.
+The toolchain is **AGP 9.4.1, Gradle 9.7.1, compileSdk 37, Kotlin 2.4.20**,
+and nothing is pinned below its current release any more. The AGP 8.x ceiling
+was held only while the project had never compiled; once it had, four separate
+artifacts were stuck behind it and the gap was widening on every Dependabot
+run, so the wall came down. It took two CI iterations, because the DSL was
+checked against the AGP jars first rather than discovered a line at a time.
 
-Moving to AGP 9.x + compileSdk 37 is still the cleaner long-term answer, and is
-now a real choice rather than a forced one. AGP 9 is a major release with DSL
-breaks, so expect several iterations if you take it on.
+Two things about AGP 9 that are not obvious and cost a cycle anyway:
+
+- It compiles Kotlin itself and **refuses to apply `org.jetbrains.kotlin.android`**.
+  Remove that plugin. Keep `org.jetbrains.kotlin.plugin.compose`.
+- It brings its own Kotlin Gradle plugin, 2.2.10 at AGP 9.4.1. Left alone that
+  silently downgrades the language version, so the root `buildscript` raises it
+  to 2.4.20. The Compose compiler plugin must stay on that same version.
+
+`targetSdk` stays at **36** on purpose. compileSdk changes what the app is
+compiled against, targetSdk changes how Android treats it at runtime, and no
+one can verify the latter until this runs on a phone.
+
+`tools/transitive_sweep.py` defaults to the old ceiling, so pass the current
+one: `--sdk 37 --agp 9.4.1`.
 
 What is genuinely untested is everything that needs hardware. No percept has
 ever come off a real phone.
@@ -99,28 +111,30 @@ intuition, and both of the reasons previously recorded here were wrong.
   sweep passes, tasks-audio ships the same 12 classes, and everything
   `AudioSensor.kt` names is present in tasks-core 1.0.0. The one class removed
   anywhere in that library belongs to the vision segmenter.
-- **okhttp 4.12.0 → 5.5.0 — still open, and blocked, but not for the reason
-  given here before.** It is not an API problem: every okhttp symbol `Link.kt`
-  names is present in 5.x, checked against the bytecode. It is the *same*
-  metadata failure as lifecycle. okhttp 5 is a multiplatform module and the
-  `okhttp` coordinate redirects to `okhttp-android`, which at 5.5.0 declares
-  `minCompileSdk=37`. **5.4.0 declares 36 and is the ceiling.** This PR becomes
-  mergeable for free on the day the project moves to compileSdk 37.
-- **gradle/actions v4 → v6 — still open, and it is a licensing call, not a
-  technical one.** The `gradle-version` input is unchanged so it would run, but
-  v6 extracts caching into `gradle-actions-caching`, a proprietary component
-  outside the MIT licence, the release notes state that upgrading means
-  accepting Gradle's commercial Terms of Use, and the new `cache-provider`
-  input defaults to `'enhanced'`, which uses it. Set `cache-provider: 'basic'`
-  for the open-source implementation, or `cache-disabled: true`, or stay on v4
-  or v5. Do not merge this one on autopilot.
+- **okhttp 4.12.0 → 5.5.0 — landed.** It was never an API problem: every
+  okhttp symbol `Link.kt` names is present in 5.x, checked against the
+  bytecode. It was the *same* metadata failure as lifecycle — okhttp 5 is a
+  multiplatform module whose `okhttp` coordinate redirects to `okhttp-android`,
+  which declared `minCompileSdk=37` at 5.5.0. Moving to compileSdk 37 let it in
+  as written. For the record, in case a downgrade is ever wanted: 4.12.0 has no
+  published advisories, and 5.4.0 is the highest release that builds at
+  compileSdk 36.
+- **gradle/actions v4 → v6 — taken, but not as offered.** v6 extracts caching
+  into `gradle-actions-caching`, a proprietary component outside the MIT
+  licence, and its release notes state that upgrading means accepting Gradle's
+  commercial Terms of Use. The new `cache-provider` input defaults to
+  `'enhanced'`, which loads it. The workflow therefore pins
+  `cache-provider: 'basic'`, the open-source implementation over the GitHub
+  Actions cache: maintained action and Node 24 runtime, no commercial terms.
+  `cache-disabled: true` removes all doubt if you would rather. **Do not drop
+  that input** — the default is not the neutral option.
 - **checkout v7, setup-java v6, setup-python v7, upload-artifact v7 — merged.**
   All four are the same change underneath, a Node 24 runtime, which
   GitHub-hosted runners already satisfy. Every input this workflow passes still
   exists at the target version; each manifest was read rather than assumed.
 
 The dependency versions here are pinned to a **deliberately computed ceiling**
-for AGP 8.x. Any bump needs the aar-metadata check above — and note what the
+for the current toolchain. Any bump needs the aar-metadata check above — and note what the
 okhttp case shows: a major version can be blocked by metadata while its API is
 perfectly compatible, and the reverse is equally possible. Check both, and
 check the artifact rather than the changelog.

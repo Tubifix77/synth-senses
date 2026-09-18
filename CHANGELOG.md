@@ -30,7 +30,16 @@ No wire-format change: `schema` stays at 2.
 - Lifecycle pinned to 2.10.0. The 2.11.0 family pulls
   `lifecycle-runtime-compose-android` in transitively, which demands
   compileSdk 37 and AGP 9.1.
-- Gradle wrapper points at 8.14.3, matching CI and AGP 8.13's requirement.
+- **AGP 9.4.1, Gradle 9.7.1, compileSdk 37.** The AGP 8.x ceiling had four
+  artifacts pinned below their current releases, so it came down. AGP 9
+  compiles Kotlin itself, so `org.jetbrains.kotlin.android` is gone; it ships
+  Kotlin 2.2.10, so the root `buildscript` raises that to the 2.4.20 this
+  project uses. `targetSdk` stays at 36 deliberately.
+- `core-ktx` 1.19.0, `lifecycle` 2.11.0, Compose BOM 2026.09.00, okhttp 5.5.0 —
+  all four were waiting on compileSdk 37.
+- `gradle/actions` v6 with `cache-provider: 'basic'`. v6 defaults to a
+  proprietary caching component whose use means accepting Gradle's commercial
+  terms; `basic` is the open-source path.
 - MediaPipe `tasks-audio` 0.10.35 to 1.0.0. Verified rather than assumed: it
   ships the same classes, and everything `AudioSensor.kt` uses is present in
   the `tasks-core` 1.0.0 it depends on.
@@ -38,17 +47,13 @@ No wire-format change: `schema` stays at 2.
   `upload-artifact` v7. All are Node 24 runtimes; every input this workflow
   passes still exists at those versions.
 
-### Held back, deliberately
+### Not changed, deliberately
 
-- **okhttp stays at 4.12.0.** okhttp 5 redirects to `okhttp-android`, which
-  declares `minCompileSdk=37` at 5.5.0 and so cannot be built here. 5.4.0
-  declares 36 and does build, with all tests passing; it is open as a pull
-  request rather than merged. The API is not the obstacle — every okhttp
-  symbol `Link.kt` names exists in 5.x.
-- **`gradle/actions` stays at v4.** v6 moves caching into a proprietary
-  component outside the MIT licence and enables it by default, so upgrading
-  means accepting Gradle's commercial Terms of Use. A licensing decision, not
-  a technical one.
+- **`targetSdk` stays at 36** while compileSdk moves to 37. The first changes
+  what the app compiles against; the second changes how Android behaves
+  towards it at runtime, and nothing here has run on a phone yet.
+- **Kotlin stays at 2.4.20** rather than falling back to the 2.2.10 that AGP 9
+  supplies.
 
 ### Added
 

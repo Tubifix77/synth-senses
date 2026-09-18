@@ -28,9 +28,17 @@ jobs:
 
       # The wrapper JAR isn't committed, so provision Gradle directly.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        # v6, but with the open-source cache implementation. v6 moved caching
+        # into gradle-actions-caching, a proprietary component whose default
+        # ('enhanced') means accepting Gradle's commercial Terms of Use.
+        # 'basic' is the open-source path over the GitHub Actions cache, so
+        # this repo gets the maintained action and the Node 24 runtime without
+        # taking on those terms. Use cache-disabled: true if you want no doubt
+        # at all.
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.7.1'
+          cache-provider: 'basic'
 
       # yamnet.tflite is deliberately absent — AudioSensor degrades at runtime,
       # so its absence must not break the build. This job proves that.
@@ -56,9 +64,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.7.1'
+          cache-provider: 'basic'
       - run: gradle --no-daemon lintDebug
       - uses: actions/upload-artifact@v7
         if: always()
@@ -76,9 +85,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.7.1'
+          cache-provider: 'basic'
 
       # Exercises Habituation, PlaceMemory and TempoSensor for real. These were
       # previously only validated via Python models of the algorithms.

@@ -52,7 +52,8 @@ only traffic on the wire is percepts out and commands in.
 ## Status
 
 It builds. CI assembles a debug APK, passes Android Lint, and runs 25 JVM unit
-tests on every push; all four jobs are green.
+tests on every push; all four jobs are green. AGP 9.4.1, Gradle 9.7.1,
+Kotlin 2.4.20, compileSdk 37, and nothing pinned below its current release.
 
 What that does and does not buy you:
 
