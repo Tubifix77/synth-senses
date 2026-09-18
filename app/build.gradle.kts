@@ -99,7 +99,13 @@ dependencies {
     implementation("com.google.mlkit:object-detection:17.0.2")
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
-    // Ears. 0.10.14 provably compiled; staying on the same 0.10 line.
+    // Ears. 1.0.0 verified before merging, not assumed: tasks-audio ships the
+    // same 12 classes as 0.10.35, and every class and method AudioSensor.kt
+    // names — AudioData, AudioDataFormat.Builder, BaseOptions.Builder,
+    // Category.categoryName/score, Classifications.categories — is present in
+    // the tasks-core 1.0.0 it pulls in. Exactly one class disappears anywhere
+    // in that library between the two versions and it belongs to the vision
+    // segmenter, which this app never touches.
     implementation("com.google.mediapipe:tasks-audio:1.0.0")
 
     // Uplink

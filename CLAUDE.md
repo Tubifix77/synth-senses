@@ -89,18 +89,41 @@ python tools/transitive_sweep.py                       # check the current pins
 python tools/transitive_sweep.py --set androidx.lifecycle:lifecycle-service=2.11.0
 ```
 
-## Do not blindly merge the Dependabot PRs
+## Dependabot: check, then merge
 
-Several open PRs would break the build:
+Every open PR has now been checked against the artifacts rather than against
+intuition, and both of the reasons previously recorded here were wrong.
 
-- **okhttp 4.12.0 → 5.5.0** — major version, API changes in `Link.kt`.
-- **mediapipe tasks-audio 0.10.35 → 1.0.0** — the 0.10 line is *proven to
-  compile*; 1.0.0 is unverified. `AudioSensor.kt` is the only consumer.
-- Action bumps are low risk but change nothing useful.
+- **mediapipe tasks-audio 0.10.35 → 1.0.0 — merged.** This was flagged in three
+  places as the likely breakage. It was the cleanest bump of the batch: the
+  sweep passes, tasks-audio ships the same 12 classes, and everything
+  `AudioSensor.kt` names is present in tasks-core 1.0.0. The one class removed
+  anywhere in that library belongs to the vision segmenter.
+- **okhttp 4.12.0 → 5.5.0 — still open, and blocked, but not for the reason
+  given here before.** It is not an API problem: every okhttp symbol `Link.kt`
+  names is present in 5.x, checked against the bytecode. It is the *same*
+  metadata failure as lifecycle. okhttp 5 is a multiplatform module and the
+  `okhttp` coordinate redirects to `okhttp-android`, which at 5.5.0 declares
+  `minCompileSdk=37`. **5.4.0 declares 36 and is the ceiling.** This PR becomes
+  mergeable for free on the day the project moves to compileSdk 37.
+- **gradle/actions v4 → v6 — still open, and it is a licensing call, not a
+  technical one.** The `gradle-version` input is unchanged so it would run, but
+  v6 extracts caching into `gradle-actions-caching`, a proprietary component
+  outside the MIT licence, the release notes state that upgrading means
+  accepting Gradle's commercial Terms of Use, and the new `cache-provider`
+  input defaults to `'enhanced'`, which uses it. Set `cache-provider: 'basic'`
+  for the open-source implementation, or `cache-disabled: true`, or stay on v4
+  or v5. Do not merge this one on autopilot.
+- **checkout v7, setup-java v6, setup-python v7, upload-artifact v7 — merged.**
+  All four are the same change underneath, a Node 24 runtime, which
+  GitHub-hosted runners already satisfy. Every input this workflow passes still
+  exists at the target version; each manifest was read rather than assumed.
 
 The dependency versions here are pinned to a **deliberately computed ceiling**
-for AGP 8.x. Any bump needs the aar-metadata check above, or it will simply
-reintroduce the failure being fixed.
+for AGP 8.x. Any bump needs the aar-metadata check above — and note what the
+okhttp case shows: a major version can be blocked by metadata while its API is
+perfectly compatible, and the reverse is equally possible. Check both, and
+check the artifact rather than the changelog.
 
 ## Code map
 
