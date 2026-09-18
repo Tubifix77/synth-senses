@@ -113,7 +113,13 @@ jobs:
           python-version: '3.12'
 
       - name: Syntax check
-        run: python3 -m py_compile tools/receiver.py
+        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py
+
+      # The WebSocket is the primary transport and was the one path nothing
+      # exercised automatically. Speaks RFC 6455 at the receiver as a real
+      # client would: masked frames, a fragmented message, a ping, a close.
+      - name: WebSocket protocol test
+        run: python3 tools/test_receiver_ws.py
 
       - name: POST a percept and check it is accepted
         run: |
