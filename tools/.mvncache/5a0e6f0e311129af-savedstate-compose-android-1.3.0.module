@@ -1,0 +1,254 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../savedstate-compose/1.3.0/savedstate-compose-1.3.0.module",
+    "group": "androidx.savedstate",
+    "module": "savedstate-compose",
+    "version": "1.3.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.13",
+      "buildId:": "13433626"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.annotation",
+          "module": "annotation",
+          "version": {
+            "requires": "1.9.1"
+          }
+        },
+        {
+          "group": "androidx.compose.runtime",
+          "module": "runtime",
+          "version": {
+            "requires": "1.7.5"
+          }
+        },
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate",
+          "version": {
+            "requires": "1.3.0"
+          }
+        }
+      ],
+      "dependencyConstraints": [
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate",
+          "version": {
+            "requires": "1.3.0"
+          },
+          "reason": "savedstate-compose is in atomic group androidx.savedstate"
+        },
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate-ktx",
+          "version": {
+            "requires": "1.3.0"
+          },
+          "reason": "savedstate-compose is in atomic group androidx.savedstate"
+        }
+      ],
+      "files": [
+        {
+          "name": "savedstate-compose-release.aar",
+          "url": "savedstate-compose-android-1.3.0.aar",
+          "size": 16913,
+          "sha512": "fb34772792ea8e2ea6afcd6eae20d61e9c4737d689e572f412bddbda2538d67fbc142df64b83235be1469c18b78b2e1be0cd6fdad697102cf9cae262c2578b42",
+          "sha256": "ab71562c138019ad6084dc8fc690af6cb9359bfe2743a79062065b28bdef7c6e",
+          "sha1": "59bae949f3d40d39212dbceb2686041e432a3aeb",
+          "md5": "4a7e479c2b26531c70f1c606ccc1c123"
+        }
+      ]
+    },
+    {
+      "name": "releaseRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.annotation",
+          "module": "annotation",
+          "version": {
+            "requires": "1.9.1"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "androidx.compose.runtime",
+          "module": "runtime",
+          "version": {
+            "requires": "1.7.5"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.13.1"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate",
+          "version": {
+            "requires": "1.3.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        }
+      ],
+      "dependencyConstraints": [
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate",
+          "version": {
+            "requires": "1.3.0"
+          },
+          "reason": "savedstate-compose is in atomic group androidx.savedstate"
+        },
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate-ktx",
+          "version": {
+            "requires": "1.3.0"
+          },
+          "reason": "savedstate-compose is in atomic group androidx.savedstate"
+        }
+      ],
+      "files": [
+        {
+          "name": "savedstate-compose-release.aar",
+          "url": "savedstate-compose-android-1.3.0.aar",
+          "size": 16913,
+          "sha512": "fb34772792ea8e2ea6afcd6eae20d61e9c4737d689e572f412bddbda2538d67fbc142df64b83235be1469c18b78b2e1be0cd6fdad697102cf9cae262c2578b42",
+          "sha256": "ab71562c138019ad6084dc8fc690af6cb9359bfe2743a79062065b28bdef7c6e",
+          "sha1": "59bae949f3d40d39212dbceb2686041e432a3aeb",
+          "md5": "4a7e479c2b26531c70f1c606ccc1c123"
+        }
+      ]
+    },
+    {
+      "name": "releaseSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "fake-sources",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "dependencyConstraints": [
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate",
+          "version": {
+            "requires": "1.3.0"
+          },
+          "reason": "savedstate-compose is in atomic group androidx.savedstate"
+        },
+        {
+          "group": "androidx.savedstate",
+          "module": "savedstate-ktx",
+          "version": {
+            "requires": "1.3.0"
+          },
+          "reason": "savedstate-compose is in atomic group androidx.savedstate"
+        }
+      ],
+      "files": [
+        {
+          "name": "savedstate-compose-1.3.0-samples-sources.jar",
+          "url": "savedstate-compose-android-1.3.0-samples-sources.jar",
+          "size": 11488,
+          "sha512": "4796d7af6005cc4f2c5c59b5ec68dcc4540a83878c413a53e3cba7099e7d134f00700bcb99b622c18f3751a947002794a5e278ede140136c0a930de54f9f6fef",
+          "sha256": "87632984d47b10696a5b49c80c6876e0e1e65713695807959e10496b8912ba45",
+          "sha1": "bda74fbdc0e36728f69d223d5ee9c8716e75e8e9",
+          "md5": "893abfd6c7e80b663e7ee28aff19e7bd"
+        },
+        {
+          "name": "savedstate-compose-android-1.3.0-sources.jar",
+          "url": "savedstate-compose-android-1.3.0-sources.jar",
+          "size": 12210,
+          "sha512": "8e082de6c35cab00d5d17976d4b5d8619c572947199a4871ea48b30f25c395218b0d125a0ed798fb82c5d99885dd06cf82eb3bcbf4696b06be101b12c9167e68",
+          "sha256": "e5e73c5468cb23da524156e64051417342e21c9bcfdefc1ae3a939a54c7ad5f5",
+          "sha1": "f359fa971adbf7a940b4d1222afaf46e9ebc914f",
+          "md5": "8c605baee39bd9f7fda8d71fa222e79b"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "androidx.core",
+    "module": "core-backported-fixes",
+    "version": "1.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.1.0",
+      "buildId:": "14560782"
+    }
+  },
+  "variants": [
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "core-backported-fixes-1.0.0-sources.jar",
+          "url": "core-backported-fixes-1.0.0-sources.jar",
+          "size": 13703,
+          "sha512": "0ff0b7f50a9fef37339ba3f3104185c7da94e3a15a07e1ac76f2e89df1bf048af71d7d496cff11bd50f77f4a26a43273db8dd8aa8779840b161c5fb0f91cec52",
+          "sha256": "86413b8ce0f8e81674bdfcfb2f3fefaeed7f9e6b92448d5b2b360376123051ba",
+          "sha1": "c32aac14e7d762318909a8cc9349918d0700269a",
+          "md5": "fcd66050aa4ef1995fbc2ee3eec8250b"
+        },
+        {
+          "name": "core-backported-fixes-1.0.0-samples-sources.jar",
+          "url": "core-backported-fixes-1.0.0-samples-sources.jar",
+          "size": 6234,
+          "sha512": "04a5b4bdd05f162d9c76e2fdba14075e5ef48249f2d44514137785bfd3b1cbfb098f1e54a4a7a755edd51ef0e79d011ef17a370e0402418f7287b353312ed647",
+          "sha256": "bc5c51417fda0be67e8255d719147ac98fb82327bd0192c70a69ed03797d6df3",
+          "sha1": "fe5a7b6d8ca82c51acd9f880e5cd55fc65885a6b",
+          "md5": "338c3f123d1b409ef58f576aaa9feb15"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.annotation",
+          "module": "annotation",
+          "version": {
+            "requires": "1.7.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "core-backported-fixes-1.0.0.aar",
+          "url": "core-backported-fixes-1.0.0.aar",
+          "size": 18905,
+          "sha512": "ed2e41087ec92848c3cee20fe90895d74d05d60036f483f3ee8a0b777bbedae9b1ef1c3ed375a715bc5865610b0b3351f16da419c51d26908b7915960a5779cf",
+          "sha256": "874722634db5f60745ab2f64d734dd81d3ee4eb71f175263e6565dabea54713d",
+          "sha1": "9b975043d0b622838127f101b4e3d3565017b2c5",
+          "md5": "20022c170f94d47a9236df3388cb42d4"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.annotation",
+          "module": "annotation",
+          "version": {
+            "requires": "1.7.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "core-backported-fixes-1.0.0.aar",
+          "url": "core-backported-fixes-1.0.0.aar",
+          "size": 18905,
+          "sha512": "ed2e41087ec92848c3cee20fe90895d74d05d60036f483f3ee8a0b777bbedae9b1ef1c3ed375a715bc5865610b0b3351f16da419c51d26908b7915960a5779cf",
+          "sha256": "874722634db5f60745ab2f64d734dd81d3ee4eb71f175263e6565dabea54713d",
+          "sha1": "9b975043d0b622838127f101b4e3d3565017b2c5",
+          "md5": "20022c170f94d47a9236df3388cb42d4"
+        }
+      ]
+    },
+    {
+      "name": "libraryVersionMetadata",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.usage": "library-version-metadata"
+      },
+      "files": [
+        {
+          "name": "core-backported-fixes-1.0.0-versionMetadata.json",
+          "url": "core-backported-fixes-1.0.0-versionMetadata.json",
+          "size": 1590,
+          "sha512": "4463e51510157cc9d718f903ed1ecccdfb6222fc023f096a483318291f96b16b03da4df844af329458e8ba507521e80a8a56b80a82971eeec491c3fe8a8e127a",
+          "sha256": "b566f2a2fc4673333a30d0ec87d4c1397142bca9d4138bbb6fbbd7766fc3a10b",
+          "sha1": "e39b666a02eccb9db1e299b1a6b057e920674169",
+          "md5": "09b8b0441176c82065378b4dd1193a7f"
+        }
+      ]
+    }
+  ]
+}

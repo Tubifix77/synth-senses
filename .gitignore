@@ -35,6 +35,7 @@ signing.properties
 
 # ---- Python tooling ----
 __pycache__/
+.mvncache/      # tools/transitive_sweep.py download cache
 *.py[cod]
 .venv/
 venv/

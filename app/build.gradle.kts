@@ -67,8 +67,15 @@ kotlin {
 dependencies {
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
-    implementation("androidx.lifecycle:lifecycle-service:2.11.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    // Lifecycle stays on 2.10.0, not 2.11.0. Every lifecycle artifact carries
+    // constraints aligning its siblings to the same version, and 2.11.0's
+    // lifecycle-runtime-compose-android (pulled in transitively by
+    // activity-compose and Compose UI) declares minCompileSdk=37 /
+    // minAndroidGradlePluginVersion=9.1.0. At 2.10.0 every lifecycle artifact
+    // declares <= 35 / 8.6.0. Read from the published aar-metadata.properties;
+    // tools/transitive_sweep.py checks the whole resolved graph the same way.
+    implementation("androidx.lifecycle:lifecycle-service:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
 
     // Compose (settings UI only). 2026.06.01 is the newest BOM that AGP 8.x
@@ -93,7 +100,6 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Ears. 0.10.14 provably compiled; staying on the same 0.10 line.
-    // Ears
     implementation("com.google.mediapipe:tasks-audio:0.10.35")
 
     // Uplink
