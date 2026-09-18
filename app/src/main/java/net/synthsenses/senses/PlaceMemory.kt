@@ -34,14 +34,31 @@ import kotlin.math.min
  *    least 35% of visits, to count at all. Randomised addresses never repeat, so
  *    they're excluded automatically.
  *
- * Measured behaviour from that simulation (12 revisits each):
+ * A place has to be bootstrapped into that scheme, and getting this wrong is
+ * not a degradation, it is total failure. Persistence needs several visits
+ * before it means anything, and an anchor cannot have been seen twice when the
+ * place has been visited once — so applying the mature filter to a brand-new
+ * place empties its denominator, makes its coverage zero against every scan,
+ * and it is never recognised again, so it never gets a second observation.
+ * Every scan then mints a new place, forever. So a place is LEARNING for its
+ * first few visits: no persistence filter, a lower recognition bar to offset
+ * the passers-by still sitting in its denominator at full weight, and every
+ * recognition teaches it. Nothing about a settled place changes.
  *
- *    quiet room, light drift                 mean 0.97   recognised 12/12
- *    dense environment, 60% of anchors drop  mean 0.66   recognised  8/12
- *    BLE only, 3 fixed + 4 random per visit  mean 1.00   recognised 12/12
- *    BLE only, 2 fixed + 6 random per visit  mean 1.00   recognised 12/12
- *    adjacent room sharing 4 access points        0.41   correctly new
- *    unrelated 40-device scan                     0.00   correctly new
+ * Measured behaviour, 12 revisits after 6 training visits, over 200 seeds of
+ * the simulation driven through this class's real entry point:
+ *
+ *    quiet room, light drift                 mean 0.94   recognised 12/12
+ *    dense environment, 60% of anchors drop  mean 0.52   recognised  8/12
+ *    BLE only, 3 fixed + 4 random per visit              recognised 12/12
+ *    BLE only, 2 fixed + 6 random per visit              recognised 12/12
+ *    street, and unrelated 40-device scans        0.00   always new
+ *    adjacent room sharing 4 access points        0.45   new on 96.5% of seeds
+ *
+ * That last line is the honest one: separating a room from the room next door
+ * is a 96.5% property of this metric, not a guarantee, and the failures are
+ * settled places claiming the neighbour rather than anything to do with the
+ * learning window.
  *
  * Known limitation: somewhere with no stable anchors at all — a busy station
  * concourse where 85% of what you see is different every scan — will keep
@@ -71,6 +88,33 @@ class PlaceMemory(private val file: File) {
         /** ...and must have been seen at least this many times. Kills random MACs. */
         private const val MIN_SEEN = 2
 
+        /**
+         * How many visits a place spends learning before the two filters above
+         * are applied to it. Until then it has no usable persistence statistics
+         * and the filters would reject all of its own anchors. Six is what the
+         * estimates need to mean anything, and it is the training period the
+         * simulation in docs/VALIDATION.md assumes.
+         *
+         * Do not raise this past 8 without re-running that simulation: a place
+         * that is still learning is matched leniently, and leaving somewhere
+         * lenient for longer than it takes to settle is how the room next door
+         * gets absorbed.
+         */
+        private const val LEARNING_VISITS = 6
+
+        /**
+         * The bar a learning place is recognised at. Lower than RECOGNISE
+         * because a young place's denominator still holds the passers-by of its
+         * first visit at full persistence, which biases its coverage down by
+         * about W(anchors) / (W(anchors) + W(transients)) — measured at ~0.66
+         * where a settled place scores ~0.94, and spread widely enough that
+         * roughly one visit in ten would fall under RECOGNISE and split the
+         * room in two permanently. Adopting a learning place too readily costs
+         * little, since it has barely any identity yet. Rejecting one is
+         * forever.
+         */
+        private const val LEARNING_RECOGNISE = 0.35f
+
         /** Guards against a one-anchor place matching everything. */
         private const val MIN_SHARED = 2
 
@@ -98,6 +142,11 @@ class PlaceMemory(private val file: File) {
     ) {
         fun persistence(a: Anchor): Float =
             min(1f, a.seen.toFloat() / visits.coerceAtLeast(1))
+
+        /** Too new for its own persistence statistics to be worth anything. */
+        fun isLearning(): Boolean = visits < LEARNING_VISITS
+
+        fun recogniseAt(): Float = if (isLearning()) LEARNING_RECOGNISE else RECOGNISE
     }
 
     private val places = LinkedHashMap<String, Known>()
@@ -121,13 +170,14 @@ class PlaceMemory(private val file: File) {
             }
         }
 
-        if (bestId != null && bestCoverage >= RECOGNISE) {
+        if (bestId != null && bestCoverage >= places.getValue(bestId).recogniseAt()) {
             val k = places.getValue(bestId)
             k.lastMs = now
-            // Only a confident match teaches the place. A borderline one is
+            // Only a confident match teaches a settled place. A borderline one is
             // reported but not learned from, so a doorway can't slowly blend two
-            // rooms into one.
-            if (bestCoverage >= MERGE) observe(k, fingerprint)
+            // rooms into one. A place that is still learning always learns, which
+            // is the only way it ever accumulates the evidence to settle.
+            if (bestCoverage >= MERGE || k.isLearning()) observe(k, fingerprint)
             else k.visits += 1
             save()
             return Match(k.id, k.name, bestCoverage, isNew = false)
@@ -162,9 +212,14 @@ class PlaceMemory(private val file: File) {
         var achieved = 0f
         var shared = 0
 
+        // A learning place is scored on everything it has ever seen, weighted by
+        // how often it has seen it. Transients still cost it almost nothing,
+        // because persistence is seen/visits and theirs is 1/visits.
+        val learning = k.isLearning()
+
         for ((id, anchor) in k.anchors) {
             val p = k.persistence(anchor)
-            if (p < MIN_PERSISTENCE || anchor.seen < MIN_SEEN) continue
+            if (!learning && (p < MIN_PERSISTENCE || anchor.seen < MIN_SEEN)) continue
 
             val w = signalWeight(anchor.rssi)
             expected += w * p

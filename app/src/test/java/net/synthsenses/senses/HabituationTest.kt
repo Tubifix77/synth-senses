@@ -142,7 +142,14 @@ class HabituationTest {
     @Test
     fun `intensity floors override habituation`() {
         val h = fresh()
-        var now = 0L
+        // Real wall-clock timestamps, and one percept actually gated before the
+        // scene is worn in. The model labels the first percept it ever gates
+        // "first" whatever its salience, and it recognises "ever" by lastPostMs
+        // still being zero — so starting at t=0 and only calling expose() would
+        // leave this asserting on that branch instead of on the floor.
+        var now = 1_600_000_000_000L
+        h.evaluate(perceptWith(scene, now), 0.35f, 999_999_999L)
+        now += 5_000
         repeat(60) { h.expose(scene, now); now += 5_000 }
 
         // thoroughly habituated, but the phone is cooking
