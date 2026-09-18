@@ -246,16 +246,22 @@ class RadioSensor(private val context: Context) {
     private fun hasPermission(p: String) =
         ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
-    /**
-     * MACs and BSSIDs never leave the device in raw form — they're hashed to a
-     * short stable id. Your box gets identity without getting addresses.
-     */
-    private fun shortHash(s: String): String {
-        var h = 0xcbf29ce484222325uL
-        for (b in s.lowercase().toByteArray()) {
-            h = h xor b.toUByte().toULong()
-            h *= 0x100000001b3uL
-        }
-        return h.toString(16).padStart(16, '0').take(10)
+}
+
+/**
+ * MACs and BSSIDs never leave the device in raw form — they're hashed to a
+ * short stable id. Your box gets identity without getting addresses.
+ *
+ * FNV-1a, truncated to 10 hex characters. Top-level and internal rather than a
+ * private method, because "raw identifiers never leave the device" is one of
+ * this project's load-bearing invariants and an invariant with no test is a
+ * hope. Constructing a RadioSensor needs a Context; this does not.
+ */
+internal fun shortHash(s: String): String {
+    var h = 0xcbf29ce484222325uL
+    for (b in s.lowercase().toByteArray()) {
+        h = h xor b.toUByte().toULong()
+        h *= 0x100000001b3uL
     }
+    return h.toString(16).padStart(16, '0').take(10)
 }

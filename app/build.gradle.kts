@@ -44,6 +44,10 @@ android {
     // yamnet.tflite must not be compressed or MediaPipe can't mmap it
     androidResources {
         noCompress += listOf("tflite")
+        // app/src/main/assets/README.md is instructions for a human, and it was
+        // being packaged into the APK and shipped to devices. Found by opening
+        // the artifact CI produces, which nobody had done before.
+        ignoreAssetsPatterns += listOf("README.md")
     }
 
     packaging {

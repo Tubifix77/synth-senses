@@ -12,14 +12,21 @@ import java.io.File
  *
  * Worth knowing: transcripts sit in here in plaintext until they're delivered.
  */
-class Spool(context: Context) {
+class Spool(private val file: File) {
+
+    /**
+     * Production entry point. The File-based primary constructor is the same
+     * arrangement Habituation and PlaceMemory use, and for the same reason:
+     * the bound is the interesting part and it should be testable on a plain
+     * JVM rather than needing an emulator.
+     */
+    constructor(context: Context) : this(File(context.filesDir, "spool.jsonl"))
 
     companion object {
         private const val TAG = "Spool"
-        private const val MAX_LINES = 2_000
+        internal const val MAX_LINES = 2_000
     }
 
-    private val file = File(context.filesDir, "spool.jsonl")
     private val lock = Any()
 
     fun append(o: JSONObject) = synchronized(lock) {
