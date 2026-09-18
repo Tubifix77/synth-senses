@@ -83,8 +83,8 @@ class TempoSensorTest {
         // almanac: 04:26 and 21:58 local (CEST)
         val riseMin = rh * 60 + rm
         val setMin = sh * 60 + sm
-        assertEquals("sunrise ${rh}:${rm}", 4 * 60 + 26, riseMin.toDouble(), 5.0)
-        assertEquals("sunset ${sh}:${sm}", 21 * 60 + 58, setMin.toDouble(), 5.0)
+        assertEquals("sunrise ${rh}:${rm}", (4 * 60 + 26).toDouble(), riseMin.toDouble(), 5.0)
+        assertEquals("sunset ${sh}:${sm}", (21 * 60 + 58).toDouble(), setMin.toDouble(), 5.0)
 
         val lengthMin = (set - rise) / 60_000
         assertTrue("solstice day length near 17.5 h, got $lengthMin min", lengthMin in 1020..1080)
