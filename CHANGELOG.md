@@ -9,68 +9,108 @@ the app version whenever the shape changes in a way that breaks receivers.
 
 ## [Unreleased]
 
-No wire-format change: `schema` stays at 2.
+- Nothing yet.
+
+## [0.3.0] — 2026-09-18
+
+The first version that compiles, and the first whose tests have ever run.
+
+Everything before this was written without an Android SDK to hand, so "it
+builds" was an assumption. It is now a fact that CI re-checks on every push,
+along with a debug APK, Android Lint, 71 JVM unit tests and two standard
+library test suites for the tooling.
+
+No wire-format change: `schema` stays at 2, and a v0.2 receiver will parse
+these percepts unchanged.
 
 ### Fixed
 
-- **`PlaceMemory` could not recognise a place twice.** A place on its first
-  visit fails its own persistence filter, so its coverage was zero against every
-  scan and it never received a second observation — every scan minted a new
-  place. A place is now *learning* for its first six visits: no persistence
-  filter, a lower recognition bar, and every recognition teaches it. Settled
-  places are unaffected. See [docs/VALIDATION.md](docs/VALIDATION.md).
-- `VisionSensor.bind()` used `kotlinx.coroutines.tasks.await` on a
-  `ListenableFuture`. Now uses CameraX's own `awaitInstance`.
-- Kotlin 2.x build DSL: `jvmTarget` moved to `compilerOptions`.
-- `TempoSensorTest` passed `Int` expressions to `assertEquals`'s `Double`
-  overload, so the test sources did not compile.
-
-### Changed
-
-- Lifecycle pinned to 2.10.0. The 2.11.0 family pulls
-  `lifecycle-runtime-compose-android` in transitively, which demands
-  compileSdk 37 and AGP 9.1.
-- **AGP 9.4.1, Gradle 9.7.1, compileSdk 37.** The AGP 8.x ceiling had four
-  artifacts pinned below their current releases, so it came down. AGP 9
-  compiles Kotlin itself, so `org.jetbrains.kotlin.android` is gone; it ships
-  Kotlin 2.2.10, so the root `buildscript` raises that to the 2.4.20 this
-  project uses. `targetSdk` stays at 36 deliberately.
-- `core-ktx` 1.19.0, `lifecycle` 2.11.0, Compose BOM 2026.09.00, okhttp 5.5.0 —
-  all four were waiting on compileSdk 37.
-- `gradle/actions` v6 with `cache-provider: 'basic'`. v6 defaults to a
-  proprietary caching component whose use means accepting Gradle's commercial
-  terms; `basic` is the open-source path.
-- MediaPipe `tasks-audio` 0.10.35 to 1.0.0. Verified rather than assumed: it
-  ships the same classes, and everything `AudioSensor.kt` uses is present in
-  the `tasks-core` 1.0.0 it depends on.
-- CI actions: `checkout` v7, `setup-java` v6, `setup-python` v7,
-  `upload-artifact` v7. All are Node 24 runtimes; every input this workflow
-  passes still exists at those versions.
-
-### Not changed, deliberately
-
-- **`targetSdk` stays at 36** while compileSdk moves to 37. The first changes
-  what the app compiles against; the second changes how Android behaves
-  towards it at runtime, and nothing here has run on a phone yet.
-- **Kotlin stays at 2.4.20** rather than falling back to the 2.2.10 that AGP 9
-  supplies.
+- **`PlaceMemory` could not recognise a place twice — at all, on any input.**
+  A place created moments ago has every anchor at `seen = 1`, the persistence
+  filter demands 2, so its expected weight was zero, its coverage against any
+  scan was zero, and it never received the second observation that would have
+  let it mature. Eighteen visits to one room produced eighteen rooms. The
+  metric itself was sound and validated; the prototype trained places by
+  calling `observe()` directly and so never exercised the path a phone takes.
+  A place is now *learning* for its first six visits: no persistence filter, a
+  lower recognition bar to offset the passers-by still inflating its
+  denominator, and every recognition teaches it. Settled places are unchanged.
+  See [docs/VALIDATION.md](docs/VALIDATION.md).
+- `VisionSensor.bind()` awaited a `ListenableFuture` with the Play Services
+  `await`, which does not apply to it. Uses CameraX's own `awaitInstance` now.
+  This was the only real error in the Kotlin, and it was in code nobody had
+  flagged as risky.
+- `TempoSensorTest` handed `Int` expressions to the `Double` overload of
+  `assertEquals`, so the test sources did not compile.
+- `app/src/main/assets/README.md` was being packaged into the APK and shipped
+  to devices. Found by opening the artifact CI produces.
 
 ### Added
 
+- **Tests for the invariants that had none.** Token bucketing, which the whole
+  attention model rests on and whose failure would have been silent; sense
+  blocks serialising as explicit nulls rather than fabricated values; the
+  FNV-1a identifier hash, pinned to independently computed values; the bounded
+  backlog; inbound command parsing; the narrator; and the full wire shape, so
+  `docs/PROTOCOL.md` cannot drift from the code unnoticed.
 - `tools/transitive_sweep.py` — resolves the whole runtime dependency graph the
   way Gradle does and reads each AAR's `aar-metadata.properties`, so a
-  `checkDebugAarMetadata` rejection can be predicted locally rather than
-  discovered in CI. Pure stdlib.
-- CI now proves what it previously only attempted: a debug APK is assembled and
-  the unit-test suite runs on every push.
-- Tests for the invariants that had none: token bucketing, null-not-fabricated
-  sense blocks on the wire, the FNV-1a identifier hash pinned to golden values,
-  the bounded backlog, inbound command parsing and the narrator. `Spool` takes
-  a `File` with a `Context` convenience constructor, and `shortHash` is a
-  top-level internal function, both so a plain JVM test can reach them — the
-  arrangement `Habituation` and `PlaceMemory` already used.
-- `app/src/main/assets/README.md` is no longer packaged into the APK. It was
-  being shipped to devices; found by opening the artifact CI produces.
+  `checkDebugAarMetadata` rejection is answerable in seconds instead of a
+  four-minute CI cycle. It reads the ceiling out of the build files, so it
+  cannot go stale. Pure stdlib.
+- `tools/test_receiver_ws.py` — the WebSocket transport, which is the primary
+  one and had never been tested automatically. Speaks RFC 6455 as a real
+  client, with the handshake asserted against the spec's own published example.
+- `tools/test_transitive_sweep.py` — the sweep's version ordering and ceiling
+  detection, since a wrong answer there would be quiet rather than loud.
+- `Spool` takes a `File` with a `Context` convenience constructor, and
+  `shortHash` is a top-level internal function, both so a plain JVM test can
+  reach them. The arrangement `Habituation` and `PlaceMemory` already used.
+
+### Changed
+
+- **AGP 9.4.1, Gradle 9.7.1, compileSdk 37, Kotlin 2.4.20.** Four artifacts had
+  reached releases declaring `minCompileSdk=37` and were each pinned below
+  their current version by that one wall, with the gap widening on every
+  dependency run. AGP 9 compiles Kotlin itself, so `org.jetbrains.kotlin.android`
+  is gone; it ships Kotlin 2.2.10, so the root `buildscript` raises that to the
+  2.4.20 this project uses.
+- Dependencies freed by the move: `core-ktx` 1.19.0, `lifecycle` 2.11.0,
+  Compose BOM 2026.09.00, okhttp 5.5.0. The okhttp bump was never an API
+  problem, only a metadata one.
+- MediaPipe `tasks-audio` 0.10.35 to 1.0.0. Verified rather than assumed: it
+  ships the same classes, and everything `AudioSensor.kt` names is present in
+  the `tasks-core` 1.0.0 it depends on. Three documents had predicted this
+  would be the breakage. It was the cleanest bump of the batch.
+- CI actions to `checkout` v7, `setup-java` v6, `setup-python` v7,
+  `upload-artifact` v7, and `gradle/actions` v6 with `cache-provider: 'basic'`.
+  v6 defaults to a proprietary caching component whose use means accepting
+  Gradle's commercial terms; `basic` is the open-source path over the GitHub
+  Actions cache.
+- Status claims across `README.md`, `docs/VALIDATION.md`, `CONTRIBUTING.md` and
+  `CLAUDE.md` corrected once they became untrue, including the repeated
+  prediction that MediaPipe would be the thing that broke.
+- `app/src/main/assets/README.md` now gives a direct, scriptable YAMNet URL
+  with size and checksum instead of sending people to Kaggle.
+
+### Not changed, deliberately
+
+- **`targetSdk` stays at 36** while compileSdk moves to 37. compileSdk changes
+  what the app is compiled against; targetSdk changes how Android behaves
+  towards it at runtime, and nothing here has run on a phone.
+- **Kotlin stays at 2.4.20** rather than falling back to the 2.2.10 AGP 9
+  supplies.
+- **The debug APK is ~178 MiB** and ships four ABIs. That is ML Kit and
+  MediaPipe bundling models and native code, in a build with no minification.
+  Documented rather than restructured, since cutting ABIs trades away emulator
+  support for a build nobody has run yet.
+
+### Still untested
+
+Everything needing hardware. No percept has ever come off a real phone. Motion
+and posture thresholds are reasoned from magnitudes, the magnetic baseline time
+constant is a guess, and the `ImageProxy` lifetime in `VisionSensor.onFrame`
+remains the most suspect code here.
 
 ## [0.2.0] — 2026-09-18
 
@@ -129,7 +169,8 @@ Percept schema **1 → 2**. The shape changed; a v0.1 receiver will not parse it
 
 ## [0.1.0] — 2026-09-18
 
-Initial draft.
+Initial draft. Predates this repository, which was opened at 0.2.0, so there
+is no tag to compare against and the heading is deliberately not a link.
 
 ### Added
 
@@ -147,6 +188,6 @@ Initial draft.
 - HTTP POST uplink with a bounded disk spool and backlog flush.
 - Foreground service with Android 14 service types and a persistent notification.
 
-[Unreleased]: https://github.com/Tubifix77/synth-senses/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/Tubifix77/synth-senses/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/Tubifix77/synth-senses/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Tubifix77/synth-senses/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Tubifix77/synth-senses/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/Tubifix77/synth-senses/releases/tag/v0.2.0

@@ -18,8 +18,8 @@ android {
         // year of runtime behaviour changes is not something anyone could
         // verify right now. Raise it once the thing has been watched working.
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     buildTypes {
