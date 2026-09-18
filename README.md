@@ -51,15 +51,19 @@ only traffic on the wire is percepts out and commands in.
 
 ## Status
 
-It builds. CI assembles a debug APK, passes Android Lint, and runs 25 JVM unit
+It builds. CI assembles a debug APK, passes Android Lint, and runs 70 JVM unit
 tests on every push; all four jobs are green. AGP 9.4.1, Gradle 9.7.1,
 Kotlin 2.4.20, compileSdk 37, and nothing pinned below its current release.
 
 What that does and does not buy you:
 
-- **Verified.** It compiles and packages. The three algorithms behave the way
-  [docs/VALIDATION.md](docs/VALIDATION.md) describes — this time measured
-  against the shipped Kotlin rather than a Python model of it.
+- **Verified.** It compiles and packages, and the APK has been opened and
+  checked: the manifest merges to compileSdk 37 / minSdk 29 / targetSdk 36, the
+  app's classes really are in the dex, and no model file is bundled. The three
+  algorithms behave the way [docs/VALIDATION.md](docs/VALIDATION.md) describes,
+  measured against the shipped Kotlin rather than a Python model of it, and the
+  invariants this README claims — bucketed tokens, null-not-fabricated sense
+  blocks, hashed identifiers, a bounded backlog — each have tests now.
 - **Verified, and worth the trouble.** The first run of those tests found a bug
   no model of the algorithm could have found: `PlaceMemory` could not recognise
   a place a second time, because a place created moments ago fails its own
@@ -83,8 +87,9 @@ git clone https://github.com/Tubifix77/synth-senses.git
 cd synth-senses
 ```
 
-Open in Android Studio (Ladybug or newer), let Gradle sync, Run. Or headless,
-with a device attached:
+Open in Android Studio and Run. The build is on AGP 9.4.1, which needs Gradle
+9.6 or newer and JDK 17, so the IDE has to be recent enough for that. Or
+headless, with a device attached:
 
 ```bash
 ./gradlew installDebug
@@ -92,6 +97,11 @@ with a device attached:
 
 > **First clone:** the Gradle wrapper JAR isn't committed. Android Studio
 > generates it on sync, or run `gradle wrapper` once if you have Gradle installed.
+
+> **It is a big install.** The debug APK is about 178 MiB, because ML Kit and
+> MediaPipe ship bundled models and native libraries for all four ABIs and a
+> debug build strips nothing. Roughly 132 MiB of that is `lib/`. If `adb
+> install` over USB is painful, build for one ABI.
 
 Then start the test receiver — stdlib only, no `pip install`:
 

@@ -11,7 +11,8 @@ untested. Written so you know which parts to trust.
 | `Habituation.kt` curve | prototyped, validated, now unit-tested |
 | `PlaceMemory.kt` coverage metric | prototyped, **failed**, redesigned, revalidated — then the unit tests found a **fourth** failure |
 | `TempoSensor.kt` solar maths | prototyped, **bug found**, fixed, validated against almanac, now unit-tested |
-| All Kotlin | **compiles** — CI assembles a debug APK, lints, and runs 25 unit tests per push |
+| All Kotlin | **compiles** — CI assembles a debug APK, lints, and runs 70 unit tests per push |
+| The APK itself | **opened and checked** — manifest, dex contents and packaged assets |
 | On-device behaviour | **entirely untested** — thresholds are reasoned, not measured |
 
 Every algorithm here has had a real bug caught by testing it, and one of them
@@ -333,6 +334,35 @@ README predicted that `tasks-audio` would be the breakage. `AudioSensor.kt`
 produced zero errors. The real failure was in CameraX code nobody had flagged.
 A reminder that a confident guess about which dependency will break is still a
 guess.
+
+## The APK, opened
+
+CI had been producing a debug APK for a while before anyone looked inside one.
+Doing so confirmed the things that are easy to assume and cheap to check:
+
+| Claim | Found |
+|---|---|
+| manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 29`, `targetSdkVersion 36` |
+| the app's own code is really packaged | all 11 classes present across 8 dex files |
+| it degrades without the model | no `yamnet.tflite`, as CI has no copy |
+| permissions are what the manifest declares | 18, plus one added by androidx |
+
+It also turned up something nobody had noticed: `app/src/main/assets/README.md`,
+instructions written for a human, was being packaged and shipped to devices.
+Excluded now via `ignoreAssetsPatterns`.
+
+The size is worth stating plainly, since nothing else in the repo does. The
+debug APK is **about 178 MiB**:
+
+| | |
+|---|---|
+| native libraries, 4 ABIs | ~126 MiB |
+| dex | ~44 MiB |
+| bundled ML Kit models | ~7 MiB |
+
+That is ML Kit and MediaPipe shipping bundled models and native code for every
+ABI, in a build with no minification. It is not a defect, but it makes
+`adb install` slow, and a single-ABI build is much smaller.
 
 ## Not tested at all
 

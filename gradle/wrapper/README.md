@@ -11,7 +11,7 @@ Gradle sync and nothing else is needed.
 **Command line**, if you have Gradle installed:
 
 ```bash
-gradle wrapper --gradle-version 8.9
+gradle wrapper --gradle-version 9.7.1
 ```
 
 After either, `./gradlew installDebug` works and you can commit the wrapper

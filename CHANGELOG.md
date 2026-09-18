@@ -62,7 +62,15 @@ No wire-format change: `schema` stays at 2.
   `checkDebugAarMetadata` rejection can be predicted locally rather than
   discovered in CI. Pure stdlib.
 - CI now proves what it previously only attempted: a debug APK is assembled and
-  25 unit tests run on every push.
+  70 unit tests run on every push.
+- Tests for the invariants that had none: token bucketing, null-not-fabricated
+  sense blocks on the wire, the FNV-1a identifier hash pinned to golden values,
+  the bounded backlog, inbound command parsing and the narrator. `Spool` takes
+  a `File` with a `Context` convenience constructor, and `shortHash` is a
+  top-level internal function, both so a plain JVM test can reach them — the
+  arrangement `Habituation` and `PlaceMemory` already used.
+- `app/src/main/assets/README.md` is no longer packaged into the APK. It was
+  being shipped to devices; found by opening the artifact CI produces.
 
 ## [0.2.0] — 2026-09-18
 

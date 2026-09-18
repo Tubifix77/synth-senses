@@ -3,7 +3,9 @@
 ## The state of things
 
 It builds, and the unit tests run: CI assembles a debug APK, runs Android Lint
-and executes 25 JVM unit tests on every push. What has never happened is any of
+and executes 70 JVM unit tests on every push, covering the three validated
+algorithms plus the wire schema, the stimulus vocabulary, the offline backlog,
+inbound command parsing, the narrator and the identifier hashing. What has never happened is any of
 it running on a phone. No percept has ever been produced by real hardware.
 
 So the most valuable contribution now is a device and half an hour of
@@ -17,8 +19,12 @@ git clone https://github.com/Tubifix77/synth-senses.git
 cd synth-senses
 ```
 
-Open in Android Studio (Ladybug or newer). The Gradle wrapper JAR isn't
-committed; Android Studio generates it on sync, or run `gradle wrapper` once.
+Open in Android Studio. The build is on AGP 9.4.1, which needs Gradle 9.6 or
+newer and JDK 17, so the IDE has to be recent enough to support that — check
+Google's [AGP compatibility table](https://developer.android.com/build/releases/gradle-plugin)
+rather than trusting a version name here, since it moves. The Gradle wrapper
+JAR isn't committed; Android Studio generates it on sync, or run
+`gradle wrapper` once.
 
 Then drop `yamnet.tflite` into `app/src/main/assets/` — see
 [the assets README](app/src/main/assets/README.md). Not required to build.

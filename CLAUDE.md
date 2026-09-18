@@ -16,7 +16,11 @@ algorithms were verified, and which earlier designs failed and why.
 ## Status: green
 
 All four CI jobs pass — assemble debug, android lint, unit tests, receiver smoke
-test. A debug APK is produced. 25 of 25 unit tests pass.
+test. A debug APK is produced. 70 of 70 unit tests pass.
+
+The APK has been opened and checked, which is how the stray `assets/README.md`
+that was being shipped to devices got found. It is about 178 MiB, almost all of
+it ML Kit and MediaPipe native libraries across four ABIs.
 
 How it got there, because the shape of it is the lesson: Kotlin source errors,
 then build DSL errors, then three rounds of dependency metadata, then test
@@ -139,6 +143,15 @@ for the current toolchain. Any bump needs the aar-metadata check above — and n
 okhttp case shows: a major version can be blocked by metadata while its API is
 perfectly compatible, and the reverse is equally possible. Check both, and
 check the artifact rather than the changelog.
+
+## One thing already decided, so it does not get re-litigated
+
+`tools/.mvncache/` — 4 MB of public Maven POMs and module metadata — was
+committed by accident in 855d20d and untracked again one commit later, because
+`.gitignore` has no inline comments and the pattern carried one. The files are
+still in history and are staying there. Nothing in them is sensitive, they are
+public metadata, and rewriting published history on a repo anyone may have
+cloned costs more than 4 MB of pack file is worth.
 
 ## Code map
 
