@@ -166,4 +166,80 @@ class PerceptTest {
         assertEquals(2, SCHEMA_VERSION)
         assertEquals(2, JSONObject(Fixtures.full().toJson().toString()).getInt("schema"))
     }
+
+    @Test
+    fun `the wire format is exactly what docs PROTOCOL md documents`() {
+        // Adding a nullable field is fine and needs no version bump. Removing or
+        // renaming one, or changing a type, breaks every receiver -- so that has
+        // to be a deliberate act: bump SCHEMA_VERSION, update docs/PROTOCOL.md,
+        // note it in CHANGELOG.md. This test is what makes it deliberate instead
+        // of accidental. The key sets below were checked against the sample
+        // percept in docs/PROTOCOL.md and matched it block for block.
+        val o = Fixtures.full().toJson()
+
+        fun keysOf(obj: JSONObject): Set<String> =
+            obj.keys().asSequence().toSet()
+
+        assertEquals(
+            setOf("schema", "device_id", "seq", "ts", "trigger", "attention", "vision",
+                  "hearing", "radio", "body", "self", "tempo", "gps", "narration"),
+            keysOf(o)
+        )
+        assertEquals(
+            setOf("salience", "novel", "known_tokens", "dishabituated", "floor_reason"),
+            keysOf(o.getJSONObject("attention"))
+        )
+        assertEquals(
+            setOf("lens", "brightness", "labels", "objects", "text"),
+            keysOf(o.getJSONObject("vision"))
+        )
+        assertEquals(
+            setOf("name", "conf"),
+            keysOf(o.getJSONObject("vision").getJSONArray("labels").getJSONObject(0))
+        )
+        assertEquals(
+            setOf("name", "box", "track"),
+            keysOf(o.getJSONObject("vision").getJSONArray("objects").getJSONObject(0))
+        )
+        assertEquals(
+            setOf("level_db", "peak_db", "events", "transcript"),
+            keysOf(o.getJSONObject("hearing"))
+        )
+        assertEquals(
+            setOf("ble_count", "ble_named", "ble_strongest_rssi", "wifi_count",
+                  "wifi_connected", "wifi_strongest_rssi", "cell", "place_id",
+                  "place_name", "place_similarity", "place_is_new"),
+            keysOf(o.getJSONObject("radio"))
+        )
+        assertEquals(
+            setOf("id", "name", "rssi"),
+            keysOf(o.getJSONObject("radio").getJSONArray("ble_named").getJSONObject(0))
+        )
+        assertEquals(
+            setOf("kind", "id", "dbm"),
+            keysOf(o.getJSONObject("radio").getJSONObject("cell"))
+        )
+        assertEquals(
+            setOf("motion", "posture", "accel_rms", "gyro_rms", "heading_deg", "steps",
+                  "steps_delta", "lux", "covered", "magnetic_ut", "magnetic_anomaly",
+                  "pressure_hpa", "pressure_delta_per_min"),
+            keysOf(o.getJSONObject("body"))
+        )
+        assertEquals(
+            setOf("battery", "charging", "battery_temp_c", "current_ma", "voltage_v",
+                  "thermal", "thermal_headroom", "mem_free_pct", "mem_low",
+                  "storage_free_pct", "screen_on", "net", "uptime_s"),
+            keysOf(o.getJSONObject("self"))
+        )
+        assertEquals(
+            setOf("local_time", "tz_offset_min", "day_of_week", "part_of_day",
+                  "solar_elevation_deg", "is_daylight", "minutes_to_sunset",
+                  "minutes_since_sunrise", "day_length_min"),
+            keysOf(o.getJSONObject("tempo"))
+        )
+        assertEquals(
+            setOf("lat", "lon", "acc_m"),
+            keysOf(o.getJSONObject("gps"))
+        )
+    }
 }
