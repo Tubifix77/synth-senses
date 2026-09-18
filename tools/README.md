@@ -53,3 +53,45 @@ else is there when you want precision.
   all of them. `node` identifies the sender.
 - No auth unless you pass `--token`. It's a development tool — don't expose it to
   the internet.
+
+## transitive_sweep.py
+
+Answers one question before a CI cycle is spent on it: **would
+`:app:checkDebugAarMetadata` reject anything in this build?**
+
+Standard library only. It resolves the whole debug runtime graph the way Gradle
+does — module metadata, BOM platforms, dependency constraints,
+highest-version-wins iterated to a fixed point — then reads each AAR's
+`META-INF/com/android/build/gradle/aar-metadata.properties` over HTTP range
+requests, so a 30 MB artifact costs a few KB. Exit code 1 means CI would fail.
+
+```bash
+python3 tools/transitive_sweep.py                    # check the current pins
+python3 tools/transitive_sweep.py --set com.squareup.okhttp3:okhttp=5.5.0
+python3 tools/transitive_sweep.py --sdk 36 --agp 8.13.2   # a what-if
+python3 tools/transitive_sweep.py --all              # list jars too
+```
+
+compileSdk, minSdk and the AGP version are read out of the build files, so it
+cannot drift out of date with the project. Pass `--sdk` / `--agp` only to ask a
+hypothetical.
+
+**Run it before any dependency change.** Checking only the direct dependency
+list is what let `lifecycle-runtime-compose-android` through and cost several
+four-minute CI cycles; that artifact is never named in the build file.
+
+Downloads are cached in `.mvncache/` next to the script, which is gitignored.
+
+## The tests
+
+Both run in CI on every push, and both are stdlib-only.
+
+| | |
+|---|---|
+| `test_receiver_ws.py` | speaks RFC 6455 at `receiver.py` as a real client: masked frames, a fragmented message, backlog, ping, close, and what reached the log |
+| `test_transitive_sweep.py` | the sweep's pure logic — Gradle version ordering, version ranges, AGP tuples, ceiling detection |
+
+```bash
+python3 tools/test_receiver_ws.py
+python3 tools/test_transitive_sweep.py
+```
