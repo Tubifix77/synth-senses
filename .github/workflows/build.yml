@@ -30,7 +30,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.14.3'
+          gradle-version: '9.7.1'
 
       # yamnet.tflite is deliberately absent — AudioSensor degrades at runtime,
       # so its absence must not break the build. This job proves that.
@@ -58,7 +58,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.14.3'
+          gradle-version: '9.7.1'
       - run: gradle --no-daemon lintDebug
       - uses: actions/upload-artifact@v7
         if: always()
@@ -78,7 +78,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.14.3'
+          gradle-version: '9.7.1'
 
       # Exercises Habituation, PlaceMemory and TempoSensor for real. These were
       # previously only validated via Python models of the algorithms.

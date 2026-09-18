@@ -6,11 +6,16 @@ plugins {
 
 android {
     namespace = "net.synthsenses"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "net.synthsenses"
         minSdk = 29
+        // targetSdk stays at 36 deliberately. compileSdk changes what the app is
+        // compiled against; targetSdk changes how Android behaves towards it at
+        // runtime. This app has never run on a device, so opting into a new
+        // year of runtime behaviour changes is not something anyone could
+        // verify right now. Raise it once the thing has been watched working.
         targetSdk = 36
         versionCode = 3
         versionName = "0.2.1"
@@ -65,25 +70,21 @@ kotlin {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
-    // Lifecycle stays on 2.10.0, not 2.11.0. Every lifecycle artifact carries
-    // constraints aligning its siblings to the same version, and 2.11.0's
-    // lifecycle-runtime-compose-android (pulled in transitively by
-    // activity-compose and Compose UI) declares minCompileSdk=37 /
-    // minAndroidGradlePluginVersion=9.1.0. At 2.10.0 every lifecycle artifact
-    // declares <= 35 / 8.6.0. Read from the published aar-metadata.properties;
-    // tools/transitive_sweep.py checks the whole resolved graph the same way.
-    implementation("androidx.lifecycle:lifecycle-service:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    // Lifecycle 2.11.0. It was pinned to 2.10.0 for as long as this project
+    // was on AGP 8.x, because 2.11.0's lifecycle-runtime-compose-android —
+    // pulled in transitively by activity-compose and Compose UI, never named
+    // directly — declares minCompileSdk=37. That was the wall; it is gone.
+    implementation("androidx.lifecycle:lifecycle-service:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.activity:activity-compose:1.13.0")
 
-    // Compose (settings UI only). 2026.06.01 is the newest BOM that AGP 8.x
-    // can consume: 2026.08.00 and later declare minCompileSdk=37 and
-    // minAndroidGradlePluginVersion=9.1.0. Same story for core-ktx 1.19.0,
-    // hence 1.18.0 below. Both confirmed by reading the published
-    // aar-metadata.properties rather than by trial and error.
-    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
+    // Compose (settings UI only). 2026.09.00 is the newest BOM whose libraries
+    // fit under compileSdk 37 / AGP 9.4.1, confirmed by resolving
+    // animation-core out of each BOM and reading its aar-metadata.properties
+    // rather than by trial and error.
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
@@ -108,8 +109,16 @@ dependencies {
     // segmenter, which this app never touches.
     implementation("com.google.mediapipe:tasks-audio:1.0.0")
 
-    // Uplink
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Uplink. okhttp 5.5.0, which Dependabot #7 proposed and which could not be
+    // built under the old ceiling: okhttp 5 is a multiplatform module whose
+    // `okhttp` coordinate redirects to okhttp-android, and that artifact
+    // declares minCompileSdk=37 at 5.5.0. The API objection recorded against
+    // okhttp 5 was unfounded — every okhttp symbol Link.kt names is present in
+    // 5.x, read out of the bytecode.
+    //
+    // Worth knowing if a downgrade is ever needed: 4.12.0 carries no published
+    // advisories, and 5.4.0 is the highest release that builds at compileSdk 36.
+    implementation("com.squareup.okhttp3:okhttp:5.5.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
