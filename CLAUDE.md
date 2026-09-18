@@ -41,8 +41,9 @@ Two things about AGP 9 that are not obvious and cost a cycle anyway:
 compiled against, targetSdk changes how Android treats it at runtime, and no
 one can verify the latter until this runs on a phone.
 
-`tools/transitive_sweep.py` defaults to the old ceiling, so pass the current
-one: `--sdk 37 --agp 9.4.1`.
+`tools/transitive_sweep.py` reads compileSdk, minSdk and the AGP version out of
+the build files, so a bare run always checks against the real ceiling. Pass
+`--sdk` / `--agp` only to ask a what-if question.
 
 What is genuinely untested is everything that needs hardware. No percept has
 ever come off a real phone.

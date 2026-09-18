@@ -24,9 +24,12 @@ CI cycle is spent on it:
 Pure stdlib. Everything fetched is cached in .mvncache/ next to this script.
 
 usage:
-  python transitive_sweep.py [--build app/build.gradle.kts] [--sdk 36] [--agp 8.13.2]
-                             [--minsdk 29] [--set group:artifact=version ...]
+  python transitive_sweep.py [--build app/build.gradle.kts] [--sdk N] [--agp X.Y.Z]
+                             [--minsdk N] [--set group:artifact=version ...]
                              [--force group:artifact=version ...] [--all] [--quiet]
+
+  compileSdk, minSdk and the AGP version are read out of the build files unless
+  given explicitly, so this cannot drift out of date with the project.
 
   --set    replace (or add) a direct dependency's version -- try a fix before editing
   --force  simulate resolutionStrategy.force / strictly for a module
@@ -517,6 +520,36 @@ def parse_build_file(path, variant="debug"):
     return deps, platforms
 
 
+def detect_ceiling(app_build, root_build):
+    """Read compileSdk / minSdk / AGP out of the build files.
+
+    Hardcoding these was a bug waiting to happen: the moment the project moved
+    from compileSdk 36 / AGP 8.13.2 to 37 / 9.4.1, a bare run of this tool
+    would have reported failures that no longer existed. The build files are
+    the source of truth, so read them, and fall back only if a value genuinely
+    cannot be found.
+    """
+    out = {"sdk": 36, "agp": "8.13.2", "minsdk": 29}
+    try:
+        src = re.sub(r"//[^\n]*", "", open(app_build, encoding="utf-8").read())
+        m = re.search(r"\bcompileSdk\s*=\s*(\d+)", src)
+        if m:
+            out["sdk"] = int(m.group(1))
+        m = re.search(r"\bminSdk\s*=\s*(\d+)", src)
+        if m:
+            out["minsdk"] = int(m.group(1))
+    except OSError as e:
+        warn(f"could not read {app_build} ({e}); assuming compileSdk {out['sdk']}")
+    try:
+        src = re.sub(r"//[^\n]*", "", open(root_build, encoding="utf-8").read())
+        m = re.search(r'id\(\s*"com\.android\.application"\s*\)\s*version\s*"([^"]+)"', src)
+        if m:
+            out["agp"] = m.group(1)
+    except OSError as e:
+        warn(f"could not read {root_build} ({e}); assuming AGP {out['agp']}")
+    return out
+
+
 # ----------------------------------------------------------------- resolution
 class Resolution:
     def __init__(self):
@@ -731,9 +764,14 @@ def aar_facts(url):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--build", default="app/build.gradle.kts")
-    ap.add_argument("--sdk", type=int, default=36, help="project compileSdk")
-    ap.add_argument("--agp", default="8.13.2", help="project AGP version")
-    ap.add_argument("--minsdk", type=int, default=29, help="project minSdk")
+    ap.add_argument("--root-build", default="build.gradle.kts",
+                    help="where the AGP version is declared")
+    ap.add_argument("--sdk", type=int, default=None,
+                    help="project compileSdk (default: read from the build files)")
+    ap.add_argument("--agp", default=None,
+                    help="project AGP version (default: read from the build files)")
+    ap.add_argument("--minsdk", type=int, default=None,
+                    help="project minSdk (default: read from the build files)")
     ap.add_argument("--variant", default="debug")
     ap.add_argument("--set", action="append", default=[], metavar="G:A=V")
     ap.add_argument("--force", action="append", default=[], metavar="G:A=V")
@@ -741,6 +779,16 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="only the verdict and failures")
     ap.add_argument("--threads", type=int, default=8)
     args = ap.parse_args()
+
+    detected = detect_ceiling(args.build, args.root_build)
+    overridden = []
+    for name in ("sdk", "agp", "minsdk"):
+        if getattr(args, name) is None:
+            setattr(args, name, detected[name])
+        elif str(getattr(args, name)) != str(detected[name]):
+            overridden.append(name)
+    note = f" (overridden on the command line: {', '.join(overridden)})" if overridden else            " (read from the build files)"
+    print(f"ceiling: compileSdk {args.sdk}, AGP {args.agp}, minSdk {args.minsdk}{note}")
 
     deps, platforms = parse_build_file(args.build, args.variant)
     for s in args.set:
