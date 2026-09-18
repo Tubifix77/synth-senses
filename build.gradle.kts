@@ -11,8 +11,23 @@
 // the 9.7.1 wrapper. Before changing anything, every DSL property this build
 // file uses was diffed between the AGP 8.13.2 and 9.4.1 `gradle-api` jars:
 // none of them were dropped.
+// AGP 9 compiles Kotlin itself: the org.jetbrains.kotlin.android plugin is not
+// merely unnecessary, it refuses to apply. AGP brings its own Kotlin Gradle
+// plugin, 2.2.10 for AGP 9.4.1, read from its POM. This project is on 2.4.20
+// and raising AGP's copy is the documented way to keep it there — otherwise
+// the language version would quietly go backwards. The Compose compiler plugin
+// must stay on the same version as the Kotlin compiler, hence both below.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
+    }
+}
+
 plugins {
     id("com.android.application") version "9.4.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.4.20" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.20" apply false
 }

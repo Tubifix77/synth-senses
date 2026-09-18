@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // no org.jetbrains.kotlin.android: AGP 9 has built-in Kotlin support and
+    // rejects that plugin outright. See the buildscript block in the root file.
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
