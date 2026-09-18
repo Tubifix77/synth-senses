@@ -108,8 +108,18 @@ dependencies {
     // segmenter, which this app never touches.
     implementation("com.google.mediapipe:tasks-audio:1.0.0")
 
-    // Uplink
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Uplink. Trialling okhttp 5.4.0.
+    //
+    // 5.5.0 (Dependabot #7) cannot be used: okhttp 5 is a multiplatform module
+    // whose `okhttp` coordinate redirects to okhttp-android, and that artifact
+    // declares minCompileSdk=37 at 5.5.0. 5.4.0 declares 36, so it is the
+    // highest release this project can consume until it moves to compileSdk 37.
+    //
+    // The API is not the obstacle it was assumed to be: every okhttp symbol
+    // Link.kt names is present in 5.x, read out of the bytecode. What that
+    // check cannot prove is that the signatures still match, which is what
+    // this branch is for.
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
