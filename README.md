@@ -74,9 +74,11 @@ What that does and does not buy you:
   real phone. Sensor thresholds are reasoned from magnitudes rather than
   measured, and the `ImageProxy` lifetime in `VisionSensor.onFrame` remains the
   most suspect code here.
-- `tools/receiver.py` is tested end to end against a simulated phone —
-  handshake, percept stream, backlog flush, and all eleven commands
-  round-tripping with replies.
+- `tools/receiver.py` is tested on every push, not just once by hand: a real
+  RFC 6455 handshake checked against the spec's published example, masked and
+  fragmented frames, a backlog flush, ping and close, plus the HTTP fallback.
+  The eleven commands round-tripping with replies was verified in a manual
+  session.
 
 So trust it to build, and to gate attention sensibly. Do not trust a number
 that came off a sensor until you have watched that sensor yourself.

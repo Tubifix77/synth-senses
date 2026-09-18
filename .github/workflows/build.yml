@@ -121,6 +121,12 @@ jobs:
       - name: WebSocket protocol test
         run: python3 tools/test_receiver_ws.py
 
+      # The dependency tool is what bumps get decided on, and its version
+      # ordering follows Gradle's rules rather than string order. A regression
+      # there would not crash, it would quietly give a wrong answer.
+      - name: Dependency tool tests
+        run: python3 tools/test_transitive_sweep.py
+
       - name: POST a percept and check it is accepted
         run: |
           python3 tools/receiver.py --port 8077 --log /tmp/p.jsonl --no-console &

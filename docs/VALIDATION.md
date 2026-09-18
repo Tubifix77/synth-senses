@@ -7,7 +7,8 @@ untested. Written so you know which parts to trust.
 
 | Component | Status |
 |---|---|
-| `tools/receiver.py` | tested end to end against a simulated phone |
+| `tools/receiver.py` | **tested in CI** — RFC 6455 handshake, framing, backlog, HTTP fallback |
+| `tools/transitive_sweep.py` | **tested in CI** — version ordering, ranges, ceiling detection |
 | `Habituation.kt` curve | prototyped, validated, now unit-tested |
 | `PlaceMemory.kt` coverage metric | prototyped, **failed**, redesigned, revalidated — then the unit tests found a **fourth** failure |
 | `TempoSensor.kt` solar maths | prototyped, **bug found**, fixed, validated against almanac, now unit-tested |
@@ -22,11 +23,24 @@ reason to be suspicious of everything in the last row.
 
 ## Receiver, end to end
 
-A stand-in client performed a real WebSocket handshake, streamed percepts,
-flushed a backlog, and responded to commands the way `SenseService.handle()`
-would.
+Originally a manual session: a stand-in client performed a real WebSocket
+handshake, streamed percepts, flushed a backlog, and responded to commands the
+way `SenseService.handle()` would. That session proved the design but nobody
+could re-run it, which is a poor basis for claiming a transport works.
 
-Verified:
+`tools/test_receiver_ws.py` now does the core of it on every push. It speaks
+RFC 6455 as a real client: masked frames, a hello, a percept, a backlog of
+two, a command reply, a message split across two fragments, a ping, and a
+close — then checks what reached the log, that the fragmented payload was
+reassembled byte for byte, and that a reply was not miscounted as a percept.
+
+The handshake is asserted against **RFC 6455's own worked example** rather
+than against a magic constant copied into the test, because writing that test
+produced exactly one failure and it was a transposed character in the test's
+copy of the constant. The receiver was right. The spec is a better oracle than
+a transcription of it.
+
+Verified in the original manual session, and where marked, now on every push:
 
 - RFC 6455 handshake, `Sec-WebSocket-Accept` computed correctly
 - masked client frames parsed, including fragmentation and ping/pong
