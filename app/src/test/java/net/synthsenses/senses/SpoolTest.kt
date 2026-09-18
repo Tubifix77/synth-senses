@@ -70,15 +70,25 @@ class SpoolTest {
 
     @Test
     fun `a percept containing newlines cannot corrupt the queue`() {
-        val s = spool()
-        // a transcript is free text off a speech recogniser; it can contain anything
-        s.append(JSONObject().apply { put("seq", 1); put("transcript", "one\ntwo\nthree") })
+        val file = File(tmp.newFolder(), "spool.jsonl")
+        val s = Spool(file)
+        // A transcript is free text off a speech recogniser and can contain
+        // anything, while this file format is one JSON object per line.
+        val multiline = "one" + "\n" + "two" + "\n" + "three"
+        s.append(JSONObject().apply { put("seq", 1); put("transcript", multiline) })
         s.append(percept(2))
 
-        assertEquals("two percepts in, two lines out", 2, s.size())
+        assertEquals("two percepts in, two percepts out", 2, s.size())
+        assertEquals(
+            "and two physical lines in the file", 2,
+            file.readLines().count { it.isNotBlank() }
+        )
+
         val back = s.read()
         assertEquals(2, back.size)
-        assertEquals("one two three", back[0].getString("transcript"))
+        // JSON escaping already keeps the newlines off the line boundary, so the
+        // transcript survives exactly rather than being flattened into spaces.
+        assertEquals(multiline, back[0].getString("transcript"))
         assertEquals(2, back[1].getInt("seq"))
     }
 
@@ -112,7 +122,7 @@ class SpoolTest {
         val file = File(tmp.newFolder(), "spool.jsonl")
         val s = Spool(file)
         s.append(percept(1))
-        file.appendText("this is not json\n")
+        file.appendText("this is not json" + System.lineSeparator())
         s.append(percept(2))
 
         val back = s.read()
@@ -125,7 +135,8 @@ class SpoolTest {
         val file = File(tmp.newFolder(), "spool.jsonl")
         val s = Spool(file)
         s.append(percept(1))
-        file.appendText("\n\n")
+        file.appendText(System.lineSeparator() + System.lineSeparator())
+
         assertEquals(1, s.size())
         assertFalse(s.read().isEmpty())
         assertTrue(s.read().all { it.has("seq") })
