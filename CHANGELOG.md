@@ -31,6 +31,24 @@ No wire-format change: `schema` stays at 2.
   `lifecycle-runtime-compose-android` in transitively, which demands
   compileSdk 37 and AGP 9.1.
 - Gradle wrapper points at 8.14.3, matching CI and AGP 8.13's requirement.
+- MediaPipe `tasks-audio` 0.10.35 to 1.0.0. Verified rather than assumed: it
+  ships the same classes, and everything `AudioSensor.kt` uses is present in
+  the `tasks-core` 1.0.0 it depends on.
+- CI actions: `checkout` v7, `setup-java` v6, `setup-python` v7,
+  `upload-artifact` v7. All are Node 24 runtimes; every input this workflow
+  passes still exists at those versions.
+
+### Held back, deliberately
+
+- **okhttp stays at 4.12.0.** okhttp 5 redirects to `okhttp-android`, which
+  declares `minCompileSdk=37` at 5.5.0 and so cannot be built here. 5.4.0
+  declares 36 and does build, with all tests passing; it is open as a pull
+  request rather than merged. The API is not the obstacle — every okhttp
+  symbol `Link.kt` names exists in 5.x.
+- **`gradle/actions` stays at v4.** v6 moves caching into a proprietary
+  component outside the MIT licence and enables it by default, so upgrading
+  means accepting Gradle's commercial Terms of Use. A licensing decision, not
+  a technical one.
 
 ### Added
 
