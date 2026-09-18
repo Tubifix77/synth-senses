@@ -13,29 +13,27 @@ Read `README.md` for the design and `docs/PROTOCOL.md` for the wire format.
 Read `docs/VALIDATION.md` before touching any of the maths — it records which
 algorithms were verified, and which earlier designs failed and why.
 
-## Status: the build is not green yet
+## Status: green
 
-Do not trust the README's framing on this; it is being corrected. The accurate
-picture:
+All four CI jobs pass — assemble debug, android lint, unit tests, receiver smoke
+test. A debug APK is produced. 25 of 25 unit tests pass.
 
-- The Kotlin **has now been compiled**. Source errors are fixed.
-- `tools/receiver.py` passes in CI.
-- The remaining failure is dependency resolution, not code:
-  `:app:checkDebugAarMetadata` rejects
-  `androidx.lifecycle:lifecycle-runtime-compose-android:2.11.0`, which demands
-  `minCompileSdk=37` / AGP 9.1 while this project is on compileSdk 36 / AGP 8.13.2.
-  It arrives **transitively**, so pinning the direct `lifecycle-*` artifacts is
-  not sufficient on its own.
-- Unit tests exist but have never executed, because the build fails before
-  reaching them. Getting them to run for the first time is the single most
-  valuable next step.
+How it got there, because the shape of it is the lesson: Kotlin source errors,
+then build DSL errors, then three rounds of dependency metadata, then test
+source errors, then four real test failures. Every layer was hiding the next.
 
-Two ways forward, both legitimate:
+The dependency ceiling still matters and is now enforceable locally. Lifecycle
+is pinned to **2.10.0**: the 2.11.0 family drags in
+`lifecycle-runtime-compose-android`, which demands `minCompileSdk=37` and AGP
+9.1, and it arrives transitively so pinning the direct artifacts cannot fix it.
+`tools/transitive_sweep.py` resolves the whole graph and checks every AAR.
 
-1. Constrain the transitive dependency down to a version whose
-   `minCompileSdk <= 36`. Least disruption.
-2. Move the whole project to AGP 9.x + compileSdk 37. Cleaner long-term, but AGP
-   9 is a major release with DSL breaks, so expect several iterations.
+Moving to AGP 9.x + compileSdk 37 is still the cleaner long-term answer, and is
+now a real choice rather than a forced one. AGP 9 is a major release with DSL
+breaks, so expect several iterations if you take it on.
+
+What is genuinely untested is everything that needs hardware. No percept has
+ever come off a real phone.
 
 ## The critical constraint: there is no local Android toolchain
 
@@ -80,7 +78,16 @@ Useful techniques, all pure Python with no dependencies:
 
 A hard-won lesson: **that last check must cover transitive dependencies, not
 just direct ones.** Checking only the direct list is exactly what let
-`lifecycle-runtime-compose` through.
+`lifecycle-runtime-compose` through. `tools/transitive_sweep.py` now does this
+properly — it resolves the full debug runtime graph the way Gradle does (module
+metadata, BOM platforms, constraints, highest-version-wins to a fixed point) and
+reads each AAR's metadata over HTTP range requests. Run it before any dependency
+change; exit code 1 means CI would fail:
+
+```bash
+python tools/transitive_sweep.py                       # check the current pins
+python tools/transitive_sweep.py --set androidx.lifecycle:lifecycle-service=2.11.0
+```
 
 ## Do not blindly merge the Dependabot PRs
 
@@ -118,6 +125,7 @@ app/src/main/java/net/synthsenses/
     Voice.kt               TTS out
 app/src/test/java/.../     JVM unit tests, no emulator needed
 tools/receiver.py          stdlib two-way receiver + command console
+tools/transitive_sweep.py  whole-graph AAR metadata check, run before dep bumps
 ```
 
 ## Invariants
@@ -158,23 +166,24 @@ guard for a bug where midnight and noon returned identical solar elevation.
 If a change to those algorithms makes these tests fail, the change is wrong
 until proven otherwise.
 
-## Docs currently containing stale claims
+## Docs
 
-Part of finishing the build is correcting these. They are wrong *now*:
+The "never compiled" claims in `README.md`, `docs/VALIDATION.md` and
+`CONTRIBUTING.md` have been corrected, along with the repeated prediction that
+MediaPipe `tasks-audio` would be the breakage — it compiled fine and produced
+zero errors, while the real failure was CameraX code nobody had flagged.
+`app/src/main/assets/README.md` now gives the direct, scriptable YAMNet URL
+(`https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/latest/yamnet.tflite`,
+4,126,810 bytes, sha256
+`4d8b4a53282dc83ef04e3e7dbc4fbc98082e34e44ed798e16c3a0cdd4c584faf`, all three
+verified against the copy on disk) rather than sending people to Kaggle.
 
-- The "never compiled" badge and status sections in `README.md`,
-  `docs/VALIDATION.md` and `CONTRIBUTING.md`.
-- The repeated warning that MediaPipe `tasks-audio` is the likely breakage.
-  **It compiled fine.** `AudioSensor.kt` produced zero errors. The real failure
-  was in `VisionSensor.kt`, in CameraX code that had never been flagged.
-- `app/src/main/assets/README.md` sends people to Kaggle for YAMNet. There is a
-  direct, scriptable URL that works:
-  `https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/latest/yamnet.tflite`
-  (4,126,810 bytes, sha256
-  `4d8b4a53282dc83ef04e3e7dbc4fbc98082e34e44ed798e16c3a0cdd4c584faf`).
-
-Update these only once they are actually untrue — the honesty of the status
-section is a feature of this repo, not boilerplate to be tidied away.
+The rule that produced those corrections still applies to whatever you write
+next: **state only what has actually been observed, and update a status claim
+only once it is genuinely untrue.** The honesty of the status section is a
+feature of this repo, not boilerplate to be tidied away. `docs/VALIDATION.md`
+records a 96.5% room-separation rate rather than rounding it to "works" for
+exactly this reason.
 
 ## Still unmeasured
 

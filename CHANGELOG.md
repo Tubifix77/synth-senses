@@ -9,7 +9,37 @@ the app version whenever the shape changes in a way that breaks receivers.
 
 ## [Unreleased]
 
-- Nothing yet.
+No wire-format change: `schema` stays at 2.
+
+### Fixed
+
+- **`PlaceMemory` could not recognise a place twice.** A place on its first
+  visit fails its own persistence filter, so its coverage was zero against every
+  scan and it never received a second observation — every scan minted a new
+  place. A place is now *learning* for its first six visits: no persistence
+  filter, a lower recognition bar, and every recognition teaches it. Settled
+  places are unaffected. See [docs/VALIDATION.md](docs/VALIDATION.md).
+- `VisionSensor.bind()` used `kotlinx.coroutines.tasks.await` on a
+  `ListenableFuture`. Now uses CameraX's own `awaitInstance`.
+- Kotlin 2.x build DSL: `jvmTarget` moved to `compilerOptions`.
+- `TempoSensorTest` passed `Int` expressions to `assertEquals`'s `Double`
+  overload, so the test sources did not compile.
+
+### Changed
+
+- Lifecycle pinned to 2.10.0. The 2.11.0 family pulls
+  `lifecycle-runtime-compose-android` in transitively, which demands
+  compileSdk 37 and AGP 9.1.
+- Gradle wrapper points at 8.14.3, matching CI and AGP 8.13's requirement.
+
+### Added
+
+- `tools/transitive_sweep.py` — resolves the whole runtime dependency graph the
+  way Gradle does and reads each AAR's `aar-metadata.properties`, so a
+  `checkDebugAarMetadata` rejection can be predicted locally rather than
+  discovered in CI. Pure stdlib.
+- CI now proves what it previously only attempted: a debug APK is assembled and
+  25 unit tests run on every push.
 
 ## [0.2.0] — 2026-09-18
 

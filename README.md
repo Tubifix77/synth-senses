@@ -7,10 +7,10 @@
 <p align="center">
   <a href="https://github.com/Tubifix77/synth-senses/actions/workflows/build.yml"><img alt="build" src="https://github.com/Tubifix77/synth-senses/actions/workflows/build.yml/badge.svg"></a>
   <img alt="platform" src="https://img.shields.io/badge/platform-Android%2010%2B-3DDC84">
-  <img alt="language" src="https://img.shields.io/badge/kotlin-2.0-7F52FF">
+  <img alt="language" src="https://img.shields.io/badge/kotlin-2.4-7F52FF">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
   <img alt="schema" src="https://img.shields.io/badge/percept%20schema-v2-orange">
-  <img alt="status" src="https://img.shields.io/badge/status-draft%20%E2%80%94%20uncompiled-yellow">
+  <img alt="status" src="https://img.shields.io/badge/status-builds%20%C2%B7%20untested%20on%20hardware-yellow">
 </p>
 
 ---
@@ -51,20 +51,29 @@ only traffic on the wire is percepts out and commands in.
 
 ## Status
 
-Working draft, **not yet compiled**. The Kotlin was written without access to an
-Android SDK, so treat it as a careful first pass rather than tested output.
+It builds. CI assembles a debug APK, passes Android Lint, and runs 25 JVM unit
+tests on every push; all four jobs are green.
 
-What *has* been tested:
+What that does and does not buy you:
 
-- `tools/receiver.py` end to end against a simulated phone — WebSocket handshake,
-  percept stream, backlog flush, and all eleven commands round-tripping with replies.
-- The maths in `Habituation.kt`, `PlaceMemory.kt` and `TempoSensor.kt`, prototyped
-  and validated separately. See [docs/VALIDATION.md](docs/VALIDATION.md) — two of
-  the three had bugs that testing caught and the design changed as a result.
+- **Verified.** It compiles and packages. The three algorithms behave the way
+  [docs/VALIDATION.md](docs/VALIDATION.md) describes — this time measured
+  against the shipped Kotlin rather than a Python model of it.
+- **Verified, and worth the trouble.** The first run of those tests found a bug
+  no model of the algorithm could have found: `PlaceMemory` could not recognise
+  a place a second time, because a place created moments ago fails its own
+  persistence filter. Every scan minted a new place. Eighteen visits to one
+  room produced eighteen rooms.
+- **Not verified.** Anything needing hardware. No percept has ever come off a
+  real phone. Sensor thresholds are reasoned from magnitudes rather than
+  measured, and the `ImageProxy` lifetime in `VisionSensor.onFrame` remains the
+  most suspect code here.
+- `tools/receiver.py` is tested end to end against a simulated phone —
+  handshake, percept stream, backlog flush, and all eleven commands
+  round-tripping with replies.
 
-If something fails to compile, the likely candidates are MediaPipe's
-`tasks-audio` builder API, which has shuffled between releases, and the dependency
-versions, which were written from memory.
+So trust it to build, and to gate attention sensibly. Do not trust a number
+that came off a sensor until you have watched that sensor yourself.
 
 ## Quick start
 

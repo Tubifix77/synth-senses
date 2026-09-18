@@ -2,10 +2,13 @@
 
 ## The state of things
 
-This is a working draft that has **never been compiled**. The most valuable
-contribution right now is getting it to build and reporting what broke —
-see [docs/VALIDATION.md](docs/VALIDATION.md) for the list of things most likely
-to be wrong.
+It builds, and the unit tests run: CI assembles a debug APK, runs Android Lint
+and executes 25 JVM unit tests on every push. What has never happened is any of
+it running on a phone. No percept has ever been produced by real hardware.
+
+So the most valuable contribution now is a device and half an hour of
+`adb logcat` — see the table below, and the list of unmeasured constants in
+[docs/VALIDATION.md](docs/VALIDATION.md).
 
 ## Setup
 

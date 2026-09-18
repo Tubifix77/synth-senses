@@ -8,15 +8,16 @@ untested. Written so you know which parts to trust.
 | Component | Status |
 |---|---|
 | `tools/receiver.py` | tested end to end against a simulated phone |
-| `Habituation.kt` curve | prototyped and validated |
-| `PlaceMemory.kt` coverage metric | prototyped, **failed**, redesigned, revalidated |
-| `TempoSensor.kt` solar maths | prototyped, **bug found**, fixed, validated against almanac |
-| All Kotlin | **never compiled** — no Android SDK available when written |
+| `Habituation.kt` curve | prototyped, validated, now unit-tested |
+| `PlaceMemory.kt` coverage metric | prototyped, **failed**, redesigned, revalidated — then the unit tests found a **fourth** failure |
+| `TempoSensor.kt` solar maths | prototyped, **bug found**, fixed, validated against almanac, now unit-tested |
+| All Kotlin | **compiles** — CI assembles a debug APK, lints, and runs 25 unit tests per push |
 | On-device behaviour | **entirely untested** — thresholds are reasoned, not measured |
 
-Two of the three algorithms had real bugs that testing caught. That is the
-argument for the tests, and also the reason to be suspicious of the parts that
-weren't tested.
+Every algorithm here has had a real bug caught by testing it, and one of them
+had a bug that only appeared once the tests ran against the shipped Kotlin
+rather than against a model of it. That is the argument for the tests, and the
+reason to be suspicious of everything in the last row.
 
 ## Receiver, end to end
 
@@ -179,6 +180,72 @@ Results, 12 revisits each, after 6 training visits:
 | 25% | 0.93 | recognised |
 | 40%+ | 1.00 | recognised |
 
+### Fourth failure: the bootstrap, found by the unit tests
+
+Everything above validated the *metric*. The prototype trained each place by
+calling `observe()` directly, so it never exercised the path a real phone takes,
+which is `recognise()` deciding for itself that this scan belongs to a place it
+already has. The first time the unit tests ran against the shipped Kotlin, four
+of the nine `PlaceMemoryTest` cases failed, and the reason was total:
+
+```
+  18 visits to one quiet room  ->  18 places
+```
+
+A place created moments ago has been visited once, so every anchor it holds has
+`seen = 1`. The persistence filter demands `seen >= MIN_SEEN`, which is 2. So
+every one of its own anchors was skipped, its expected weight was zero, its
+coverage against any scan was zero, it was never recognised a second time, and
+therefore never received a second observation. The filter that makes the metric
+robust at maturity made it impossible to reach maturity. Not a degradation — a
+deadlock, on every input, for the entire life of the app.
+
+The fix is a learning window. For its first `LEARNING_VISITS` (6) visits a place
+is scored on everything it has seen, weighted by how often; it is recognised at
+`LEARNING_RECOGNISE` (0.35) rather than 0.50, because its denominator still
+holds the passers-by of its first visit at full persistence and that biases its
+coverage down to ~0.66 where a settled place scores ~0.94; and every recognition
+teaches it. Nothing about a settled place changed.
+
+Verified before the Kotlin was written, by porting `kotlin.random.XorWowRandom`
+bit-for-bit and replaying the test scenarios on the exact fingerprints JUnit
+generates from `Random(7)`. Across 2000 random seeds, the eight of the nine
+cases that the simulation reproduces went from 50% passing to 98.8%.
+
+### Remeasured, against the shipped class
+
+The tables above are the prototype's. These are the same scenarios driven
+through `PlaceMemory.recognise()` itself, 12 revisits after 6 training visits,
+averaged over 200 seeds:
+
+| Scenario | Recognised | Mean coverage | Prototype said |
+|---|---|---|---|
+| Quiet room, light drift | 12/12 | 0.94 | 12/12, 0.97 |
+| Dense env, 60% of anchors drop | 8/12 | 0.52 | 8/12, 0.66 |
+| Very dense, 75% drop, 20 transients | 0/12 | 0.14 | 3/12, 0.23 |
+| Brutal, 85% drop, 30 transients | 0/12 | 0.04 | 0/12, 0.00 |
+| BLE only, 3 fixed + 4 random/visit | 12/12 | — | 12/12 |
+| BLE only, 2 fixed + 6 random/visit | 12/12 | — | 12/12 |
+
+Separation, over 2000 seeds:
+
+| Should stay new | Claimed as a known place |
+|---|---|
+| Street outside, unrelated 40-device scan | 0 out of 4000 |
+| One random device | 0 out of 2000 |
+| Adjacent room, 4 shared access points | 69 out of 2000 |
+
+That last row is the honest one, and it is worth stating plainly rather than
+tuning away: keeping a room distinct from the room next door is a **96.5%**
+property of this metric, not a guarantee. 65 of those 69 were settled places
+claiming the neighbour, not learning ones, so it is a property of the original
+coverage metric rather than of the learning window. `PlaceMemoryTest` uses a
+fixed seed on which it separates correctly.
+
+`LEARNING_VISITS` has a cliff at 9: a place that is still learning is matched
+leniently, so leaving it lenient for longer than it takes to settle is exactly
+how the neighbour gets absorbed. Do not raise it past 8 without re-running this.
+
 ### Known limitation
 
 A location with no stable anchors at all — a station concourse where 85% of what
@@ -236,13 +303,41 @@ Exact to the minute. The bisection absorbs the equation-of-time error that the
 closed-form hour angle leaves behind, which is why this is better than the
 underlying approximation deserves.
 
+## Compilation, and what it cost
+
+It compiles now, and the history is worth keeping because the guesses in it were
+wrong in an instructive way. The order the failures actually came in:
+
+1. **Kotlin source.** One real error, in `VisionSensor.bind()`:
+   `ProcessCameraProvider.getInstance()` returns a `ListenableFuture`, not a
+   Play Services `Task`, so `kotlinx.coroutines.tasks.await` did not apply, type
+   inference collapsed, and it took `unbindAll()` and `bindToLifecycle()` down
+   with it. CameraX ships `ProcessCameraProvider.Companion.awaitInstance(Context)`
+   for this, confirmed by grepping the constant pool of the published 1.6.2 AAR.
+2. **Build DSL.** Kotlin 2.x removed `kotlinOptions`; `jvmTarget` moved to the
+   `compilerOptions` DSL.
+3. **Dependency metadata**, three rounds of it, ending with
+   `lifecycle-runtime-compose-android:2.11.0` demanding `minCompileSdk=37` and
+   AGP 9.1. It is not a direct dependency — `activity-compose` asks for 2.9.4
+   and Compose UI for 2.8.7, and the sibling constraints on the directly pinned
+   `lifecycle-*` artifacts aligned the whole family up to 2.11.0. Pinning the
+   direct artifacts could not have fixed it. `tools/transitive_sweep.py` now
+   resolves the entire runtime graph the way Gradle does and reads every AAR's
+   `aar-metadata.properties`, so this class of failure is answerable in seconds
+   instead of in four-minute CI cycles.
+4. **Test sources**, which had never been compiled either: `assertEquals` with
+   an `Int` expression where the `Double` overload was needed.
+
+**MediaPipe was never the problem.** Every version of this document and the
+README predicted that `tasks-audio` would be the breakage. `AudioSensor.kt`
+produced zero errors. The real failure was in CameraX code nobody had flagged.
+A reminder that a confident guess about which dependency will break is still a
+guess.
+
 ## Not tested at all
 
 Everything that needs real hardware:
 
-- **Compilation.** No Android SDK was available. The most likely breakages are
-  MediaPipe's `tasks-audio` builder API, which has moved between releases, and
-  the dependency versions, written from memory.
 - **The `ImageProxy` lifetime hack** in `VisionSensor.onFrame` holds the proxy
   open for 1.5 s on a background thread while ML Kit reads the planes. This is
   the single most suspect piece of code in the repo. If you see "ImageProxy
