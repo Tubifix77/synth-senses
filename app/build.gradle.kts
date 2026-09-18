@@ -65,14 +65,18 @@ kotlin {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("androidx.lifecycle:lifecycle-service:2.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.activity:activity-compose:1.13.0")
 
-    // Compose (settings UI only)
-    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    // Compose (settings UI only). 2026.06.01 is the newest BOM that AGP 8.x
+    // can consume: 2026.08.00 and later declare minCompileSdk=37 and
+    // minAndroidGradlePluginVersion=9.1.0. Same story for core-ktx 1.19.0,
+    // hence 1.18.0 below. Both confirmed by reading the published
+    // aar-metadata.properties rather than by trial and error.
+    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
