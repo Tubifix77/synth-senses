@@ -54,6 +54,25 @@ the build files, so a bare run always checks against the real ceiling. Pass
 What is genuinely untested is everything that needs hardware. No percept has
 ever come off a real phone.
 
+## How work lands: main, and nothing else
+
+Trunk only. Commit and push straight to `main`. No feature branches, no pull
+requests for your own work, no merge commits.
+
+A red `main` is acceptable here and always has been — CI *is* the compiler, so
+finding out something does not build is the normal result of a push, not an
+incident. The next commit fixes it. There is no branch protection, no reviewer
+waiting and no one else pulling, so a branch buys nothing and costs a PR, a
+merge and a cleanup.
+
+It costs something worse, too: this workflow only runs on push to `main` and on
+`pull_request`, so a branch with no PR gets no CI at all. Branching to "test it
+safely" therefore forces you to open a PR just to get a build, which is pure
+ceremony.
+
+Dependabot's own branches are the exception, because Dependabot makes them.
+Merge or close those; do not create more.
+
 ## The critical constraint: there is no local Android toolchain
 
 The machine has **no JDK, no Android SDK, no adb, no Gradle**. `python`, `git`
