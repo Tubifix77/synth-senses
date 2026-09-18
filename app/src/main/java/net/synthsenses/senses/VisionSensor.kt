@@ -8,6 +8,7 @@ import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.lifecycle.awaitInstance
 import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
@@ -143,7 +144,17 @@ class VisionSensor(
     private suspend fun bind(lens: String) {
         if (provider != null && boundLens == lens) return
 
-        val p = provider ?: ProcessCameraProvider.getInstance(context).await().also {
+        // getInstance() returns a ListenableFuture, NOT a Play Services Task, so
+        // kotlinx.coroutines.tasks.await does not apply to it. That mismatch was
+        // this project's first real compile failure: type inference collapsed and
+        // took unbindAll() and bindToLifecycle() down with it.
+        //
+        // CameraX ships a proper suspend extension. Verified present in the 1.6.2
+        // AAR as:
+        //   ProcessCameraProvider.Companion.awaitInstance(Context)
+        // The ML Kit .await() calls below ARE Play Services Tasks, so that import
+        // stays.
+        val p = provider ?: ProcessCameraProvider.awaitInstance(context).also {
             provider = it
         }
         p.unbindAll()
