@@ -100,7 +100,7 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Ears. 0.10.14 provably compiled; staying on the same 0.10 line.
-    implementation("com.google.mediapipe:tasks-audio:0.10.35")
+    implementation("com.google.mediapipe:tasks-audio:1.0.0")
 
     // Uplink
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
