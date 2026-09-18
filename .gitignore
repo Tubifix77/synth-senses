@@ -1,0 +1,53 @@
+# ---- Android / Gradle ----
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+release/
+
+# Keep gradle-wrapper.properties, ignore the binary jar.
+# Android Studio regenerates it on sync, or run `gradle wrapper`.
+gradle/wrapper/gradle-wrapper.jar
+
+# Signing material — never commit these
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# ---- ML models ----
+# Not redistributed here: see app/src/main/assets/README.md
+*.tflite
+*.task
+
+# ---- Python tooling ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---- Runtime output from tools/receiver.py ----
+percepts.jsonl
+*.jsonl
+
+# ---- Editors / OS ----
+*.swp
+*~
+Thumbs.db
+
+# ---- Transfer artefact ----
+_bundle.txt
+_unpack.py

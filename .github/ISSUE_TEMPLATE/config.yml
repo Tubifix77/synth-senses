@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Protocol question
+    url: https://github.com/Tubifix77/synth-senses/blob/main/docs/PROTOCOL.md
+    about: Percept schema, frame types and the full command reference.
+  - name: Is this threshold right?
+    url: https://github.com/Tubifix77/synth-senses/blob/main/docs/VALIDATION.md
+    about: What's been validated, what's guessed, and how to measure the rest.
+  - name: Security or privacy concern
+    url: https://github.com/Tubifix77/synth-senses/security/advisories/new
+    about: Please report privately rather than in a public issue.

@@ -1,0 +1,113 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: assemble debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # The wrapper JAR isn't committed, so provision Gradle directly.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      # yamnet.tflite is deliberately absent — AudioSensor degrades at runtime,
+      # so its absence must not break the build. This job proves that.
+      - name: Assemble
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synth-senses-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14
+
+  lint:
+    name: android lint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: gradle --no-daemon lintDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+  tools:
+    name: receiver smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Syntax check
+        run: python3 -m py_compile tools/receiver.py
+
+      - name: POST a percept and check it is accepted
+        run: |
+          python3 tools/receiver.py --port 8077 --log /tmp/p.jsonl --no-console &
+          sleep 2
+          cat > /tmp/percept.json <<'JSON'
+          {"schema":2,"device_id":"ci","seq":1,"ts":"2026-01-01T00:00:00.000Z",
+           "trigger":"first",
+           "attention":{"salience":1.0,"novel":["v:Room"],"known_tokens":1,
+                        "dishabituated":false,"floor_reason":null},
+           "vision":null,"hearing":null,"radio":null,
+           "body":{"motion":"still","posture":"face_up","accel_rms":0.0,"gyro_rms":0.0,
+                   "heading_deg":null,"steps":null,"steps_delta":null,"lux":null,
+                   "covered":null,"magnetic_ut":null,"magnetic_anomaly":null,
+                   "pressure_hpa":null,"pressure_delta_per_min":null},
+           "self":{"battery":1.0,"charging":true,"battery_temp_c":null,"current_ma":null,
+                   "voltage_v":null,"thermal":"NONE","thermal_headroom":null,
+                   "mem_free_pct":0.5,"mem_low":false,"storage_free_pct":null,
+                   "screen_on":false,"net":"wifi","uptime_s":1},
+           "tempo":{"local_time":"00:00","tz_offset_min":0,"day_of_week":"Thursday",
+                    "part_of_day":"deep night","solar_elevation_deg":null,
+                    "is_daylight":null,"minutes_to_sunset":null,
+                    "minutes_since_sunrise":null,"day_length_min":null},
+           "gps":null,"narration":"CI percept."}
+          JSON
+          code=$(curl -s -o /tmp/resp.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data @/tmp/percept.json http://127.0.0.1:8077/percept)
+          echo "HTTP $code / $(cat /tmp/resp.json)"
+          test "$code" = "200"
+          grep -q '"accepted": 1' /tmp/resp.json
+          test -s /tmp/p.jsonl

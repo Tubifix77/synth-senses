@@ -1,0 +1,50 @@
+name: Feature or new sense
+description: Propose a capability, a new sense, or a design change
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What should it sense or do
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's worth having
+      description: |
+        What does it let the receiving AI understand that it can't now? A sense
+        that only adds numbers is less interesting than one that adds a kind of
+        awareness.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cost
+    attributes:
+      label: Permission cost
+      options:
+        - None — free to read
+        - Normal runtime permission
+        - Special grant (notification access, usage stats, etc.)
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: Android API involved
+      description: If you know which class or sensor type provides it.
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Design constraints
+      description: New senses in this project need to meet these.
+      options:
+        - label: It degrades gracefully — `null` when hardware or permission is absent
+        - label: It can be switched off independently
+        - label: It ships off by default if it needs a special grant
+        - label: No raw identifiers or media leave the device

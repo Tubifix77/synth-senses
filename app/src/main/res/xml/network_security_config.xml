@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is permitted so you can POST to a box on your LAN by IP
+  (http://192.168.1.x:8077/percept). If your uplink ever leaves the LAN,
+  set cleartextTrafficPermitted="false" and use HTTPS — percepts contain
+  transcripts of what people said near the phone.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

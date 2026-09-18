@@ -1,0 +1,81 @@
+name: Bug report
+description: Something is broken, crashes, or reports the wrong thing
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Note the project status: the Kotlin has never been compiled. If you hit a
+        build error you are probably the first — that's a useful report, not a
+        nuisance.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Build / compile error
+        - Vision (camera, labels, OCR)
+        - Hearing (sound classes, transcription)
+        - Radio (BLE, WiFi, place learning)
+        - Body (motion, posture, steps, sensors)
+        - Self (thermal, battery, memory)
+        - Tempo (time, solar)
+        - Habituation / attention
+        - Link (WebSocket, HTTP, spool)
+        - Voice (TTS)
+        - Control panel UI
+        - tools/receiver.py
+        - Docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. Set endpoint to ws://...
+        2. Enable BLE, disable vision
+        3. Press Start
+        4. ...
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: Xiaomi 14, Android 15 (HyperOS 2)
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+      placeholder: 0.2.0, or a commit SHA
+
+  - type: textarea
+    id: percept
+    attributes:
+      label: Relevant percept or log
+      description: |
+        A percept JSON or `adb logcat` excerpt helps a lot.
+        **Redact transcripts and SSIDs before pasting.**
+      render: json
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I checked the relevant permission in the README's permission table
+        - label: If it's a sound-class problem, I confirmed `yamnet.tflite` is in assets
+        - label: I removed anything private from the pasted logs
