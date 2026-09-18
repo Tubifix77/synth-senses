@@ -31,10 +31,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
     }
@@ -46,6 +42,25 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    testOptions {
+        unitTests {
+            // android.jar on the unit-test classpath is a stub whose methods all
+            // throw. Habituation and PlaceMemory persist through org.json, so
+            // without a real implementation on the test classpath (below) every
+            // save/load would blow up. This flag covers the remaining stubs.
+            isReturnDefaultValues = true
+            all { it.testLogging { events("passed", "failed", "skipped") } }
+        }
+    }
+}
+
+// Kotlin 2.x removed the kotlinOptions DSL; jvmTarget now lives here and must
+// match the Java compileOptions above.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -82,4 +97,12 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
+
+    // Unit tests for the three validated algorithms. These run on a plain JVM —
+    // no emulator, no Robolectric — because Habituation and PlaceMemory take a
+    // File rather than a Context.
+    testImplementation("junit:junit:4.13.2")
+    // The REAL org.json, shadowing the android.jar stub that would otherwise
+    // throw on every JSONObject call.
+    testImplementation("org.json:json:20260814")
 }

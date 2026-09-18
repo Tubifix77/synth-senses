@@ -24,7 +24,15 @@ import kotlin.math.exp
  * Traces persist to disk, which is the point — habituation *is* memory, and it
  * shouldn't reset because the service restarted.
  */
-class Habituation(context: Context) {
+class Habituation(private val file: File) {
+
+    /**
+     * Production entry point. The File-based primary constructor exists so the
+     * model can be exercised by plain JVM unit tests — the Context dependency
+     * was the only thing forcing Robolectric, and the maths is the part worth
+     * testing.
+     */
+    constructor(context: Context) : this(File(context.filesDir, "habituation.json"))
 
     companion object {
         private const val TAG = "Habituation"
@@ -50,7 +58,6 @@ class Habituation(context: Context) {
     )
 
     private val traces = HashMap<String, Trace>()
-    private val file = File(context.filesDir, "habituation.json")
 
     /** Per-prefix gain, settable by the box: "attend to sound, ignore the walls." */
     private val gains = HashMap<String, Float>()

@@ -91,7 +91,7 @@ object TempoSensor {
 
     // ---- solar position ----
 
-    private fun daysSinceJ2000(ms: Long): Double = (ms - J2000_MS) / MS_PER_DAY
+    internal fun daysSinceJ2000(ms: Long): Double = (ms - J2000_MS) / MS_PER_DAY
 
     /**
      * Sun elevation above the horizon, in degrees.
@@ -119,14 +119,14 @@ object TempoSensor {
         )
     }
 
-    private class SunEvents(val sunriseMs: Long?, val sunsetMs: Long?)
+    internal class SunEvents(val sunriseMs: Long?, val sunsetMs: Long?)
 
     /**
      * Sunrise and sunset for the local calendar day containing nowMs, found by
      * closed-form hour angle then refined. Returns nulls above the arctic circle
      * in the appropriate season, which is correct — there genuinely isn't one.
      */
-    private fun sunEvents(latDeg: Double, lonDeg: Double, nowMs: Long, tz: TimeZone): SunEvents? {
+    internal fun sunEvents(latDeg: Double, lonDeg: Double, nowMs: Long, tz: TimeZone): SunEvents? {
         return runCatching {
             val cal = Calendar.getInstance(tz).apply {
                 timeInMillis = nowMs

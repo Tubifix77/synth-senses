@@ -51,7 +51,10 @@ import kotlin.math.min
  * The box names places over the link. That division is the interesting part: the
  * phone discovers that a place exists, the AI decides what it is.
  */
-class PlaceMemory(context: Context) {
+class PlaceMemory(private val file: File) {
+
+    /** Production entry point; see Habituation for why the File constructor exists. */
+    constructor(context: Context) : this(File(context.filesDir, "places.json"))
 
     companion object {
         private const val TAG = "PlaceMemory"
@@ -98,7 +101,6 @@ class PlaceMemory(context: Context) {
     }
 
     private val places = LinkedHashMap<String, Known>()
-    private val file = File(context.filesDir, "places.json")
     private var nextId = 1
 
     init {
