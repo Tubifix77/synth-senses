@@ -11,7 +11,7 @@ untested. Written so you know which parts to trust.
 | `Habituation.kt` curve | prototyped, validated, now unit-tested |
 | `PlaceMemory.kt` coverage metric | prototyped, **failed**, redesigned, revalidated — then the unit tests found a **fourth** failure |
 | `TempoSensor.kt` solar maths | prototyped, **bug found**, fixed, validated against almanac, now unit-tested |
-| All Kotlin | **compiles** — CI assembles a debug APK, lints, and runs 70 unit tests per push |
+| All Kotlin | **compiles** — CI assembles a debug APK, lints, and runs 71 unit tests per push |
 | The APK itself | **opened and checked** — manifest, dex contents and packaged assets |
 | On-device behaviour | **entirely untested** — thresholds are reasoned, not measured |
 

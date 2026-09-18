@@ -62,7 +62,7 @@ No wire-format change: `schema` stays at 2.
   `checkDebugAarMetadata` rejection can be predicted locally rather than
   discovered in CI. Pure stdlib.
 - CI now proves what it previously only attempted: a debug APK is assembled and
-  70 unit tests run on every push.
+  the unit-test suite runs on every push.
 - Tests for the invariants that had none: token bucketing, null-not-fabricated
   sense blocks on the wire, the FNV-1a identifier hash pinned to golden values,
   the bounded backlog, inbound command parsing and the narrator. `Spool` takes

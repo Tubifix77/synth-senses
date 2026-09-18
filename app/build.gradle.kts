@@ -128,9 +128,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
 
-    // Unit tests for the three validated algorithms. These run on a plain JVM —
-    // no emulator, no Robolectric — because Habituation and PlaceMemory take a
-    // File rather than a Context.
+    // Unit tests. These run on a plain JVM — no emulator, no Robolectric —
+    // because the classes that touch storage take a File, with a Context
+    // convenience constructor, rather than requiring a Context outright.
+    // Beyond the three validated algorithms they cover the wire schema, the
+    // stimulus vocabulary, the backlog bound, inbound command parsing, the
+    // narrator, and the identifier hashing that keeps raw MACs off the wire.
     testImplementation("junit:junit:4.13.2")
     // The REAL org.json, shadowing the android.jar stub that would otherwise
     // throw on every JSONObject call.

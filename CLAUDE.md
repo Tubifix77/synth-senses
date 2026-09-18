@@ -16,7 +16,9 @@ algorithms were verified, and which earlier designs failed and why.
 ## Status: green
 
 All four CI jobs pass — assemble debug, android lint, unit tests, receiver smoke
-test. A debug APK is produced. 70 of 70 unit tests pass.
+test. A debug APK is produced. Every unit test passes; the suite is 71 tests
+at the time of writing, which is a number worth re-reading from CI rather
+than trusting here.
 
 The APK has been opened and checked, which is how the stray `assets/README.md`
 that was being shipped to devices got found. It is about 178 MiB, almost all of

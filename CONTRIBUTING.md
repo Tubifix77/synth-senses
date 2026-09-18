@@ -3,9 +3,9 @@
 ## The state of things
 
 It builds, and the unit tests run: CI assembles a debug APK, runs Android Lint
-and executes 70 JVM unit tests on every push, covering the three validated
-algorithms plus the wire schema, the stimulus vocabulary, the offline backlog,
-inbound command parsing, the narrator and the identifier hashing. What has never happened is any of
+and executes the JVM unit-test suite on every push. It covers the three
+validated algorithms plus the wire schema, the stimulus vocabulary, the offline
+backlog, inbound command parsing, the narrator and the identifier hashing. What has never happened is any of
 it running on a phone. No percept has ever been produced by real hardware.
 
 So the most valuable contribution now is a device and half an hour of
