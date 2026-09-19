@@ -113,7 +113,7 @@ jobs:
           python-version: '3.12'
 
       - name: Syntax check
-        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py
+        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py tools/digest.py tools/test_digest.py
 
       # The WebSocket is the primary transport and was the one path nothing
       # exercised automatically. Speaks RFC 6455 at the receiver as a real
@@ -126,6 +126,11 @@ jobs:
       # there would not crash, it would quietly give a wrong answer.
       - name: Dependency tool tests
         run: python3 tools/test_transitive_sweep.py
+
+      # The digest redacts OCR text and transcripts by default. That is a
+      # privacy control rather than a formatting choice, so it is tested.
+      - name: Digest tests
+        run: python3 tools/test_digest.py
 
       - name: POST a percept and check it is accepted
         run: |

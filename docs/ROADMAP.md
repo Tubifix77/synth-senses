@@ -25,6 +25,23 @@ evidence.
 
 See [VALIDATION.md](VALIDATION.md) for the full list of unmeasured constants.
 
+### Reading the test
+
+Point the phone at the receiver, let it run, then:
+
+```bash
+python3 tools/digest.py percepts.jsonl
+```
+
+That answers the list above directly rather than by scrolling JSONL. It breaks
+`accel_rms` down per motion state, which is the measurement the `BodySensor`
+thresholds need; reports battery movement as points per hour; and flags gaps
+over three minutes, which is what a killed service looks like.
+
+It **redacts OCR text and transcripts by default**, so its output is safe to
+paste somewhere or hand to an assistant. `--raw` includes them once you have
+decided that is fine.
+
 ## 2. Then, the bridge
 
 **Context.** This project is the sensory apparatus for a separate project of

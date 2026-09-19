@@ -107,16 +107,41 @@ four-minute CI cycles; that artifact is never named in the build file.
 
 Downloads are cached in `.mvncache/` next to the script, which is gitignored.
 
+## digest.py
+
+Turns a percept log into something you can read, or hand to someone else.
+
+```bash
+python3 digest.py percepts.jsonl
+python3 digest.py percepts.jsonl --raw     # includes OCR text and transcripts
+cat percepts.jsonl | python3 digest.py -
+```
+
+It exists for the hardware test. [`../docs/ROADMAP.md`](../docs/ROADMAP.md)
+lists what a phone has to tell us and none of it is answerable by scrolling
+JSONL: whether the camera produced anything, whether habituation actually
+gated, how fast the battery went, whether the service stalled. In particular
+it breaks `accel_rms` down **per motion state**, which is exactly the
+measurement `BodySensor`'s guessed thresholds need.
+
+**OCR text and speech transcripts are redacted by default**, and reported as
+counts. That is a privacy control, not a formatting choice: OCR text is
+whatever the camera could read, which on a desk means documents and screens,
+and a transcript is what someone in the room said. `--raw` includes them,
+deliberately. There is a test whose whole job is to assert they do not leak.
+
 ## The tests
 
-Both run in CI on every push, and both are stdlib-only.
+All three run in CI on every push, and all are stdlib-only.
 
 | | |
 |---|---|
-| `test_receiver_ws.py` | speaks RFC 6455 at `receiver.py` as a real client: masked frames, a fragmented message, backlog, ping, close, and what reached the log |
+| `test_receiver_ws.py` | speaks RFC 6455 at `receiver.py` as a real client: masked frames, a fragmented message, backlog, ping, close, the stdout/stderr contract, and that a malformed percept cannot break the transport |
 | `test_transitive_sweep.py` | the sweep's pure logic — Gradle version ordering, version ranges, AGP tuples, ceiling detection |
+| `test_digest.py` | that the digest computes what a hardware test needs, and above all that redaction holds |
 
 ```bash
 python3 tools/test_receiver_ws.py
 python3 tools/test_transitive_sweep.py
+python3 tools/test_digest.py
 ```
