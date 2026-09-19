@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end test of the receiver's WebSocket path.
+"""End-to-end test of the receiver's WebSocket path and its output contract.
 
 CI already proved the HTTP POST fallback works. The WebSocket is the primary
 transport and the interesting one — it is what makes the phone an organ with
@@ -9,10 +9,20 @@ flush and command replies all work came from a manual session that nobody can
 re-run.
 
 So: speak RFC 6455 at it as a real client would. Masked frames, a fragmented
-message, a ping, a close handshake, and a check that what went in reached the
-log. Stdlib only, no pip install, same as the receiver itself.
+message, a ping, a close handshake, and a check that what went in came out.
 
-Exit code 0 means the wire protocol behaved.
+It also pins the output contract, which is what makes the receiver composable:
+percepts leave on stdout as one JSON object per line, and everything meant for
+a person leaves on stderr. If prose ever leaks into stdout, a downstream `jq`
+breaks, and the failure would otherwise only show up in someone's pipeline.
+
+Note both pipes are drained on threads. They have to be: once stdout carries
+whole percepts rather than short summaries, a test that lets the pipe fill will
+block the receiver mid-stream and look like a protocol bug. It did exactly that
+once.
+
+Stdlib only, no pip install, same as the receiver itself.
+Exit code 0 means the wire protocol and the output contract both behaved.
 """
 import base64
 import hashlib
@@ -23,6 +33,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -131,20 +142,28 @@ def wait_for_port(port, timeout=20):
     return False
 
 
+def drain(stream, sink):
+    for line in stream:
+        sink.append(line)
+
+
 def main():
     port = free_port()
-    logdir = tempfile.mkdtemp()
-    log = os.path.join(logdir, "percepts.jsonl")
+    log = os.path.join(tempfile.mkdtemp(), "percepts.jsonl")
 
     proc = subprocess.Popen(
         [sys.executable, RECEIVER, "--host", "127.0.0.1", "--port", str(port),
          "--log", log, "--no-console"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
+    out_lines, err_lines = [], []
+    threading.Thread(target=drain, args=(proc.stdout, out_lines), daemon=True).start()
+    threading.Thread(target=drain, args=(proc.stderr, err_lines), daemon=True).start()
+
     try:
         if not wait_for_port(port):
             print("receiver never opened its port")
-            print(proc.stdout.read() if proc.stdout else "")
+            print("".join(err_lines))
             return 1
 
         print("websocket transport")
@@ -173,48 +192,39 @@ def main():
         )
         check("Sec-WebSocket-Accept matches RFC 6455's worked example",
               accept == RFC_EXAMPLE_ACCEPT, f"got {accept!r}")
-        # and the same value derived independently, as a second opinion
         check("and equals an independent derivation",
               accept == base64.b64encode(
                   hashlib.sha1((key + GUID).encode()).digest()).decode())
 
-        # ---- the phone announces itself ----
         sock.sendall(mask_frame(json.dumps(
             {"type": "hello", "schema": 2, "commands": ["sample", "look", "status"]}
         ).encode()))
-
-        # ---- a percept ----
         sock.sendall(mask_frame(json.dumps(percept(1)).encode()))
-
-        # ---- a backlog flush ----
         sock.sendall(mask_frame(json.dumps(
             {"type": "backlog", "percepts": [percept(2), percept(3)]}
         ).encode()))
-
-        # ---- a reply to a command ----
         sock.sendall(mask_frame(json.dumps(
             {"type": "ack", "cmd": "sample", "ok": True, "detail": "sampled"}
         ).encode()))
 
-        # ---- a fragmented percept, which a real client may well send ----
+        # a fragmented percept, which a real client may well send
         big = json.dumps(percept(4, "A" * 400)).encode()
         cut = len(big) // 2
         sock.sendall(mask_frame(big[:cut], opcode=0x1, fin=False))
         sock.sendall(mask_frame(big[cut:], opcode=0x0, fin=True))
 
-        # ---- ping must be answered with a matching pong ----
+        # ping must be answered with a matching pong
         sock.sendall(mask_frame(b"keepalive", opcode=0x9))
         opcode, payload = read_frame(sock)
         check("ping is answered with pong", opcode == 0xA, f"opcode={opcode:#x}")
         check("pong echoes the ping payload", payload == b"keepalive", repr(payload))
 
-        # ---- clean close ----
         sock.sendall(mask_frame(struct.pack(">H", 1000), opcode=0x8))
         time.sleep(0.6)
         sock.close()
-        time.sleep(0.6)
+        time.sleep(0.8)
 
-        # ---- what reached the log ----
+        # ---- what reached the JSONL log ----
         lines = []
         if os.path.exists(log):
             with open(log, encoding="utf-8") as f:
@@ -231,6 +241,66 @@ def main():
             check("the reassembled payload is intact", frag["narration"] == "A" * 400)
         check("a non-percept reply is not logged as a percept",
               all(p.get("type") != "ack" for p in lines))
+
+        # ---- the output contract: data on stdout, people on stderr ----
+        print("\noutput contract")
+        stdout_text = "".join(out_lines)
+        stderr_text = "".join(err_lines)
+        parsed, bad = [], []
+        for line in stdout_text.splitlines():
+            if not line.strip():
+                continue
+            try:
+                parsed.append(json.loads(line))
+            except json.JSONDecodeError:
+                bad.append(line)
+
+        check("stdout is JSON lines and nothing else", not bad, f"offending: {bad[:2]}")
+        check("one line per percept", len(parsed) == 4, f"{len(parsed)} lines")
+        check("the same percepts as the log", sorted(p.get("seq") for p in parsed) == [1, 2, 3, 4],
+              str(sorted(p.get("seq") for p in parsed)))
+        check("the transport envelope is stripped, so every line is a percept",
+              all("type" not in p for p in parsed))
+        check("a command reply never reaches stdout",
+              not any(p.get("cmd") == "sample" for p in parsed))
+        check("the human view went to stderr", "node connected" in stderr_text)
+        check("and the banner too", "listening on ws://" in stderr_text)
+        check("stdout carries no prose", "listening on ws://" not in stdout_text)
+
+        # ---- a malformed percept must not take the transport down ----
+        # Found the hard way: a percept with no "trigger" made the renderer
+        # raise while formatting, the exception escaped to the connection
+        # handler, and the client got no HTTP response at all. A phone reads
+        # that as a failed POST and re-spools the percept, forever.
+        print("\noddly-shaped percepts still get answered")
+        before = len([l for l in "".join(out_lines).splitlines() if l.strip()])
+        odd = [
+            ("no trigger", {"schema": 2, "seq": 91, "narration": "no trigger.",
+                            "attention": {"salience": 0.8}}),
+            ("no attention block", {"schema": 2, "seq": 92, "trigger": "salient",
+                                    "narration": "no attention."}),
+            ("salience is a string", {"schema": 2, "seq": 93, "trigger": "x",
+                                      "narration": "bad salience.",
+                                      "attention": {"salience": "high"}}),
+        ]
+        for label, doc in odd:
+            body = json.dumps(doc)
+            c = socket.create_connection(("127.0.0.1", port), timeout=10)
+            c.sendall((f"POST /percept HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                       f"Content-Type: application/json\r\n"
+                       f"Content-Length: {len(body)}\r\n\r\n{body}").encode())
+            try:
+                status = c.recv(200).split(b"\r\n")[0].decode()
+            except OSError as e:
+                status = f"no response ({e})"
+            c.close()
+            check(f"{label}: answered", status.startswith("HTTP/1.1 200"), status)
+            time.sleep(0.3)
+
+        time.sleep(0.5)
+        after = [l for l in "".join(out_lines).splitlines() if l.strip()]
+        delivered = [json.loads(l).get("seq") for l in after[before:]]
+        check("and all three still reached stdout", delivered == [91, 92, 93], str(delivered))
 
         print(f"\n{len(failures)} failure(s)")
         for f in failures:

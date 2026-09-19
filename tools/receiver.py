@@ -23,10 +23,20 @@ Percepts stream in. Type commands at the prompt to steer the phone's attention:
     status                  full state dump
     quit
 
-Wire your AI in at handle_percept().
+Wire your AI in with a pipe. Percepts leave on stdout as JSON lines, one
+percept per line; everything written for a person leaves on stderr. So:
+
+    python3 receiver.py | jq -r .narration
+    python3 receiver.py | your-ai
+    python3 receiver.py 2>/dev/null | tee percepts.jsonl | your-ai
+
+JSONL is on by default when stdout is not a terminal, and off when it is, so
+running it bare still gives you the readable live view. Force either with
+--jsonl / --no-jsonl. handle_percept() is still there for in-process use.
 """
 
 import argparse
+import builtins
 import base64
 import hashlib
 import json
@@ -40,14 +50,63 @@ from datetime import datetime
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 TOKEN = None
 LOG = None
+STREAM = False          # percepts as JSON lines on stdout
+PROSE = True            # the human rendering, on stderr
 clients = []
 clients_lock = threading.Lock()
+out_lock = threading.Lock()
+
+
+def say(*args, **kwargs):
+    """Anything meant for a person. Always stderr, so stdout stays pipeable."""
+    kwargs["file"] = sys.stderr
+    builtins.print(*args, **kwargs)
+    sys.stderr.flush()
+
+
+def emit(p):
+    """One percept, one line, on stdout. This is the integration point."""
+    if not STREAM:
+        return
+    line = json.dumps(p, ensure_ascii=False)
+    with out_lock:
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+
+
+def deliver(p, node):
+    """Every arriving percept goes through here, whichever transport brought it.
+
+    The websocket wraps a single percept in a frame envelope carrying
+    "type": "percept"; the HTTP body and the percepts inside a backlog do not.
+    Strip it here rather than at each call site, so the guarantee is
+    unconditional: every line of the stream is a percept and nothing else, no
+    matter which way it arrived or what the client chose to include.
+    """
+    if "type" in p:
+        p = {k: v for k, v in p.items() if k != "type"}
+    log_percept(p)
+    emit(p)
+    if PROSE:
+        # The renderer is a convenience. If it trips over an unexpected shape,
+        # that must not reach the transport: the percept is already logged and
+        # already on stdout, and the sender is still owed its response.
+        try:
+            handle_percept(p, node)
+        except Exception as e:
+            say(f"  (could not render percept #{p.get('seq')}: "
+                f"{type(e).__name__}: {e})")
 
 
 # ----------------------------------------------------------------- your hook
 
 def handle_percept(p, node):
-    """One percept arrived. Replace this with the call into your box."""
+    """Render one percept for a person, on stderr.
+
+    This used to be the integration point, which meant integrating by editing
+    a source file. Prefer the pipe: percepts leave on stdout as JSON lines.
+    Edit this only if you want the in-process hook.
+    """
     a = p.get("attention") or {}
     v = p.get("vision") or {}
     h = p.get("hearing") or {}
@@ -57,12 +116,18 @@ def handle_percept(p, node):
     t = p.get("tempo") or {}
 
     sal = a.get("salience")
+    sal = sal if isinstance(sal, (int, float)) else None
     bar = "#" * int(round((sal or 0) * 20))
     stamp = datetime.now().strftime("%H:%M:%S")
+    # Nothing here may assume a field is present or well-typed. This renders
+    # whatever arrives off a network socket, and a missing key is a display
+    # problem, not a reason to drop a percept.
+    trigger = str(p.get("trigger") or "?")
 
-    print(f"\n[{stamp}] #{p.get('seq')} {p.get('trigger'):9s} "
-          f"salience {sal:.2f} |{bar:<20}|")
-    print(f"  {p.get('narration','')}")
+    say(f"\n[{stamp}] #{p.get('seq')} {trigger:9s} "
+          f"salience {sal:.2f} |{bar:<20}|" if sal is not None else
+          f"\n[{stamp}] #{p.get('seq')} {trigger:9s} salience    ? |{bar:<20}|")
+    say(f"  {p.get('narration','')}")
 
     facts = []
     if v: facts.append("sees " + (", ".join(l["name"] for l in v.get("labels", [])) or "—"))
@@ -77,35 +142,33 @@ def handle_percept(p, node):
                        f"{'+' if s.get('charging') else ''}"
                        + (f" {s.get('battery_temp_c')}C" if s.get('battery_temp_c') else ""))
     if t: facts.append(t.get("part_of_day", ""))
-    print("  " + " · ".join(x for x in facts if x))
+    say("  " + " · ".join(x for x in facts if x))
 
     if a.get("novel"):
-        print(f"  novel: {', '.join(a['novel'][:6])}")
+        say(f"  novel: {', '.join(a['novel'][:6])}")
     if a.get("floor_reason"):
-        print(f"  floor: {a['floor_reason']}")
+        say(f"  floor: {a['floor_reason']}")
     if h.get("transcript"):
-        print(f'  said: "{h["transcript"]}"')
-    sys.stdout.flush()
+        say(f'  said: "{h["transcript"]}"')
 
 
 def handle_reply(msg, node):
     kind = msg.get("type")
     if kind == "ack":
-        print(f"  <- ack {msg.get('cmd')}: "
+        say(f"  <- ack {msg.get('cmd')}: "
               f"{'ok' if msg.get('ok') else 'FAILED'} — {msg.get('detail')}")
     elif kind == "places":
-        print("  <- places:")
+        say("  <- places:")
         for pl in msg.get("places", []):
-            print(f"       {pl['id']:>4}  {pl.get('name') or '(unnamed)':<16} "
+            say(f"       {pl['id']:>4}  {pl.get('name') or '(unnamed)':<16} "
                   f"visits {pl['visits']:<5} anchors {pl['anchors']}")
     elif kind == "status":
-        print("  <- status:\n" + json.dumps(msg, indent=6)[:2000])
+        say("  <- status:\n" + json.dumps(msg, indent=6)[:2000])
     elif kind == "hello":
-        print(f"  <- hello from node, schema {msg.get('schema')}, "
+        say(f"  <- hello from node, schema {msg.get('schema')}, "
               f"commands: {', '.join(msg.get('commands', []))}")
     else:
-        print(f"  <- {kind}: {json.dumps(msg)[:300]}")
-    sys.stdout.flush()
+        say(f"  <- {kind}: {json.dumps(msg)[:300]}")
 
 
 # ------------------------------------------------------- websocket framing
@@ -184,7 +247,7 @@ def serve_ws(sock, addr, headers, key):
     node = f"{addr[0]}:{addr[1]}"
     with clients_lock:
         clients.append(sock)
-    print(f"\n*** node connected from {node} — commands are live ***")
+    say(f"\n*** node connected from {node} — commands are live ***")
     try:
         while True:
             opcode, data = ws_read(sock)
@@ -202,18 +265,16 @@ def serve_ws(sock, addr, headers, key):
 
             kind = msg.get("type")
             if kind == "percept":
-                log_percept(msg)
-                handle_percept(msg, node)
+                deliver(msg, node)
             elif kind == "backlog":
                 batch = msg.get("percepts", [])
-                print(f"\n*** backlog flush: {len(batch)} percepts ***")
+                say(f"\n*** backlog flush: {len(batch)} percepts ***")
                 for p in batch:
-                    log_percept(p)
-                    handle_percept(p, node)
+                    deliver(p, node)
             else:
                 handle_reply(msg, node)
     except (ConnectionError, OSError) as e:
-        print(f"\n*** node {node} disconnected ({e}) ***")
+        say(f"\n*** node {node} disconnected ({e}) ***")
     finally:
         with clients_lock:
             if sock in clients:
@@ -242,8 +303,7 @@ def serve_http(sock, body_start, headers):
 
     batch = parsed if isinstance(parsed, list) else [parsed]
     for p in batch:
-        log_percept(p)
-        handle_percept(p, "http")
+        deliver(p, "http")
 
     payload = json.dumps({"accepted": len(batch)}).encode()
     sock.sendall(
@@ -289,7 +349,7 @@ def handle_conn(sock, addr):
             )
             sock.close()
     except Exception as e:
-        print(f"connection error: {e}", file=sys.stderr)
+        say(f"connection error: {e}")
         try:
             sock.close()
         except OSError:
@@ -303,14 +363,14 @@ def send_cmd(obj):
     with clients_lock:
         targets = list(clients)
     if not targets:
-        print("  (no node connected)")
+        say("  (no node connected)")
         return
     for c in targets:
         try:
             c.sendall(frame)
         except OSError:
             pass
-    print(f"  -> {json.dumps(obj)}")
+    say(f"  -> {json.dumps(obj)}")
 
 
 def parse_command(line):
@@ -347,7 +407,7 @@ def parse_command(line):
                 except ValueError:
                     val = raw
         return {"cmd": "set", key: val}
-    print(f"  ? unrecognised: {line}")
+    say(f"  ? unrecognised: {line}")
     return None
 
 
@@ -364,28 +424,49 @@ def console():
 
 
 def main():
-    global TOKEN, LOG
-    ap = argparse.ArgumentParser()
+    global TOKEN, LOG, STREAM, PROSE
+    ap = argparse.ArgumentParser(
+        description="Percepts leave on stdout as JSON lines; "
+                    "anything for a person leaves on stderr.")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8077)
     ap.add_argument("--log", default="percepts.jsonl", help="'' to disable")
     ap.add_argument("--token", default="")
     ap.add_argument("--no-console", action="store_true")
+    ap.add_argument("--jsonl", dest="jsonl", action="store_true", default=None,
+                    help="percepts as JSON lines on stdout "
+                         "(default: on when stdout is not a terminal)")
+    ap.add_argument("--no-jsonl", dest="jsonl", action="store_false",
+                    help="never write JSON lines to stdout")
+    ap.add_argument("--quiet", action="store_true",
+                    help="no per-percept human rendering")
+    ap.add_argument("--pretty", action="store_true",
+                    help="human rendering even while streaming JSONL")
     args = ap.parse_args()
 
     TOKEN = args.token or None
     LOG = args.log or None
+
+    # Piped means something is consuming the data, so give it data. A terminal
+    # means a person is watching, so give them the readable view. Either can be
+    # forced, which is the bit that matters for scripts.
+    STREAM = args.jsonl if args.jsonl is not None else not sys.stdout.isatty()
+    PROSE = (not args.quiet) and (args.pretty or not STREAM)
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((args.host, args.port))
     srv.listen(8)
 
-    print(f"listening on ws://{args.host}:{args.port}/link  (and POST on the same port)")
+    say(f"listening on ws://{args.host}:{args.port}/link  (and POST on the same port)")
     if LOG:
-        print(f"logging to {LOG}")
-    if not args.no_console:
-        print("type commands below once a node connects — 'quit' to exit\n")
+        say(f"logging to {LOG}")
+    if STREAM:
+        say("percepts are going to stdout as JSON lines")
+    # A console needs someone at a keyboard. If stdin is a pipe there is nobody,
+    # and reading it would swallow whatever is being piped in.
+    if not args.no_console and sys.stdin.isatty():
+        say("type commands below once a node connects — 'quit' to exit\n")
         threading.Thread(target=console, daemon=True).start()
 
     while True:

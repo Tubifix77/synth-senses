@@ -37,12 +37,37 @@ endpoint too — just without the command console being any use.
 
 ### Wiring in your own AI
 
-Replace the body of `handle_percept(p, node)`. It's called once per percept,
-including each one in a backlog flush. `p` is the parsed percept dict —
-see [`../docs/PROTOCOL.md`](../docs/PROTOCOL.md) for every field.
+Pipe it. Percepts leave on **stdout, one JSON object per line**; everything
+written for a person leaves on **stderr**. So the receiver composes with
+anything, and integrating does not mean editing this file:
 
-The quick version: `p["narration"]` is prose ready to feed an LLM, and everything
-else is there when you want precision.
+```bash
+python3 receiver.py | your-ai
+python3 receiver.py | jq -r 'select(.attention.salience > 0.7) | .narration'
+python3 receiver.py 2>/dev/null | tee percepts.jsonl | your-ai
+```
+
+Every line is a percept and nothing else. The websocket wraps a single percept
+in a frame carrying `"type": "percept"`; that envelope is stripped, so a
+consumer never has to care whether a percept arrived over the websocket, inside
+a backlog flush, or by HTTP POST. Command replies never appear on stdout.
+
+See [`../docs/PROTOCOL.md`](../docs/PROTOCOL.md) for every field. The quick
+version: `p["narration"]` is prose ready to feed an LLM, and everything else is
+there when you want precision.
+
+| | |
+|---|---|
+| default | JSON lines when stdout is **not** a terminal, readable view when it is |
+| `--jsonl` / `--no-jsonl` | force it either way |
+| `--quiet` | never render the human view |
+| `--pretty` | render it even while streaming JSON lines |
+| `--log ''` | stop also writing `percepts.jsonl`, if you are piping to `tee` |
+
+If you would rather stay in-process, `handle_percept(p, node)` is still called
+once per percept and is still yours to replace. It renders to stderr, and it
+cannot break the transport: if it raises, the percept has already been logged
+and already left on stdout, and the sender still gets its response.
 
 `handle_reply(msg, node)` handles `ack`, `places`, `status` and `hello` frames.
 

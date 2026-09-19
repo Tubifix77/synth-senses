@@ -9,7 +9,30 @@ the app version whenever the shape changes in a way that breaks receivers.
 
 ## [Unreleased]
 
-- Nothing yet.
+### Changed
+
+- **The receiver is composable.** Percepts leave on stdout as one JSON object
+  per line and everything written for a person leaves on stderr, so downstream
+  is a pipe rather than an edit to `handle_percept()`. JSON lines switch on
+  automatically when stdout is not a terminal, so running it bare still gives
+  the readable live view; `--jsonl` / `--no-jsonl` force it, `--quiet` and
+  `--pretty` control the human rendering.
+- The websocket's `"type": "percept"` envelope is stripped before a percept is
+  logged or streamed, so every line is a percept regardless of whether it
+  arrived over the websocket, in a backlog flush, or by HTTP POST. The JSONL
+  log was previously inconsistent about this.
+- The command console only starts when stdin is a terminal. Otherwise it would
+  consume whatever is being piped in.
+
+### Fixed
+
+- **A rendering error could break the transport.** A percept with no `trigger`
+  made the human renderer raise while formatting; the exception escaped to the
+  connection handler and the client received no HTTP response at all, which a
+  phone reads as a failed POST and re-spools forever. The renderer no longer
+  assumes fields are present or well-typed, and `deliver()` isolates it, so
+  logging, the stdout stream and the response never depend on the
+  pretty-printer.
 
 ## [0.3.0] — 2026-09-18
 

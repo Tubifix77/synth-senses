@@ -121,7 +121,17 @@ read                speak hello there  name p3 kitchen
 listen              status             forget habituation
 ```
 
-Wire your own AI in at `handle_percept()` in `tools/receiver.py`.
+Wire your own AI in with a pipe. Percepts leave the receiver on stdout as one
+JSON object per line, and everything meant for a person leaves on stderr:
+
+```bash
+python3 tools/receiver.py | your-ai
+python3 tools/receiver.py | jq -r 'select(.attention.salience > 0.7) | .narration'
+```
+
+Run it bare in a terminal and you get the readable live view instead, because
+JSON lines switch on only when stdout is not a terminal. `--jsonl` and
+`--no-jsonl` force it either way.
 
 ### One manual step
 
