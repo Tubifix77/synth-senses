@@ -278,8 +278,17 @@ Two things to carry into that work:
   console deliberately does not start when stdin is a pipe, leaving that
   channel free for commands as JSON lines in — symmetric with percepts out.
 
+The bridge itself lives **here**, not over there, with a small input adapter on
+the far side. Its work is sensor-domain knowledge, and turning an intent back
+into a command is pure `docs/PROTOCOL.md`. But the seam must be a neutral
+format, JSON lines, never a call into the other project's API: the percept
+schema is versioned and tested while an early consciousness project's input
+format will churn, and importing its client would point the dependency from
+the stable side at the experimental one.
+
 Do not design the bridge against assumptions about the other project. The
-roadmap lists the questions that need answering first.
+roadmap lists the questions that need answering first, and separates the half
+that is blocked on them from the half that is blocked on nothing.
 
 ## Still unmeasured
 

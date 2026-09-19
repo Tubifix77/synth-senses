@@ -32,10 +32,55 @@ the author's, on machine consciousness. This one produces percepts; that one is
 meant to have the experience. The bridge is the piece between them and it does
 not exist yet.
 
-It is deliberately deferred until after the hardware test, for a plain reason:
-designing the interface to a stream nobody has ever seen real output from is
-guesswork. One evening of watching actual percepts arrive will say more about
-what the mind should receive than any amount of speculation now.
+### Where it lives: here, mostly
+
+The bridge belongs in **this** repository, with a small input adapter on the
+other side. Almost all of its work is sensor-domain knowledge: what a report
+should contain, what is worth waking the mind for, how much to send, and how
+to turn an intent back into a command. That last one is pure
+[PROTOCOL.md](PROTOCOL.md) and has no business living anywhere else. The mind
+should never need to know what a lux bucket is or that `attend s 2.0` doubles
+the weight of sound tokens.
+
+It also puts iteration where the tooling is. Retooling what gets sent becomes
+a change here, against a repo that already has the schema, the fixtures, the
+wire-shape test and CI.
+
+**But the seam between the two halves must be a neutral documented format, not
+a function call.** This repo must not import the other project's client
+library or learn its API, because the dependency would then point from the
+stable side to the experimental one: the percept schema is versioned,
+documented and tested, while an early consciousness project's input format
+will churn weekly, and every churn would drag this repo along with it. Emit
+reports as JSON lines and let the adapter over there read them. Then neither
+side knows the other's internals and either can be rewritten alone.
+
+So, concretely:
+
+```
+phone ──ws──▶ receiver ──percepts──▶ bridge ──reports──▶ adapter ──▶ mind
+                  ▲                     │
+                  └──── commands ───────┘◀── intents ────┘
+```
+
+Everything from `receiver` to `bridge` is this repo. `adapter` is the small
+piece over there, and it should stay small enough to rewrite in an afternoon.
+
+### Two halves, and only one of them is blocked
+
+The deferral applies to the half that needs answers this project does not
+have. It is worth separating them, because one can start immediately.
+
+**Blocked on the phone, and on the questions below.** What a report contains,
+how much of it, and when to send it. Designing that against a stream nobody
+has seen real output from is guesswork, and one evening of watching actual
+percepts arrive will say more than any amount of speculation now.
+
+**Blocked on nothing.** Making the phone steerable from code. The return path
+is fully specified by [PROTOCOL.md](PROTOCOL.md) already, depends on no
+decision the other project has to make, and is a prerequisite for every
+version of the bridge. See what is missing, below. This is the piece to build
+first if you want to move before the hardware arrives.
 
 ### Fill this in before starting
 
