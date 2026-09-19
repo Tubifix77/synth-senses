@@ -83,6 +83,12 @@ phone ──ws──▶ receiver ──percepts──▶ bridge ──reports─
 Everything from `receiver` to `bridge` is this repo. `adapter` is the small
 piece over there, and it should stay small enough to rewrite in an afternoon.
 
+[INTEGRATION.md](INTEGRATION.md) is the spec for whoever writes that adapter.
+It describes what exists today rather than what is planned, so it can be coded
+against now: percepts arrive as JSON lines, here is what the fields mean, here
+is what will catch you out, and here is the command vocabulary to design an
+intent model against even though nothing can send one yet.
+
 ### Two halves, and only one of them is blocked
 
 The deferral applies to the half that needs answers this project does not

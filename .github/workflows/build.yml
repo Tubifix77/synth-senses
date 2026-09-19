@@ -113,7 +113,7 @@ jobs:
           python-version: '3.12'
 
       - name: Syntax check
-        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py tools/digest.py tools/test_digest.py
+        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py tools/digest.py tools/test_digest.py tools/test_docs.py
 
       # The WebSocket is the primary transport and was the one path nothing
       # exercised automatically. Speaks RFC 6455 at the receiver as a real
@@ -131,6 +131,11 @@ jobs:
       # privacy control rather than a formatting choice, so it is tested.
       - name: Digest tests
         run: python3 tools/test_digest.py
+
+      # docs/INTEGRATION.md is written to be coded against without reading the
+      # Kotlin, so a stale number in it is worse than no document.
+      - name: Documentation matches the source
+        run: python3 tools/test_docs.py
 
       - name: POST a percept and check it is accepted
         run: |

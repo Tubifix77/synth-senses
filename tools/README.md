@@ -172,9 +172,11 @@ All three run in CI on every push, and all are stdlib-only.
 | `test_receiver_ws.py` | speaks RFC 6455 at `receiver.py` as a real client: masked frames, a fragmented message, backlog, ping, close, the stdout/stderr contract, and that a malformed percept cannot break the transport |
 | `test_transitive_sweep.py` | the sweep's pure logic — Gradle version ordering, version ranges, AGP tuples, ceiling detection |
 | `test_digest.py` | that the digest computes what a hardware test needs, and above all that redaction holds |
+| `test_docs.py` | that the facts in `docs/INTEGRATION.md` still match the source: command vocabulary, timing defaults, schema version, trigger values |
 
 ```bash
 python3 tools/test_receiver_ws.py
 python3 tools/test_transitive_sweep.py
 python3 tools/test_digest.py
+python3 tools/test_docs.py
 ```

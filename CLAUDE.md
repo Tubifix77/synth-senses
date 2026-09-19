@@ -286,6 +286,12 @@ schema is versioned and tested while an early consciousness project's input
 format will churn, and importing its client would point the dependency from
 the stable side at the experimental one.
 
+[`docs/INTEGRATION.md`](docs/INTEGRATION.md) is the spec handed to whoever
+builds the far side. It documents only what runs, marks the return path as not
+reachable from code, and `tools/test_docs.py` checks its numbers against the
+source on every push, because a spec someone codes against without reading the
+Kotlin is worse than nothing when it goes stale.
+
 Do not design the bridge against assumptions about the other project. The
 roadmap lists the questions that need answering first, and separates the half
 that is blocked on them from the half that is blocked on nothing.
