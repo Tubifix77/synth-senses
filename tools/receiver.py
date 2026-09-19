@@ -57,6 +57,37 @@ clients_lock = threading.Lock()
 out_lock = threading.Lock()
 
 
+def lan_addresses():
+    """Addresses a phone on the same network could actually dial.
+
+    0.0.0.0 is a bind address, not a destination, so printing it helps nobody.
+    The UDP trick sends no packet; it just asks the routing table which local
+    interface would carry traffic off this machine.
+    """
+    found = []
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            probe.connect(("192.0.2.1", 9))          # TEST-NET-1, never routed
+            found.append(probe.getsockname()[0])
+        finally:
+            probe.close()
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            found.append(info[4][0])
+    except OSError:
+        pass
+
+    out = []
+    for a in found:
+        if a.startswith(("127.", "169.254.")) or a in out:
+            continue
+        out.append(a)
+    return out
+
+
 def say(*args, **kwargs):
     """Anything meant for a person. Always stderr, so stdout stays pipeable."""
     kwargs["file"] = sys.stderr
@@ -458,7 +489,23 @@ def main():
     srv.bind((args.host, args.port))
     srv.listen(8)
 
-    say(f"listening on ws://{args.host}:{args.port}/link  (and POST on the same port)")
+    if args.host in ("0.0.0.0", "::"):
+        addrs = lan_addresses()
+        if addrs:
+            say("set the phone's endpoint to:")
+            for i, a in enumerate(addrs):
+                # the first came from the routing table, the rest are usually
+                # virtual adapters for Docker, WSL, Hyper-V or a VPN
+                note = "   <-- try this one" if i == 0 and len(addrs) > 1 else ""
+                say(f"    ws://{a}:{args.port}/link{note}")
+        else:
+            say("could not work out this machine's LAN address; find it with "
+                "`ipconfig` on Windows or `ip addr` elsewhere")
+        say(f"(bound to every interface on port {args.port}; POST works on the same port)")
+        say("if the phone cannot connect, the host firewall is the usual reason: "
+            f"inbound TCP {args.port} has to be allowed on the private network")
+    else:
+        say(f"listening on ws://{args.host}:{args.port}/link  (and POST on the same port)")
     if LOG:
         say(f"logging to {LOG}")
     if STREAM:

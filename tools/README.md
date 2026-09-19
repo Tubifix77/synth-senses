@@ -13,6 +13,39 @@ python3 receiver.py --no-console           # for CI or as a daemon
 python3 receiver.py --log ''               # disable JSONL logging
 ```
 
+### Where things actually run
+
+Worth being explicit, because the layout is easy to get backwards:
+
+| | |
+|---|---|
+| the phone | produces percepts and sends them. It keeps no log you need to collect. |
+| this machine | runs `receiver.py`, and **writes `percepts.jsonl` here** |
+
+Percepts cross the network live as they are produced. Nothing has to be copied
+off the phone afterwards. The only file the app writes to its own storage is a
+bounded backlog of *undelivered* percepts, in app-private storage, which is
+flushed and cleared as soon as the link comes back.
+
+So the log is already on the machine you started the receiver from, in the
+working directory, and `--log` moves it.
+
+### Connecting a phone the first time
+
+1. Start the receiver here. It prints the URL to type, picking the address off
+   the routing table rather than showing you the bind address.
+2. Put that URL in the app's endpoint field and press Start.
+3. Both devices must be on the same network, and it must not be a guest
+   network with client isolation, which silently blocks device-to-device
+   traffic.
+4. **On Windows, the firewall is the usual reason it does not connect.**
+   Inbound TCP on the port has to be allowed for the private network. Python
+   normally raises the prompt on first bind; if you dismissed it once, it will
+   not ask again and the phone will simply fail to reach you.
+
+The app's own control panel shows the link state, so you can tell a firewall
+problem from a wrong address without leaving the room.
+
 Point the app at `ws://<this-machine-ip>:8077/link`. Percepts stream in with a
 salience bar; type commands at the prompt:
 
