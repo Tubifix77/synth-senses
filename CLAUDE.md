@@ -257,6 +257,30 @@ feature of this repo, not boilerplate to be tidied away. `docs/VALIDATION.md`
 records a 96.5% room-separation rate rather than rounding it to "works" for
 exactly this reason.
 
+## What comes next is written down
+
+[`docs/ROADMAP.md`](docs/ROADMAP.md) holds the sequence, and the order is not
+negotiable: **a phone first, then the bridge.**
+
+The bridge is the piece connecting this project to the author's separate work
+on machine consciousness. This repo is the sensory apparatus; that one is meant
+to have the experience. It is deferred on purpose — designing an interface to a
+stream nobody has ever seen real output from is guesswork, and one evening of
+watching actual percepts will say more than any amount of speculation.
+
+Two things to carry into that work:
+
+- **The outbound half is done.** Percepts leave the receiver as JSON lines on
+  stdout, envelope stripped, so the bridge is a program that reads stdin.
+- **The return path is human-only, and that is the real gap.** `look`,
+  `listen`, `attend` and the rest can only be typed at the console, which
+  requires a terminal on stdin. Nothing in code can steer the phone yet. The
+  console deliberately does not start when stdin is a pipe, leaving that
+  channel free for commands as JSON lines in — symmetric with percepts out.
+
+Do not design the bridge against assumptions about the other project. The
+roadmap lists the questions that need answering first.
+
 ## Still unmeasured
 
 Listed fully in `docs/VALIDATION.md`. The headline items: motion and posture

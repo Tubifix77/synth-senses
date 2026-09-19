@@ -308,6 +308,7 @@ Use `wss://` if the link leaves your LAN. **Tell people in the room.** See
 | | |
 |---|---|
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | percept schema, frame types, full command reference |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | what happens next, and what is deliberately not started yet |
 | [docs/VALIDATION.md](docs/VALIDATION.md) | what was tested, what the tests caught |
 | [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) | dependencies and their licences |
 | [CHANGELOG.md](CHANGELOG.md) | version history |
