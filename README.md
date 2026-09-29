@@ -133,6 +133,21 @@ Run it bare in a terminal and you get the readable live view instead, because
 JSON lines switch on only when stdout is not a terminal. `--jsonl` and
 `--no-jsonl` force it either way.
 
+### Reading what came back
+
+`percepts.jsonl` is written by the receiver, on the machine you started it
+from. The phone keeps no log you need to collect. To read a run rather than
+scroll it:
+
+```bash
+python3 tools/digest.py percepts.jsonl
+```
+
+That reports what the senses actually produced, how the attention gate
+behaved, battery movement per hour, and any gap long enough to mean the
+service was killed. OCR text and transcripts are redacted unless you pass
+`--raw`, so the output is safe to share.
+
 ### One manual step
 
 Sound classification needs YAMNet, which isn't redistributed here. Drop it at

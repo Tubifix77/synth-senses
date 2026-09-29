@@ -197,8 +197,18 @@ app/src/main/java/net/synthsenses/
     Voice.kt               TTS out
 app/src/test/java/.../     JVM unit tests, no emulator needed
 tools/receiver.py          stdlib two-way receiver + command console
+tools/digest.py            summarise a percept log; redacts OCR text and
+                           transcripts unless --raw
 tools/transitive_sweep.py  whole-graph AAR metadata check, run before dep bumps
+tools/test_receiver_ws.py  RFC 6455 against the receiver, plus its stdout contract
+tools/test_transitive_sweep.py  the sweep's version ordering and ceiling detection
+tools/test_digest.py       the digest, and above all that redaction holds
+tools/test_docs.py         docs/INTEGRATION.md's facts against the source
 ```
+
+All four tool suites are stdlib-only and run in CI on every push. `python3
+tools/<name>.py` runs any of them locally, which is faster than a CI cycle and
+needs no toolchain.
 
 ## Invariants
 

@@ -9,6 +9,8 @@ untested. Written so you know which parts to trust.
 |---|---|
 | `tools/receiver.py` | **tested in CI** — RFC 6455 handshake, framing, backlog, HTTP fallback |
 | `tools/transitive_sweep.py` | **tested in CI** — version ordering, ranges, ceiling detection |
+| `tools/digest.py` | **tested in CI** — the computations, and that redaction holds |
+| `docs/INTEGRATION.md` | **checked in CI** — its stated facts against the source |
 | `Habituation.kt` curve | prototyped, validated, now unit-tested |
 | `PlaceMemory.kt` coverage metric | prototyped, **failed**, redesigned, revalidated — then the unit tests found a **fourth** failure |
 | `TempoSensor.kt` solar maths | prototyped, **bug found**, fixed, validated against almanac, now unit-tested |

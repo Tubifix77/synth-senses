@@ -9,6 +9,30 @@ the app version whenever the shape changes in a way that breaks receivers.
 
 ## [Unreleased]
 
+**Tooling and documentation only.** Nothing under `app/` has changed since
+0.3.0, so the APK is identical and the version is deliberately not bumped.
+
+### Added
+
+- `tools/digest.py` — turns a percept log into a report. Built for reading a
+  hardware test: it breaks `accel_rms` down per motion state, which is the
+  measurement `BodySensor`'s guessed thresholds need, reports battery movement
+  as points per hour, flags gaps over three minutes, and lists sensors that
+  never reported. **OCR text and transcripts are redacted by default**, since
+  its output is meant to be safe to paste somewhere.
+- [`docs/INTEGRATION.md`](docs/INTEGRATION.md) — the spec for whoever builds
+  the consuming side, written to be coded against without reading the Kotlin.
+  It documents only what runs, and says plainly that the return path is not
+  reachable from code and that curated reports do not exist yet.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — what happens next and in what order.
+  A phone first, then the bridge to the separate machine-consciousness project.
+  Records where the bridge should live and which half of it is blocked on
+  nothing.
+- Three more stdlib test suites in CI: `test_receiver_ws.py` for the WebSocket
+  transport and the stdout contract, `test_digest.py` for the digest and its
+  redaction, and `test_docs.py`, which checks the facts in `INTEGRATION.md`
+  against the source so a spec someone codes against cannot quietly rot.
+
 ### Changed
 
 - **The receiver is composable.** Percepts leave on stdout as one JSON object
@@ -23,6 +47,12 @@ the app version whenever the shape changes in a way that breaks receivers.
   log was previously inconsistent about this.
 - The command console only starts when stdin is a terminal. Otherwise it would
   consume whatever is being piped in.
+- The receiver prints an address a phone can actually dial. It used to print
+  its bind address, `ws://0.0.0.0:8077/link`, which nobody can type into a
+  phone, at exactly the moment someone is standing there trying to. It now
+  reads the routing table, shows that address first, lists virtual adapters
+  after it, and names the host firewall as the usual reason a connection
+  fails.
 
 ### Fixed
 
