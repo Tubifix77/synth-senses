@@ -75,7 +75,7 @@ kotlin {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.appcompat:appcompat:1.8.0")
     // Lifecycle 2.11.0. It was pinned to 2.10.0 for as long as this project
     // was on AGP 8.x, because 2.11.0's lifecycle-runtime-compose-android —
