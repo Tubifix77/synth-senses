@@ -1,6 +1,5 @@
 package net.synthsenses
 
-import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -43,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import net.synthsenses.senses.Live
 import net.synthsenses.senses.Prefs
 import net.synthsenses.senses.SenseService
+import net.synthsenses.senses.requiredPermissions
+import net.synthsenses.senses.willAskForLocation
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -69,18 +70,15 @@ class MainActivity : ComponentActivity() {
 
     private fun askPermissions() {
         val p = Prefs(this)
-        val wanted = mutableListOf(
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO
+        // The decision lives in senses/Permissions.kt so it can be tested at
+        // every API level this app supports. It was wrong below 31 and no test
+        // could reach it here.
+        permissionLauncher.launch(
+            requiredPermissions(
+                sdkInt = Build.VERSION.SDK_INT,
+                ble = p.ble, wifi = p.wifi, cell = p.cell, location = p.location
+            ).toTypedArray()
         )
-        if (Build.VERSION.SDK_INT >= 33) wanted += Manifest.permission.POST_NOTIFICATIONS
-        if (Build.VERSION.SDK_INT >= 31 && p.ble) wanted += Manifest.permission.BLUETOOTH_SCAN
-        if (Build.VERSION.SDK_INT >= 29) wanted += Manifest.permission.ACTIVITY_RECOGNITION
-        // WiFi scan results and cell info both require FINE location on Android 10+
-        if (p.wifi || p.cell || p.location) {
-            wanted += Manifest.permission.ACCESS_FINE_LOCATION
-        }
-        permissionLauncher.launch(wanted.toTypedArray())
     }
 }
 
@@ -237,9 +235,14 @@ private fun ControlPanel(
         Toggle("WiFi scan — needs fine location", wifi) { wifi = it; prefs.wifi = it }
         Toggle("Cell info — needs fine location", cell) { cell = it; prefs.cell = it }
         Toggle("GPS (for sun times)", location) { location = it; prefs.location = it }
-        if (wifi || cell || location) {
+        if (willAskForLocation(Build.VERSION.SDK_INT, ble, wifi, cell, location)) {
             Text(
-                "Grant location and switch location services on, or these stay empty.",
+                if (ble && Build.VERSION.SDK_INT < 31 && !wifi && !cell && !location)
+                    "On this Android version a BLE scan needs location permission, " +
+                        "and without it the scan is empty and no place is ever learned. " +
+                        "Grant location and switch location services on."
+                else
+                    "Grant location and switch location services on, or these stay empty.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
