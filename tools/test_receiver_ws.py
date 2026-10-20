@@ -49,6 +49,22 @@ RFC_EXAMPLE_ACCEPT = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
 failures = []
 
 
+
+def utf8_streams():
+    """Make stdout and stderr UTF-8, whatever the platform thinks.
+
+    A narration, an OCR line or a transcript can hold any character at all.
+    On Windows both a console and a pipe default to cp1252, so the first
+    character outside it raises UnicodeEncodeError -- on a word someone
+    happened to say, which is the worst possible trigger and never reproduces
+    in CI, where Linux is UTF-8 already.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
 def check(label, ok, detail=""):
     print(f"  {'PASS' if ok else 'FAIL'}  {label}{'  ' + detail if detail else ''}")
     if not ok:
@@ -147,14 +163,179 @@ def drain(stream, sink):
         sink.append(line)
 
 
+def handshake(port):
+    """Connect as a node would, and return the open socket."""
+    sock = socket.create_connection(("127.0.0.1", port), timeout=10)
+    sock.settimeout(10)
+    sock.sendall(
+        f"GET /link HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+        f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {RFC_EXAMPLE_KEY}\r\n"
+        f"Sec-WebSocket-Version: 13\r\n\r\n".encode()
+    )
+    resp = b""
+    while b"\r\n\r\n" not in resp:
+        resp += sock.recv(4096)
+    return sock
+
+
+def steering():
+    """The return path: can a program steer the phone?
+
+    Until this existed the command vocabulary could only be typed at a
+    console, which needs a terminal on stdin, so anything downstream could
+    watch but never look. These checks are the difference between an organ
+    and a webcam, so they are worth being fussy about -- in particular that a
+    refused command never reaches the phone, and that replies and percepts
+    stay tellable apart on a shared stream.
+    """
+    port = free_port()
+    log = os.path.join(tempfile.mkdtemp(), "steer.jsonl")
+    proc = subprocess.Popen(
+        [sys.executable, RECEIVER, "--host", "127.0.0.1", "--port", str(port),
+         "--log", log],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        # Without an explicit encoding, Python decodes a pipe with the locale
+        # codec -- cp1252 on Windows -- and the reader thread dies on the
+        # first percept carrying a character it cannot spell. The receiver
+        # writes UTF-8; anything reading it has to say so.
+        text=True, bufsize=1, encoding="utf-8", errors="replace",
+    )
+    out, err = [], []
+    threading.Thread(target=drain, args=(proc.stdout, out), daemon=True).start()
+    threading.Thread(target=drain, args=(proc.stderr, err), daemon=True).start()
+
+    def tell(line):
+        proc.stdin.write(line + "\n")
+        proc.stdin.flush()
+        time.sleep(0.5)
+
+    def node_said():
+        """Whatever the node received, as a decoded object, or None."""
+        try:
+            opcode, payload = read_frame(sock)
+        except Exception:
+            return None
+        if opcode != 0x1:
+            return None
+        return json.loads(payload.decode())
+
+    try:
+        if not wait_for_port(port):
+            check("the steering receiver started", False, "".join(err)[-400:])
+            return
+        sock = handshake(port)
+        time.sleep(0.4)
+
+        print("\nsteering the phone from a pipe")
+        check("stdin is read as commands when it is not a terminal",
+              "reading commands from stdin" in "".join(err))
+
+        # ---- a JSON command reaches the node, verbatim ----
+        tell('{"cmd": "look", "lens": "front"}')
+        got = node_said()
+        check("a JSON command reaches the node",
+              got == {"cmd": "look", "lens": "front"}, repr(got))
+
+        # ---- the shorthand still works, for a human at the end of a pipe ----
+        tell("attend s 2.0")
+        got = node_said()
+        check("the console shorthand works from a pipe too",
+              got == {"cmd": "attend", "modality": "s", "gain": 2.0}, repr(got))
+
+        # ---- the node's answer comes back out on stdout ----
+        sock.sendall(mask_frame(json.dumps(
+            {"type": "ack", "cmd": "look", "ok": True, "detail": "front"}
+        ).encode()))
+        time.sleep(0.6)
+        replies = [json.loads(l) for l in "".join(out).splitlines() if l.strip()]
+        acks = [r for r in replies if r.get("type") == "ack"]
+        check("the node's reply comes back on stdout", len(acks) == 1, str(replies))
+        if acks:
+            check("and says which command it answers", acks[0].get("cmd") == "look")
+
+        # ---- percepts and replies stay tellable apart ----
+        sock.sendall(mask_frame(json.dumps(percept(7)).encode()))
+        time.sleep(0.6)
+        everything = [json.loads(l) for l in "".join(out).splitlines() if l.strip()]
+        percepts = [r for r in everything if "type" not in r]
+        check("a percept still carries no type, so the two never blur",
+              [p.get("seq") for p in percepts] == [7],
+              str([p.get("seq") for p in percepts]))
+
+        # ---- a command the phone does not have is refused HERE ----
+        before = len(everything)
+        tell('{"cmd": "self_destruct"}')
+        got = node_said()
+        check("an unknown command never reaches the phone", got is None, repr(got))
+        errs = [json.loads(l) for l in "".join(out).splitlines() if l.strip()][before:]
+        check("and the sender is told why",
+              any(e.get("error") == "unknown command" for e in errs), str(errs))
+
+        # ---- malformed input is an error, not a crash ----
+        for bad, why in (("{not json", "not valid JSON"),
+                         ('["look"]', "not a JSON object"),
+                         ('{"lens": "front"}', "no cmd field")):
+            before = len([l for l in "".join(out).splitlines() if l.strip()])
+            tell(bad)
+            new = [json.loads(l) for l in "".join(out).splitlines()
+                   if l.strip()][before:]
+            check(f"{why} is reported, not fatal",
+                  any(e.get("error") == why for e in new), str(new))
+
+        check("the receiver is still running after all that",
+              proc.poll() is None)
+
+        # ---- a percept full of characters Windows cannot spell ----
+        # On Windows a pipe gets the locale encoding, not UTF-8, so without
+        # an explicit reconfigure the first non-Latin-1 character in a
+        # narration or a transcript kills the stream mid-flight -- on a word
+        # someone happened to say, which is the worst possible trigger.
+        sock2 = handshake(port)
+        time.sleep(0.4)
+        exotic = "stemmer fra æblegrød — 東京 — 🔊"
+        sock2.sendall(mask_frame(json.dumps(
+            percept(8, exotic), ensure_ascii=False
+        ).encode("utf-8")))
+        time.sleep(0.8)
+        got = [json.loads(l) for l in "".join(out).splitlines() if l.strip()]
+        eight = [p for p in got if p.get("seq") == 8]
+        check("a percept with non-ASCII text survives the stream",
+              len(eight) == 1, f"{len(eight)} found")
+        if eight:
+            check("and arrives with every character intact",
+                  eight[0].get("narration") == exotic,
+                  repr(eight[0].get("narration"))[:160])
+        check("the receiver is still alive after it", proc.poll() is None)
+        sock2.close()
+        time.sleep(0.5)
+
+        # ---- a command with nobody listening must not vanish ----
+        sock.close()
+        time.sleep(0.8)
+        before = len([l for l in "".join(out).splitlines() if l.strip()])
+        tell('{"cmd": "status"}')
+        new = [json.loads(l) for l in "".join(out).splitlines() if l.strip()][before:]
+        check("a command sent with no phone connected reports that",
+              any(e.get("error") == "no node connected" for e in new), str(new))
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 def main():
+    utf8_streams()
     port = free_port()
     log = os.path.join(tempfile.mkdtemp(), "percepts.jsonl")
 
     proc = subprocess.Popen(
         [sys.executable, RECEIVER, "--host", "127.0.0.1", "--port", str(port),
          "--log", log, "--no-console"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", errors="replace",
     )
     out_lines, err_lines = [], []
     threading.Thread(target=drain, args=(proc.stdout, out_lines), daemon=True).start()
@@ -301,6 +482,8 @@ def main():
         after = [l for l in "".join(out_lines).splitlines() if l.strip()]
         delivered = [json.loads(l).get("seq") for l in after[before:]]
         check("and all three still reached stdout", delivered == [91, 92, 93], str(delivered))
+
+        steering()
 
         print(f"\n{len(failures)} failure(s)")
         for f in failures:

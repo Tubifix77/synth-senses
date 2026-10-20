@@ -200,6 +200,24 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 Any JSON object with a `cmd` field. Unknown commands get a negative ack rather
 than being ignored. All commands ack except the ones that return data.
 
+**How one gets there from a program.** The phone receives commands over the
+websocket; the reference receiver puts them on that socket for you. Write one
+JSON object per line to `tools/receiver.py`'s **stdin** and it is forwarded to
+every connected node — the mirror image of percepts leaving on stdout, so the
+whole sensing side is a bidirectional filter with no extra port or protocol.
+The receiver reads stdin as commands whenever stdin is not a terminal; when it
+is, a person gets the console instead.
+
+The receiver forwards only the eleven commands below. Anything else is refused
+there and never reaches the phone, as is a malformed line or one sent while no
+node is connected — each answers `{"type": "error", ...}` so the sender knows,
+rather than waiting on an ack that is never coming.
+
+Replies travel back the same way, on stdout alongside the percepts. **A reply
+always carries `type`; a percept never does** — the receiver strips the
+transport envelope from every percept so that discriminator holds whichever way
+it arrived. See [INTEGRATION.md](INTEGRATION.md) for the consumer's side.
+
 ### `sample`
 
 ```json

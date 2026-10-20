@@ -24,6 +24,24 @@ DIGEST = os.path.join(HERE, "digest.py")
 SECRET_TEXT = "ACCOUNT-90210-SORTCODE"
 SECRET_SPEECH = "the spare key is under the mat"
 
+
+def utf8_streams():
+    """Make stdout and stderr UTF-8, whatever the platform thinks.
+
+    A narration, an OCR line or a transcript can hold any character at all.
+    On Windows both a console and a pipe default to cp1252, so the first
+    character outside it raises UnicodeEncodeError -- on a word someone
+    happened to say, which is the worst possible trigger and never reproduces
+    in CI, where Linux is UTF-8 already.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+utf8_streams()
 failures = []
 
 

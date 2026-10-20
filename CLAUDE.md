@@ -295,11 +295,19 @@ Two things to carry into that work:
 
 - **The outbound half is done.** Percepts leave the receiver as JSON lines on
   stdout, envelope stripped, so the bridge is a program that reads stdin.
-- **The return path is human-only, and that is the real gap.** `look`,
-  `listen`, `attend` and the rest can only be typed at the console, which
-  requires a terminal on stdin. Nothing in code can steer the phone yet. The
-  console deliberately does not start when stdin is a pipe, leaving that
-  channel free for commands as JSON lines in — symmetric with percepts out.
+- **The return path is built.** Commands go in as JSON lines on the
+  receiver's stdin, symmetric with percepts out on stdout, and the phone's
+  replies come back on stdout too. A reply always carries `type`; a percept
+  never does, and that discriminator is load-bearing for every consumer.
+  Unknown or malformed commands are refused by the receiver and never reach
+  the phone. `tools/test_docs.py` checks the receiver's whitelist against
+  `Link.kt`'s own constants, so the two cannot drift.
+- **Anything reading the receiver's stdout must pass `encoding="utf-8"`.**
+  On Windows a pipe defaults to cp1252 and the stream dies on the first
+  non-Latin-1 character in a narration or transcript — on a word someone
+  happened to say. The receiver and the printing tools force UTF-8 on their
+  own streams; consumers must do it on theirs. CI is Linux, so this never
+  shows there.
 
 The bridge itself lives **here**, not over there, with a small input adapter on
 the far side. Its work is sensor-domain knowledge, and turning an intent back

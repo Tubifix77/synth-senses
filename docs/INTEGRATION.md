@@ -27,7 +27,7 @@ staring at an unchanging room sends almost nothing, by design.
 |---|---|
 | receiving percepts | **works, tested in CI** |
 | the percept schema | **stable at version 2**, tested against the code |
-| sending commands back | **not reachable from code yet.** See below. |
+| sending commands back | JSON lines in on the receiver's stdin. See below. |
 | curated "reports" rather than raw percepts | **does not exist yet** |
 
 That third and fourth rows are deliberate. The shaping layer that would
@@ -159,15 +159,68 @@ Budget for bursts when something happens, not for a steady stream.
 
 ## Sending commands back
 
-**This does not work from code yet, and you should design for it anyway.**
+Percepts leave the receiver as JSON lines on stdout. **Commands go back in as
+JSON lines on its stdin**, which makes the whole sensing side an ordinary
+bidirectional filter — no sockets, no ports, no second protocol.
 
-The phone accepts eleven commands over the websocket and they round-trip
-correctly. The gap is purely that the only thing which can currently send one
-is a human typing at the receiver's console. There is no programmatic path.
-See [ROADMAP.md](ROADMAP.md); this is the next thing to be built and it is
-blocked on nothing.
+```
+{"cmd": "look", "lens": "front"}
+{"cmd": "attend", "modality": "s", "gain": 2.0}
+```
 
-The vocabulary, so you can design an intent model against it now:
+One object per line. The receiver reads stdin as commands whenever stdin is
+not a terminal; when it is, you get the human console instead, and `look front`
+typed by a person does the same thing. `--no-console` turns both off.
+
+**The phone's answers come back on stdout, mixed in with the percepts, and the
+rule for telling them apart is absolute: a reply always carries `type`, a
+percept never does.** The receiver strips the transport envelope from every
+percept precisely so that stays true however it arrived.
+
+```python
+for line in receiver.stdout:
+    msg = json.loads(line)
+    if "type" in msg:
+        handle_reply(msg)      # ack, status, places, hello, error
+    else:
+        handle_percept(msg)
+```
+
+Replies are off unless something is actually driving the receiver, so a plain
+`receiver | consumer` pipeline gets the stream it always had.
+
+A command naming something outside the vocabulary below is refused by the
+receiver and never reaches the phone; you get
+`{"type": "error", "error": "unknown command", ...}` instead. So are malformed
+lines. A command sent while no phone is connected returns
+`{"type": "error", "error": "no node connected", "cmd": ...}` rather than
+vanishing, which is the difference between a bridge that waits forever and one
+that knows to retry.
+
+**Wiring it up.** A shell pipeline only runs one way, so the practical shape is
+to run the receiver as a child process and talk to both its pipes:
+
+```python
+proc = subprocess.Popen(
+    [sys.executable, "tools/receiver.py"],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    text=True, bufsize=1, encoding="utf-8", errors="replace",
+)
+proc.stdin.write(json.dumps({"cmd": "look", "lens": "front"}) + "\n")
+proc.stdin.flush()
+```
+
+**Pass `encoding="utf-8"` and mean it.** A narration or a transcript can hold
+any character at all, and on Windows a pipe defaults to the locale codec — so
+without it the stream dies on the first word someone says that cannot be
+spelled in cp1252. The receiver forces UTF-8 on its own side; anything reading
+it has to say so too.
+
+The phone accepts eleven commands over the websocket, and the receiver
+forwards only these — `tools/test_docs.py` checks that whitelist against the
+app's own constants, so this table cannot drift from what the phone has.
+
+The vocabulary, so you can design an intent model against it:
 
 | command | effect |
 |---|---|

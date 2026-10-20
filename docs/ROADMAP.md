@@ -172,11 +172,11 @@ how much of it, and when to send it. Designing that against a stream nobody
 has seen real output from is guesswork, and one evening of watching actual
 percepts arrive will say more than any amount of speculation now.
 
-**Blocked on nothing.** Making the phone steerable from code. The return path
-is fully specified by [PROTOCOL.md](PROTOCOL.md) already, depends on no
-decision the other project has to make, and is a prerequisite for every
-version of the bridge. See what is missing, below. This is the piece to build
-first if you want to move before the hardware arrives.
+**Blocked on nothing — and now done.** Making the phone steerable from code.
+It was fully specified by [PROTOCOL.md](PROTOCOL.md) already, depended on no
+decision the other project has to make, and was a prerequisite for every
+version of the bridge, so it was the piece to build before the hardware
+arrived. It is built; see below.
 
 ### Fill this in before starting
 
@@ -208,27 +208,54 @@ python3 tools/receiver.py | the-bridge | the-mind
 feed a language model, with the structured blocks alongside when precision
 matters.
 
-### What is missing, and it is the interesting half
+### The return path, which was the interesting half
 
-**The return path is human-only.** Commands that steer the phone — `look`,
-`listen`, `read`, `attend`, `speak`, `sample` — can currently only be typed at
-the receiver's console, which reads stdin and only starts when stdin is a
-terminal. A downstream process has no way to send one. Today the mind could
-watch, but not look.
+**Done.** It was the one piece blocked on nothing, and it is built.
 
-That matters more than it sounds. Directable attention is the thing that makes
-this an organ rather than a webcam, and half of it is unreachable from code.
+It used to read: commands that steer the phone can only be typed at the
+receiver's console, which needs a terminal on stdin, so a downstream process
+has no way to send one — the mind could watch, but not look. Directable
+attention is what makes this an organ rather than a webcam, and half of it was
+unreachable from code.
 
-The natural shape, and the one the current design was left open for, is
-symmetry: **percepts out as JSON lines on stdout, commands in as JSON lines on
-stdin.** The receiver already declines to start the console when stdin is not a
-terminal, precisely so that path stays free. Then the bridge is an ordinary
-bidirectional filter and needs no sockets, no ports and no new protocol; the
-command vocabulary in [PROTOCOL.md](PROTOCOL.md) is already defined and already
-round-trips.
+The shape is the symmetry the design was left open for: **percepts out as JSON
+lines on stdout, commands in as JSON lines on stdin.** The console had always
+declined to start when stdin was not a terminal, precisely to keep that channel
+free. No sockets, no ports, no second protocol — the sensing side is now an
+ordinary bidirectional filter.
 
-Worth considering instead, if that proves awkward: a control FIFO, a Unix
-socket, or a second port. All three are heavier. Try stdin first.
+```
+{"cmd": "look", "lens": "front"}
+```
+
+What came with it, because a one-way path is not actually usable:
+
+- **Answers come back.** The phone's `ack`, `status`, `places` and `hello`
+  replies go out on stdout alongside the percepts. They are told apart by one
+  absolute rule — **a reply always carries `type`; a percept never does** —
+  which holds because `deliver` strips the envelope from every percept however
+  it arrived. Off unless something is driving the receiver, so a plain
+  `receiver | consumer` pipeline is unchanged.
+- **Refusals are explicit.** A command outside the vocabulary is rejected by
+  the receiver and never reaches the phone. A command sent with nothing
+  connected answers `{"type": "error", "error": "no node connected"}` rather
+  than vanishing — the difference between a bridge that retries and one that
+  waits forever.
+- **The shorthand still works from a pipe**, so `echo status | receiver.py`
+  does what it obviously should.
+
+A FIFO, a Unix socket or a second port were the alternatives. stdin was tried
+first and was enough. In practice a consumer runs the receiver as a child
+process and talks to both pipes, because a shell pipeline only runs one way;
+[INTEGRATION.md](INTEGRATION.md) has that snippet.
+
+**One trap, found while testing this rather than reasoned about.** Anything
+reading the receiver's stdout must pass `encoding="utf-8"`. A narration or a
+transcript can hold any character, and on Windows a pipe defaults to the locale
+codec, so the stream dies on the first word someone says that cp1252 cannot
+spell. The receiver now forces UTF-8 on its own streams, and so do the tools
+that print percept text — but a consumer has to say so on its side too. It
+never reproduces in CI, which is Linux and UTF-8 already.
 
 ### Things that will bite
 

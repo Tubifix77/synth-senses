@@ -19,6 +19,24 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
+def utf8_streams():
+    """Make stdout and stderr UTF-8, whatever the platform thinks.
+
+    A narration, an OCR line or a transcript can hold any character at all.
+    On Windows both a console and a pipe default to cp1252, so the first
+    character outside it raises UnicodeEncodeError -- on a word someone
+    happened to say, which is the worst possible trigger and never reproduces
+    in CI, where Linux is UTF-8 already.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+utf8_streams()
 failures = []
 
 
@@ -178,15 +196,34 @@ for doc, label in ((protocol, "PROTOCOL.md"), (integration, "INTEGRATION.md")):
     check(f"{label} agrees the schema is {schema_src.group(1)}",
           f'"schema": {schema_src.group(1)}' in doc)
 
-print("\nno promises the code does not keep")
-# the spec must keep saying the return path is not reachable from code, for as
-# long as that is true. If someone wires it up, this fails and the spec gets
-# corrected rather than quietly becoming pessimistic.
-console_gated = "sys.stdin.isatty()" in read("tools", "receiver.py")
-claims_unavailable = "not reachable from code yet" in integration
-check("the return path is still human-only, and the spec still says so",
-      console_gated and claims_unavailable,
-      f"gated={console_gated} documented={claims_unavailable}")
+print("\nthe return path, which now exists")
+# This check used to assert the opposite -- that the path was human-only and
+# the spec still said so -- precisely so that wiring it up would fail here and
+# force the document to be corrected rather than quietly becoming pessimistic.
+# It did its job; this is the other side of it.
+receiver_py = read("tools", "receiver.py")
+reads_stdin = "def commands_from_stdin(" in receiver_py
+emits_replies = "def emit_reply(" in receiver_py
+check("the receiver reads commands from stdin", reads_stdin)
+check("and sends the phone's answers back out", emits_replies)
+check("the spec no longer claims it is unreachable",
+      "not reachable from code yet" not in integration
+      and "does not work from code yet" not in integration)
+check("and documents the rule for telling a reply from a percept",
+      "a reply always carries" in integration and "never does" in integration)
+
+# The one thing a consumer cannot get wrong without silent damage: replies and
+# percepts share a stream. Both documents have to state the discriminator.
+for doc, label in ((protocol, "PROTOCOL.md"), (integration, "INTEGRATION.md")):
+    check(f"{label} says a percept carries no type",
+          "type" in doc and ("never" in doc or "stripped" in doc))
+
+# Every command the receiver will forward must be one the app actually has.
+known = set(re.findall(r'KNOWN_COMMANDS = frozenset\(\((.*?)\)\)',
+                       receiver_py, re.S))
+forwarded = set(re.findall(r'"([a-z_]+)"', " ".join(known)))
+check("the receiver's whitelist matches the app's command constants",
+      forwarded == declared, f"receiver={sorted(forwarded)} app={sorted(declared)}")
 
 print(f"\n{len(failures)} failure(s)")
 for f in failures:

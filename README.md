@@ -129,6 +129,20 @@ python3 tools/receiver.py | your-ai
 python3 tools/receiver.py | jq -r 'select(.attention.salience > 0.7) | .narration'
 ```
 
+It steers from code as well as watching. Commands go back in as JSON lines on
+stdin, which is the same vocabulary the console accepts:
+
+```bash
+echo '{"cmd": "look", "lens": "front"}' | python3 tools/receiver.py
+```
+
+The phone's answers come back on stdout beside the percepts, told apart by one
+rule: **a reply carries `type`, a percept never does.** Run the receiver as a
+child process to use both directions at once — a shell pipeline only runs one
+way — and pass `encoding="utf-8"` when you read it, or the stream dies on the
+first word it hears that Windows cannot spell. See
+[docs/INTEGRATION.md](docs/INTEGRATION.md).
+
 Run it bare in a terminal and you get the readable live view instead, because
 JSON lines switch on only when stdout is not a terminal. `--jsonl` and
 `--no-jsonl` force it either way.

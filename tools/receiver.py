@@ -51,6 +51,7 @@ GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 TOKEN = None
 LOG = None
 STREAM = False          # percepts as JSON lines on stdout
+REPLIES = False         # the phone's answers as JSON lines on stdout too
 PROSE = True            # the human rendering, on stderr
 clients = []
 clients_lock = threading.Lock()
@@ -100,6 +101,26 @@ def emit(p):
     if not STREAM:
         return
     line = json.dumps(p, ensure_ascii=False)
+    with out_lock:
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+
+
+def emit_reply(msg):
+    """Put one of the phone's answers on stdout, for whatever sent the command.
+
+    Percepts and replies share the stream and are told apart by a single rule,
+    which [INTEGRATION.md] states and `test_receiver_ws.py` pins: **a reply
+    always carries "type"; a percept never does.** `deliver` strips the
+    envelope from every percept precisely so that stays true no matter which
+    transport brought it.
+
+    Off unless something is actually driving the receiver, so the plain
+    `receiver | consumer` pipeline keeps the exact stream it has always had.
+    """
+    if not REPLIES:
+        return
+    line = json.dumps(msg, ensure_ascii=False)
     with out_lock:
         sys.stdout.write(line + "\n")
         sys.stdout.flush()
@@ -184,6 +205,12 @@ def handle_percept(p, node):
 
 
 def handle_reply(msg, node):
+    # To the machine first, and outside the renderer's reach: a program that
+    # issued a command is owed its answer even if the pretty-printer below
+    # trips over an unfamiliar shape. Same reasoning as `deliver`.
+    emit_reply(msg)
+    if not PROSE:
+        return
     kind = msg.get("type")
     if kind == "ack":
         say(f"  <- ack {msg.get('cmd')}: "
@@ -394,14 +421,64 @@ def send_cmd(obj):
     with clients_lock:
         targets = list(clients)
     if not targets:
+        # A person reads this and shrugs; a program has to be told, or it waits
+        # forever for an answer to a command that never left the building.
         say("  (no node connected)")
+        emit_reply({"type": "error", "error": "no node connected",
+                    "cmd": obj.get("cmd")})
         return
+    sent = 0
     for c in targets:
         try:
             c.sendall(frame)
+            sent += 1
         except OSError:
             pass
+    if sent == 0:
+        say("  (every connection failed)")
+        emit_reply({"type": "error", "error": "send failed",
+                    "cmd": obj.get("cmd")})
+        return
     say(f"  -> {json.dumps(obj)}")
+
+
+# The eleven commands the phone accepts, from PROTOCOL.md. Kept here so a
+# JSON line naming something else is refused with a reason rather than
+# forwarded and silently ignored by the phone.
+KNOWN_COMMANDS = frozenset((
+    "sample", "look", "read", "listen", "speak", "attend",
+    "set", "places", "name_place", "forget", "status",
+))
+
+
+def command_from_json(line):
+    """One JSON line to a command, or an error object saying why not.
+
+    Returns (command, error). Exactly one is not None.
+    """
+    try:
+        obj = json.loads(line)
+    except ValueError as e:
+        return None, {"type": "error", "error": "not valid JSON",
+                      "detail": str(e), "line": line[:200]}
+    if not isinstance(obj, dict):
+        hint = (" - send one object per line rather than a batch"
+                if isinstance(obj, list) else "")
+        return None, {"type": "error", "error": "not a JSON object",
+                      "detail": "a command is an object, not %s%s"
+                                % (type(obj).__name__, hint),
+                      "line": line[:200]}
+    cmd = obj.get("cmd")
+    if not isinstance(cmd, str):
+        return None, {"type": "error", "error": "no cmd field",
+                      "detail": "every command needs a string 'cmd'",
+                      "line": line[:200]}
+    if cmd not in KNOWN_COMMANDS:
+        return None, {"type": "error", "error": "unknown command",
+                      "detail": "%r is not one of: %s"
+                                % (cmd, ", ".join(sorted(KNOWN_COMMANDS))),
+                      "cmd": cmd}
+    return obj, None
 
 
 def parse_command(line):
@@ -442,6 +519,50 @@ def parse_command(line):
     return None
 
 
+def commands_from_stdin():
+    """Commands in as JSON lines, the mirror image of percepts out.
+
+    This is the half that made the phone unsteerable from code. Until it
+    existed the command vocabulary could only be typed at a console, which
+    needs a terminal on stdin, so a downstream program could watch but never
+    look. Directable attention is most of what makes this an organ rather than
+    a webcam, and half of it was unreachable.
+
+    One JSON object per line, exactly as PROTOCOL.md defines it:
+
+        {"cmd": "look", "lens": "front"}
+        {"cmd": "attend", "modality": "s", "gain": 2.0}
+
+    A line that is not JSON is tried as the console's own shorthand, so
+    `echo status | receiver.py` does what it obviously should. Nothing here
+    ever writes to stdout except through `emit_reply`; diagnostics go to
+    stderr, because stdout is the percept stream and belongs to the consumer.
+
+    EOF does not stop the receiver. The phone is still connected and its
+    percepts are still worth logging, so the controller going away ends the
+    steering, not the sensing.
+    """
+    for raw in sys.stdin:
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(("{", "[")):
+            cmd, err = command_from_json(line)
+            if err is not None:
+                say("  ? %s: %s" % (err["error"], err.get("detail", "")))
+                emit_reply(err)
+                continue
+        else:
+            # the console shorthand, for a human at the other end of a pipe
+            cmd = parse_command(line)
+            if cmd is None:
+                emit_reply({"type": "error", "error": "unrecognised",
+                            "line": line[:200]})
+                continue
+        send_cmd(cmd)
+    say("  (end of command input; still listening to the phone)")
+
+
 def console():
     for line in sys.stdin:
         line = line.strip()
@@ -454,8 +575,29 @@ def console():
             send_cmd(cmd)
 
 
+def utf8_streams():
+    """Make stdout and stderr UTF-8, whatever the platform thinks.
+
+    A percept's narration, an OCR line or a transcript can hold any character
+    at all. On Windows a *pipe* gets the locale encoding rather than UTF-8 --
+    usually cp1252 -- so the first non-Latin-1 character raises
+    UnicodeEncodeError in the middle of the stream, and the percept feed dies
+    on a received word rather than on anything this code did. Found while
+    reading a test's own output on the machine this runs on.
+
+    Python 3.7+ only, and `reconfigure` is absent on a replaced stream, so a
+    failure here is not worth dying over.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main():
-    global TOKEN, LOG, STREAM, PROSE
+    global TOKEN, LOG, STREAM, PROSE, REPLIES
+    utf8_streams()
     ap = argparse.ArgumentParser(
         description="Percepts leave on stdout as JSON lines; "
                     "anything for a person leaves on stderr.")
@@ -463,7 +605,15 @@ def main():
     ap.add_argument("--port", type=int, default=8077)
     ap.add_argument("--log", default="percepts.jsonl", help="'' to disable")
     ap.add_argument("--token", default="")
-    ap.add_argument("--no-console", action="store_true")
+    ap.add_argument("--no-console", action="store_true",
+                    help="read nothing from stdin: no console, no commands")
+    ap.add_argument("--replies", dest="replies", action="store_true",
+                    default=None,
+                    help="the phone's answers as JSON lines on stdout "
+                         "(default: on when commands are being read from a "
+                         "pipe). A reply has \"type\"; a percept never does.")
+    ap.add_argument("--no-replies", dest="replies", action="store_false",
+                    help="never write replies to stdout")
     ap.add_argument("--jsonl", dest="jsonl", action="store_true", default=None,
                     help="percepts as JSON lines on stdout "
                          "(default: on when stdout is not a terminal)")
@@ -483,6 +633,12 @@ def main():
     # forced, which is the bit that matters for scripts.
     STREAM = args.jsonl if args.jsonl is not None else not sys.stdout.isatty()
     PROSE = (not args.quiet) and (args.pretty or not STREAM)
+
+    # A terminal on stdin means a person typing words. A pipe means a program
+    # sending JSON. Either way stdin is the control channel -- it was simply
+    # unreachable from a program until now.
+    driving = (not args.no_console) and (not sys.stdin.isatty())
+    REPLIES = args.replies if args.replies is not None else driving
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -515,6 +671,10 @@ def main():
     if not args.no_console and sys.stdin.isatty():
         say("type commands below once a node connects — 'quit' to exit\n")
         threading.Thread(target=console, daemon=True).start()
+    elif driving:
+        say("reading commands from stdin as JSON lines"
+            + ("; replies go to stdout" if REPLIES else ""))
+        threading.Thread(target=commands_from_stdin, daemon=True).start()
 
     while True:
         sock, addr = srv.accept()

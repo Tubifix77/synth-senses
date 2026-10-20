@@ -109,6 +109,20 @@ and already left on stdout, and the sender still gets its response.
 - Percepts are appended to `percepts.jsonl` by default (gitignored).
 - Multiple nodes can connect at once; commands typed at the prompt broadcast to
   all of them. `node` identifies the sender.
+- **Commands come in from code too.** When stdin is a pipe rather than a
+  terminal there is nobody to type, so the receiver reads it as commands —
+  one JSON object per line, `{"cmd": "look", "lens": "front"}`. The shorthand
+  above works there as well, so `echo status | receiver.py` is fine.
+  `--no-console` turns off both the console and the reader.
+- **Answers come back on stdout**, beside the percepts, told apart by one rule:
+  a reply always carries `type`, a percept never does. Off unless something is
+  driving the receiver, so an ordinary `receiver | consumer` pipeline is
+  unchanged; `--replies` and `--no-replies` force it. A refused or undeliverable
+  command answers with `{"type": "error", ...}` rather than disappearing.
+- **Read it as UTF-8.** The receiver forces UTF-8 on its own streams, but
+  anything consuming it must pass `encoding="utf-8"` — on Windows a pipe
+  defaults to cp1252 and the stream dies on the first character a narration or
+  transcript contains that cp1252 cannot spell.
 - No auth unless you pass `--token`. It's a development tool — don't expose it to
   the internet.
 
