@@ -205,7 +205,11 @@ TEN = [
     ("salience",     "f32", "ratio",   lambda p: _dig(p, "attention", "salience"), 0.05),
     ("motion",       "u32", None,      lambda p: _idx(MOTION, _dig(p, "body", "motion")), 0),
     ("posture",      "u32", None,      lambda p: _idx(POSTURE, _dig(p, "body", "posture")), 0),
-    ("steps",        "u32", "count",   lambda p: _dig(p, "body", "steps"), 0),
+    # u64 because that is what Potluck's manifest records. The value counts
+    # from the last reboot rather than from install -- TYPE_STEP_COUNTER's
+    # own contract -- so it drops to zero when the phone restarts and
+    # anything differencing it sees a large negative.
+    ("steps",        "u64", "count",   lambda p: _dig(p, "body", "steps"), 0),
     ("sound",        "u32", None,      sound_class, 0),
     ("loudness",     "f32", None,      lambda p: _dig(p, "hearing", "level_db"), 1.5),
     ("place",        "u32", None,      place_number, 0),
@@ -702,9 +706,14 @@ def main():
                   insecure=args.insecure)
 
     if args.pair:
-        if not hub:
+        if not args.hub:
             say("--pair needs --hub")
             return 2
+        # Deliberately without the stored token. Pairing carries no
+        # credential, which is exactly what lets it read the certificate and
+        # record the pin -- and a Hub holding an old token would have its pin
+        # checked first and refuse to pair at all when there is no pin yet.
+        hub = Hub(args.hub, insecure=args.insecure)
         token = pair(hub, args.name, "write")
         if not token:
             return 1

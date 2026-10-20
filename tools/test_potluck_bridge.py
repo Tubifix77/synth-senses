@@ -353,6 +353,30 @@ pb._drain(pending, budget, hub)
 check("but everything is refreshed at half of stale_ms, so a quiet room "
       "never reads STALE", len(hub.writes) == 20, str(len(hub.writes)))
 
+print("\nthe published table and the documented one are the same table")
+# docs/ROADMAP.md states these to a consumer that will hard-code them, and
+# Potluck's own INTEGRATIONS.md records them on the other side. Three copies
+# of one fact, which is how `steps` came to be u64 in the document and u32
+# here -- agreed as u64, written as u32, and nothing said so.
+roadmap = read("docs", "ROADMAP.md")
+doc_rows = {}
+for line in roadmap.splitlines():
+    m = re.match(r"\|\s*`(\w+)`\s*\|\s*(\w+)\s*\|\s*([^|]*?)\s*\|", line)
+    if m and m.group(2) in ("f32", "u32", "u64", "i32", "bool"):
+        unit = m.group(3).strip()
+        doc_rows[m.group(1)] = (m.group(2), None if unit in ("", "\u2014") else unit)
+
+here = {n: (k, u) for n, k, u, _r, _e in pb.TEN}
+check("the roadmap documents a value table at all", len(doc_rows) == 10,
+      f"found {len(doc_rows)}: {sorted(doc_rows)}")
+check("the same ten names", set(doc_rows) == set(here),
+      f"doc-only={sorted(set(doc_rows) - set(here))} "
+      f"code-only={sorted(set(here) - set(doc_rows))}")
+for name in sorted(set(doc_rows) & set(here)):
+    check(f"{name} has the documented type and unit",
+          doc_rows[name] == here[name],
+          f"doc={doc_rows[name]} code={here[name]}")
+
 print("\nthe token does not travel to an unverified hub")
 # The hub serves a certificate of its own making, so verify_mode is
 # necessarily NONE and the pin is the only thing standing between a bearer
@@ -419,6 +443,26 @@ check("the certificate is fetched once, not on every write",
 
 check("pairing itself carries no token, which is how the pin gets recorded",
       pb.Hub("https://h:8443").token is None)
+
+# A Hub holding a token checks its pin before every request. Pairing must
+# therefore not be done on such a Hub: with no pin recorded yet, check_pin
+# refuses, and the one action that would record a pin becomes impossible.
+hub = FakeHub(good, token="an old token", fingerprint=None)
+try:
+    hub.post("/api/pair", {"name": "x", "right": "write"})
+    ok = False
+except RuntimeError as e:
+    ok = "no certificate pin recorded" in str(e)
+except Exception:
+    ok = False
+check("a hub carrying a token cannot pair, which is why main() builds a "
+      "fresh one", ok)
+
+check("host and port are parsed from the base url",
+      pb.Hub("https://10.0.0.5:8443").host_port() == ("10.0.0.5", 8443),
+      str(pb.Hub("https://10.0.0.5:8443").host_port()))
+check("and https defaults to 443 when no port is given",
+      pb.Hub("https://hub.lan").host_port() == ("hub.lan", 443))
 
 print(f"\n{len(failures)} failure(s)")
 for f in failures:
