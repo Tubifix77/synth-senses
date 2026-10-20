@@ -45,6 +45,16 @@ jobs:
       - name: Assemble
         run: gradle --no-daemon assembleDebug
 
+      # The APK had been opened by hand once and the findings written into
+      # docs/VALIDATION.md. A one-off check decays: lowering minSdk to 28
+      # made that table stale the same evening it was written. This reads the
+      # binary manifest out of the artifact that was actually built -- no
+      # aapt, no Android SDK, pure stdlib -- so the claims cannot drift from
+      # the build again.
+      - name: Read the facts out of the APK
+        run: |
+          python3 tools/apk_facts.py app/build/outputs/apk/debug/app-debug.apk             --expect-min-sdk 28             --expect-target-sdk 36             --expect-compile-sdk 37             --forbid assets/README.md             --forbid assets/yamnet.tflite
+
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v7
@@ -228,7 +238,7 @@ jobs:
           python-version: '3.12'
 
       - name: Syntax check
-        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py tools/digest.py tools/test_digest.py tools/test_docs.py tools/potluck_bridge.py tools/test_potluck_bridge.py
+        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py tools/digest.py tools/test_digest.py tools/test_docs.py tools/potluck_bridge.py tools/test_potluck_bridge.py tools/apk_facts.py
 
       # The WebSocket is the primary transport and was the one path nothing
       # exercised automatically. Speaks RFC 6455 at the receiver as a real

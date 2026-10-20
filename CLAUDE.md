@@ -213,6 +213,7 @@ tools/test_receiver_ws.py  RFC 6455 against the receiver, plus its stdout contra
 tools/test_transitive_sweep.py  the sweep's version ordering and ceiling detection
 tools/test_digest.py       the digest, and above all that redaction holds
 tools/test_docs.py         docs/INTEGRATION.md's facts against the source
+tools/apk_facts.py         reads a built APK's binary manifest; CI gates on it
 tools/potluck_bridge.py    percepts -> ten numbers in a Potluck cell
 tools/test_potluck_bridge.py  its ordinals, budget, and that absence stays absent
 ```

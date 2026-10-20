@@ -358,10 +358,30 @@ Doing so confirmed the things that are easy to assume and cheap to check:
 
 | Claim | Found |
 |---|---|
-| manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 29`, `targetSdkVersion 36` — the floor has since been lowered to 28, which this check has not been repeated against |
-| the app's own code is really packaged | all 11 classes present across 8 dex files |
+| manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 28`, `targetSdkVersion 36` |
+| the app's own code is really packaged | 369 references to `Lnet/synthsenses/` across 8 dex files |
 | it degrades without the model | no `yamnet.tflite`, as CI has no copy |
-| permissions are what the manifest declares | 18, plus one added by androidx |
+| permissions are what the manifest declares | 19 — the 18 declared, plus `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` added by androidx |
+| the foreground service declares the types it uses | `200 = location\|camera\|microphone` |
+| it still ships for every ABI | `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` |
+
+**This is no longer a one-off.** It was, and it decayed within the day:
+lowering `minSdk` to 28 made the row above stale the same evening it was
+written, and the table said so rather than being quietly wrong.
+[`tools/apk_facts.py`](../tools/apk_facts.py) now reads these facts out of the
+binary manifest — no `aapt`, no Android SDK, pure stdlib — and **CI runs it
+against every APK it builds**, failing the job if `minSdk`, `targetSdk` or
+`compileSdk` drift from the expected values or if `assets/README.md` or a
+model file reappears in the package.
+
+Writing it turned up one thing worth recording, because it is the kind of bug
+that reports success: `attributeStart` in a compiled XML node counts from the
+attribute extension struct, 16 bytes into the node, not from the node itself.
+Off by those 16, every attribute name resolves to a garbage string-pool index
+— which does not throw, it reads as *"this element has no attributes"*. The
+first run reported a manifest with no package, no SDK versions and no
+permissions, which is indistinguishable from a tool that works and an APK that
+is empty.
 
 It also turned up something nobody had noticed: `app/src/main/assets/README.md`,
 instructions written for a human, was being packaged and shipped to devices.
