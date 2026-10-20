@@ -53,3 +53,6 @@ Thumbs.db
 # ---- Transfer artefact ----
 _bundle.txt
 _unpack.py
+
+# the Potluck pairing token and the certificate fingerprint it pinned
+.potluck-token.json

@@ -126,6 +126,46 @@ and already left on stdout, and the sender still gets its response.
 - No auth unless you pass `--token`. It's a development tool — don't expose it to
   the internet.
 
+## potluck_bridge.py
+
+Publishes a phone's percepts into a [Potluck](https://github.com/Tubifix77)
+cell as ten numbers — salience, motion, posture, steps, sound class, loudness,
+place, battery, battery temperature and thermal state.
+
+```bash
+python3 tools/receiver.py | python3 tools/potluck_bridge.py --dry-run
+```
+
+A Potluck inbox value is at most **eight bytes**, a bool or a number, so
+labels, transcripts and the narration have no representation there and stay on
+this side. Ordinals carry the labels instead, which makes the order of the
+lists in `Vocabulary.kt` a wire contract — the tests check this file's copies
+against the Kotlin rather than trusting them.
+
+```bash
+python3 tools/potluck_bridge.py --manifest    # the inbox block, to paste
+python3 tools/potluck_bridge.py --hub https://10.0.0.5:8443 --pair
+python3 tools/receiver.py | python3 tools/potluck_bridge.py --hub https://10.0.0.5:8443
+```
+
+### Notes
+
+- **404 is a state, not an error.** Until the cell's owner provisions the
+  inbox, every write answers 404; the bridge backs off and says so. That is
+  what lets it be built and watched before any of it is live.
+- **A 403 is printed exactly as the hub words it.** One of them diagnoses the
+  trap where re-pairing under a taken name becomes `Synth Senses 2` while the
+  cluster file still says `Synth Senses`, so every write is refused by a
+  program that looks perfectly paired. Summarising it would lose the part that
+  matters.
+- **Absence stays absence.** A phone with no radio publishes nothing for
+  `place` rather than zero, and Potluck reads `NO_DATA` — the
+  degrade-never-fabricate invariant in someone else's type system.
+- **Never replays a backlog.** The phone spools up to 2000 percepts and
+  flushes them on reconnect; Potluck holds a current value, not a series, so
+  the bridge keeps only the newest of each and drops the rest.
+- The token and certificate pin live in `.potluck-token.json` (gitignored).
+
 ## transitive_sweep.py
 
 Answers one question before a CI cycle is spent on it: **would

@@ -378,6 +378,41 @@ phone does not have: a value that is simply never written says "absent" rather
 than "zero", which is this project's first invariant expressed in someone
 else's type system.
 
+**The bridge exists.** [`tools/potluck_bridge.py`](../tools/potluck_bridge.py),
+stdlib only like the rest of the tooling:
+
+```bash
+python3 tools/receiver.py | python3 tools/potluck_bridge.py --dry-run
+python3 tools/potluck_bridge.py --manifest     # the inbox block to paste
+```
+
+It is built and tested against a cell that does not exist yet, which is
+possible precisely because an unprovisioned write answers 404 and that is a
+state rather than an error. `--dry-run` prints what it would send; `--manifest`
+prints the `builtin:inbox` block and the `outside` entries so the cluster file
+is never hand-typed from this table and cannot drift from it.
+
+What it does, beyond the mapping:
+
+- **Writes on change, not on a timer**, with a per-value epsilon so a salience
+  of 0.70 followed by 0.71 is not news. Same reasoning as bucketing in
+  `Percept.tokens()`; here the cost of pretending otherwise is the write
+  budget rather than habituation.
+- **Refreshes at half of `stale_ms`** so a quiet room never reads STALE. This
+  source is habituation-gated, so silence is the normal case and must not look
+  like a dead program.
+- **Keeps under the ceiling deliberately.** Potluck allows two writes a second
+  with bursts of four; the bridge runs at 1.2 and leaves the burst as headroom
+  rather than as the plan.
+- **Pins the hub's certificate** to the one it paired with, so the token never
+  travels to a different hub. Pairing stores the fingerprint beside the token.
+
+A bug worth recording, because it was the kind that only shows under the
+condition the system is designed for: the first version drained the write
+queue only when a percept arrived. A burst of changes followed by silence
+would have left the last values pending forever — and silence is exactly what
+habituation produces. Reading and writing now run on separate clocks.
+
 **What specifying it already bought.** Writing this up surfaced a defect that
 breaks BLE scanning, and with it place learning, on every phone between minSdk
 29 and API 30: the app asked for `BLUETOOTH_SCAN`, which does not exist there,
