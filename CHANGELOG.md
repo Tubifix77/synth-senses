@@ -9,10 +9,44 @@ the app version whenever the shape changes in a way that breaks receivers.
 
 ## [Unreleased]
 
-**Tooling and documentation only.** Nothing under `app/` has changed since
-0.3.0, so the APK is identical and the version is deliberately not bumped.
+The app changes here, so the APK is no longer the 0.3.0 one. **`minSdk` drops
+to 28** and the wire format is untouched: `schema` stays at 2 and a v0.2
+receiver parses these percepts unchanged.
 
 ### Added
+
+- **The phone can be steered from code.** Commands go into the receiver as
+  JSON lines on stdin, the mirror of percepts leaving on stdout, so the
+  sensing side is an ordinary bidirectional filter — no socket, no port, no
+  second protocol. The phone's `ack`, `status`, `places` and `hello` replies
+  come back on stdout beside the percepts, told apart by one rule: **a reply
+  always carries `type`; a percept never does.** A command outside the
+  vocabulary is refused at the receiver and never reaches the phone, as is a
+  malformed line or one sent with nothing connected — each answers
+  `{"type": "error", ...}` rather than vanishing. This was the one item
+  `docs/ROADMAP.md` listed as blocked on nothing, and the prerequisite for
+  every version of the bridge.
+- **`status` reports what the phone actually is.** `device` gives model,
+  manufacturer and Android version; `sensors` lists each sensor the body
+  sense uses, whether it is physically present, and the hardware's own name
+  for it. The app degrades silently on missing hardware, which is right at
+  runtime and useless when the hardware is the unknown — and reading logcat
+  needs an `adb` this project's PC side does not have.
+- `senses/Vocabulary.kt` — the closed label lists in a fixed order, because a
+  consumer that cannot carry strings carries the index instead. That makes
+  their order a wire contract no percept ever shows. **Append, never insert.**
+- [`tools/potluck_bridge.py`](tools/potluck_bridge.py) — publishes percepts
+  into a Potluck cell as ten numbers. Writes on change with a per-value
+  epsilon, refreshes at half of `stale_ms` so a quiet room never reads STALE,
+  coalesces newest-wins rather than queueing, stays under the hub's write
+  ceiling, and pins the hub's certificate so the pairing token only ever
+  travels to the hub that issued it.
+- [`tools/apk_facts.py`](tools/apk_facts.py) — reads a built APK's binary
+  manifest with no `aapt` and no Android SDK. **CI gates on it**, so the fact
+  table in `docs/VALIDATION.md` cannot quietly go stale the way it did.
+- The emulator runs instrumented tests at **API 28 and API 36** — `minSdk` and
+  `targetSdk`, the two ends of the range the app is developed for. Until this
+  existed the floor was compiled and never once started.
 
 - `tools/digest.py` — turns a percept log into a report. Built for reading a
   hardware test: it breaks `accel_rms` down per motion state, which is the
@@ -22,8 +56,9 @@ the app version whenever the shape changes in a way that breaks receivers.
   its output is meant to be safe to paste somewhere.
 - [`docs/INTEGRATION.md`](docs/INTEGRATION.md) — the spec for whoever builds
   the consuming side, written to be coded against without reading the Kotlin.
-  It documents only what runs, and says plainly that the return path is not
-  reachable from code and that curated reports do not exist yet.
+  It documents only what runs. When it was written that meant saying plainly
+  that the return path was unreachable from code; it now documents that path
+  instead, and still says curated reports do not exist yet.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what happens next and in what order.
   A phone first, then the bridge to the separate machine-consciousness project.
   Records where the bridge should live and which half of it is blocked on
@@ -54,8 +89,47 @@ the app version whenever the shape changes in a way that breaks receivers.
   after it, and names the host firewall as the usual reason a connection
   fails.
 
+- **`minSdk` is 28**, down from 29, so an Android 9 phone can run this.
+  Nothing in the dependency graph objected — the highest `minSdk` anything
+  resolves to is 24 — confirmed with `tools/transitive_sweep.py --minsdk 28`
+  across the whole resolved graph rather than from the direct list.
+- **The ears stand aside for the telephone.** `AudioSensor` refuses to open
+  the microphone whenever `AudioManager.mode` is anything but `MODE_NORMAL` —
+  from the first ring rather than from the moment someone answers, and
+  covering call screening and the redirect modes without having heard of them.
+  One of the phones this runs on is a household's emergency line; losing a
+  sound label is always the right trade.
+- Every tool that prints percept text forces UTF-8 on its streams.
+
 ### Fixed
 
+- **A BLE scan below API 31 never asked for the permission it needs.**
+  `BLUETOOTH_SCAN` does not exist before 31, where a scan instead requires
+  `ACCESS_FINE_LOCATION` — and that was only requested when wifi, cell or GPS
+  were switched on, all of which default to off, while BLE defaults to on. So
+  on any phone from API 28 to 30 with stock settings the scan returned
+  nothing, `ble_count` was a permanent zero, the place fingerprint was never
+  non-empty, and `PlaceMemory.recognise` was not reached once. Place learning
+  — redesigned three times and validated across 2000 seeds — could not work at
+  all there. Nothing threw; it quietly did nothing. The decision now lives in
+  `senses/Permissions.kt` as a pure function, tested at every API level the
+  app supports.
+- **`CellInfoNr` is API 29**, and was referenced unguarded. Harmless at
+  `minSdk` 29 and a lint error below it.
+- **The launch test restated the permission list instead of deriving it**, so
+  it stopped granting what the app asks for the moment the BLE fix landed, and
+  both cases failed on Android 9 with "never becomes RESUMED" — which reads
+  like a crash and was not one. It had been wrong for API 28, 29 and 30 ever
+  since, and nothing noticed because the only level the emulator ran was 35.
+- **The stream died on any character Windows cannot spell.** A narration, an
+  OCR line or a transcript can hold anything; on Windows a pipe defaults to
+  cp1252, so the feed broke on the first such word — in `digest.py` too, which
+  prints exactly that text. Never reproduced in CI, which is Linux and UTF-8
+  already.
+- **`motion` was documented with a value it cannot return.** `PROTOCOL.md`
+  listed an `unknown` that `classifyMotion` has no branch for; there are four
+  values, not five. Both documents and the ordinals sent to a consumer are
+  corrected, and a test now fails on a reorder.
 - **A rendering error could break the transport.** A percept with no `trigger`
   made the human renderer raise while formatting; the exception escaped to the
   connection handler and the client received no HTTP response at all, which a
