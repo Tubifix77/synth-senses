@@ -69,7 +69,7 @@ detected = ts.detect_ceiling(
 # it -- and a tool that silently checks against the wrong ceiling is worse than
 # no tool, which is why this is asserted rather than assumed.
 check("compileSdk", detected["sdk"], 37)
-check("minSdk", detected["minsdk"], 29)
+check("minSdk", detected["minsdk"], 28)
 check("AGP", detected["agp"], "9.4.1")
 
 print("\nparsing the dependency list")
