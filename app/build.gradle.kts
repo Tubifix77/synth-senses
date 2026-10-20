@@ -20,6 +20,7 @@ android {
         targetSdk = 36
         versionCode = 4
         versionName = "0.3.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -138,4 +139,13 @@ dependencies {
     // The REAL org.json, shadowing the android.jar stub that would otherwise
     // throw on every JSONObject call.
     testImplementation("org.json:json:20260814")
+
+    // Instrumented tests. These need a device or an emulator, and they exist to
+    // answer the one question the JVM tests cannot: does the app actually run.
+    // Versions resolved against Google Maven and checked against this project's
+    // compileSdk 37 / AGP 9.4.1 ceiling, same as everything else here.
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test:core:1.7.0")
+    androidTestImplementation("androidx.test:rules:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
 }
