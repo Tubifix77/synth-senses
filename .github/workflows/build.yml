@@ -157,23 +157,41 @@ jobs:
       #
       # So install both here instead, retrying, and verify the files actually
       # landed rather than trusting the exit code.
+      #
+      # This step is hardening, never a new way to fail: if it cannot find
+      # sdkmanager it says so and stands aside, because the emulator action
+      # installs everything itself regardless. The first version of this did
+      # fail the job -- `sdkmanager` is not on PATH until the action puts it
+      # there, so all three attempts died on "command not found" and took both
+      # matrix legs with them. A guard against flakiness that is itself a
+      # single point of failure is worse than no guard.
       - name: Install the emulator and system image, with retries
         run: |
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkm="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$sdkm" ]; then
+            sdkm="$(find "$sdk/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -1)"
+          fi
+          if [ ! -x "$sdkm" ]; then
+            echo "::warning::no sdkmanager under $sdk — leaving the install to the action"
+            exit 0
+          fi
+          echo "using $sdkm"
           img="system-images;android-${{ matrix.api-level }};google_apis;x86_64"
-          dir="$ANDROID_HOME/system-images/android-${{ matrix.api-level }}/google_apis/x86_64"
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          dir="$sdk/system-images/android-${{ matrix.api-level }}/google_apis/x86_64"
+          yes | "$sdkm" --licenses > /dev/null 2>&1 || true
           for attempt in 1 2 3; do
-            sdkmanager --install emulator "$img" > /dev/null || true
-            if [ -x "$ANDROID_HOME/emulator/emulator" ] && [ -d "$dir" ]; then
+            "$sdkm" --install emulator "$img" > /dev/null || true
+            if [ -x "$sdk/emulator/emulator" ] && [ -d "$dir" ]; then
               echo "emulator and $img present (attempt $attempt)"
               exit 0
             fi
             echo "attempt $attempt left something missing; retrying"
-            rm -rf "$ANDROID_HOME/.downloadIntermediates" || true
+            rm -rf "$sdk/.downloadIntermediates" || true
             sleep $((attempt * 20))
           done
-          echo "::error::emulator or system image still missing after 3 attempts"
-          exit 1
+          echo "::warning::could not pre-install after 3 attempts — letting the action try"
+          exit 0
 
       - name: Instrumented tests on an emulator
         uses: ReactiveCircus/android-emulator-runner@v2
