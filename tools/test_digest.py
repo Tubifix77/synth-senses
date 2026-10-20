@@ -168,6 +168,61 @@ def main():
     check("an empty log says so and exits non-zero",
           code == 1 and "no percepts" in out4, f"exit {code}")
 
+    # ---- a sense that worked and then stopped ----
+    #
+    # This is the shape of the two least trusted pieces of code in the
+    # project: the ImageProxy held open for a fixed 1.5 s in
+    # VisionSensor.onFrame, and mic contention between AudioSensor and
+    # SpeechSensor. Neither throws. Both end up looking, in a bare count,
+    # exactly like a sense that happened to be off for a while -- which is
+    # why the count alone was not enough.
+    print("\na sense that stops, which is how the suspect code fails")
+    live = percept(0, "2026-01-01T20:00:00.000Z")["vision"]
+    rows = [percept(i, f"2026-01-01T20:{i:02d}:00.000Z",
+                    vision=None if i >= 20 else live)
+            for i in range(40)]
+    write_log(rows, log)
+    code, out = run(log)
+    check("a camera that dies halfway is called out, not averaged away",
+          "never came back" in out, out[:400])
+    check("and says how long it was silent", "20 percepts" in out, out[:400])
+
+    # the same count, but alternating rather than dying: not an alarm
+    rows = [percept(i, f"2026-01-01T20:{i:02d}:00.000Z",
+                    vision=None if i % 2 else live)
+            for i in range(40)]
+    write_log(rows, log)
+    code, out = run(log)
+    check("a camera that merely alternates is not called out",
+          "never came back" not in out, out[:300])
+
+    # off for the whole run is absence, not a stall
+    rows = [percept(i, f"2026-01-01T20:{i:02d}:00.000Z", vision=None)
+            for i in range(40)]
+    write_log(rows, log)
+    code, out = run(log)
+    check("a sense that was never on is reported as never, with no alarm",
+          "vision     never" in out and "never came back" not in out, out[:300])
+
+    # ---- gyro per motion state, not just accel ----
+    print("\nboth halves of what the motion thresholds were guessed from")
+    rows = []
+    for i in range(20):
+        walking = i % 2 == 0
+        rows.append(percept(i, f"2026-01-01T20:{i:02d}:00.000Z", body={
+            "motion": "walking" if walking else "still",
+            "accel_rms": 1.2 if walking else 0.02,
+            "gyro_rms": 0.6 if walking else 0.01,
+        }))
+    write_log(rows, log)
+    code, out = run(log)
+    check("accel_rms is broken down per motion state",
+          "accel_rms per motion state" in out, out[:300])
+    check("and so is gyro_rms, which three of the classifier's branches use",
+          "gyro_rms per motion state" in out, out[:300])
+    check("the gyro numbers are the ones that were fed in",
+          "0.600" in out and "0.010" in out, out[-900:])
+
     print(f"\n{len(failures)} failure(s)")
     for f in failures:
         print("  -", f)

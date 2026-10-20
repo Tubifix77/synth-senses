@@ -72,6 +72,45 @@ def fmt_span(s, unit="", places=2):
     return f"{lo:.{places}f} to {hi:.{places}f}{unit}, mean {mean:.{places}f}"
 
 
+
+def longest_absence(percepts, block):
+    """The longest run of consecutive percepts where a sense reported nothing.
+
+    Returns (run_length, note). The note is non-empty only when the sense
+    worked at some point and then stopped for a while, because that is the
+    interesting case: a sense that is simply switched off or absent reports
+    null throughout and is correctly described by the count beside it.
+
+    This exists for the two pieces of code docs/VALIDATION.md calls least
+    trustworthy. `VisionSensor.onFrame` holds an `ImageProxy` open for a fixed
+    1.5 s; if that is wrong the camera pipeline stalls and vision simply stops
+    arriving. `AudioSensor` and `SpeechSensor` both want the microphone; if
+    they fight, hearing stops. Neither throws. Both look, in a total, exactly
+    like a sense that was off for a while.
+    """
+    seen_any = False
+    run = best = 0
+    for p in percepts:
+        if p.get(block):
+            seen_any = True
+            run = 0
+        else:
+            run += 1
+            best = max(best, run)
+    if not seen_any or best < 3:
+        return best, ""
+    tail = len(percepts) - 1
+    while tail >= 0 and not percepts[tail].get(block):
+        tail -= 1
+    if tail < 0:
+        return best, ""
+    stopped_at_end = (len(percepts) - 1 - tail) == best
+    if stopped_at_end:
+        return best, (f"<-- worked, then stopped for the last {best} "
+                      f"percepts and never came back")
+    return best, f"(longest silent run {best})"
+
+
 def section(title):
     print(f"\n{title}")
     print("-" * len(title))
@@ -145,7 +184,18 @@ def main():
     for block in ("vision", "hearing", "radio", "gps"):
         n = sum(1 for p in percepts if p.get(block))
         state = "never" if n == 0 else f"{n}/{len(percepts)}"
-        print(f"{block:10s} {state}")
+        run, note = longest_absence(percepts, block)
+        # A sense that worked and then stopped is the signature of the two
+        # most suspect pieces of code in the project: the ImageProxy held open
+        # for a fixed 1.5 s in VisionSensor.onFrame, and mic contention
+        # between AudioSensor and SpeechSensor. Both fail by going quiet
+        # rather than by throwing, so a count alone hides them -- 400/800
+        # looks like a camera that was off half the time and reads the same
+        # whether it alternated or died at the halfway mark.
+        if note:
+            print(f"{block:10s} {state}   {note}")
+        else:
+            print(f"{block:10s} {state}")
 
     vis = [p["vision"] for p in percepts if p.get("vision")]
     if vis:
@@ -213,11 +263,20 @@ def main():
     for b in bodies:
         if b.get("motion") and isinstance(b.get("accel_rms"), (int, float)):
             by_motion[b["motion"]].append(b["accel_rms"])
-    if len(by_motion) > 1:
-        print("accel_rms per motion state:")
-        for m, vals in sorted(by_motion.items()):
-            print(f"           {m:10s} {min(vals):.3f} to {max(vals):.3f}, "
-                  f"mean {sum(vals)/len(vals):.3f}   (n={len(vals)})")
+    # Both of these, not just accel: classifyMotion tests gyro_rms in three of
+    # its branches -- "handled" is partly rotation without translation, and
+    # "vehicle" is separated from "walking" by LOW rotation. Retuning the
+    # thresholds from accel alone would leave half the classifier guessed at.
+    for field in ("accel_rms", "gyro_rms"):
+        per = collections.defaultdict(list)
+        for b in bodies:
+            if b.get("motion") and isinstance(b.get(field), (int, float)):
+                per[b["motion"]].append(b[field])
+        if len(per) > 1:
+            print(f"{field} per motion state:")
+            for m, vals in sorted(per.items()):
+                print(f"           {m:10s} {min(vals):.3f} to {max(vals):.3f}, "
+                      f"mean {sum(vals)/len(vals):.3f}   (n={len(vals)})")
 
     # ---- did it survive, and at what cost ----
     section("self")

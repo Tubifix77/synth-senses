@@ -15,10 +15,17 @@ algorithms were verified, and which earlier designs failed and why.
 
 ## Status: green
 
-All four CI jobs pass — assemble debug, android lint, unit tests, receiver smoke
-test. A debug APK is produced. Every unit test passes; the suite is 71 tests
-at the time of writing, which is a number worth re-reading from CI rather
-than trusting here.
+All six CI jobs pass — assemble debug, android lint, unit tests, receiver
+smoke test, and the emulator at API 28 and API 36. A debug APK is produced.
+Every unit test passes; the suite was 100 tests at the time of writing, plus
+six instrumented tests on each emulator, which are numbers worth re-reading
+from CI rather than trusting here.
+
+The emulator legs are the two ends of the range the app is developed for: a
+Huawei P20 Lite on Android 9 and a Xiaomi 14T Pro on Android 14. They cannot
+measure anything on the hardware list, but they answer "does it start and
+survive a rotation", which nothing did before they existed. The API 28 leg
+found a real bug on its first run.
 
 The APK has been opened and checked, which is how the stray `assets/README.md`
 that was being shipped to devices got found. It is about 178 MiB, almost all of

@@ -51,10 +51,15 @@ only traffic on the wire is percepts out and commands in.
 
 ## Status
 
-It builds. CI assembles a debug APK, passes Android Lint, and runs the JVM
-unit-test suite plus two standard-library suites for the tooling on every
-push; all four jobs are green. AGP 9.4.1, Gradle 9.7.1, Kotlin 2.4.20,
-compileSdk 37, and nothing pinned below its current release.
+It builds, and it runs. CI assembles a debug APK, passes Android Lint, runs
+the JVM unit-test suite and five standard-library suites for the tooling, and
+starts the app on emulators at **both ends of the supported range** — API 28,
+which is minSdk, and API 36, which is targetSdk. Six jobs, all green. AGP
+9.4.1, Gradle 9.7.1, Kotlin 2.4.20, compileSdk 37, minSdk 28, and nothing
+pinned below its current release.
+
+The test counts move with every push and are worth reading from CI rather than
+from here.
 
 What that does and does not buy you:
 

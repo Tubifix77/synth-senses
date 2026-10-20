@@ -106,10 +106,22 @@ Point the phone at the receiver, let it run, then:
 python3 tools/digest.py percepts.jsonl
 ```
 
-That answers the list above directly rather than by scrolling JSONL. It breaks
-`accel_rms` down per motion state, which is the measurement the `BodySensor`
-thresholds need; reports battery movement as points per hour; and flags gaps
-over three minutes, which is what a killed service looks like.
+That answers the list above directly rather than by scrolling JSONL:
+
+- **`accel_rms` and `gyro_rms` per motion state** — both, because
+  `classifyMotion` tests gyro in three of its branches: "handled" is partly
+  rotation without translation, and "vehicle" is separated from "walking" by
+  *low* rotation. Retuning from accel alone would leave half the classifier
+  still guessed at.
+- **Whether a sense worked and then stopped**, with the length of the silent
+  run. This is the shape of the two least trusted pieces of code here — the
+  `ImageProxy` held open for a fixed 1.5 s, and mic contention between
+  `AudioSensor` and `SpeechSensor`. Neither throws; both just go quiet, and in
+  a bare count like `20/50` they are indistinguishable from a camera that
+  happened to be off half the time. A sense that alternates is not flagged; one
+  that dies and never returns is.
+- **Battery movement as points per hour**, and **gaps over three minutes**,
+  which is what a killed foreground service looks like.
 
 It **redacts OCR text and transcripts by default**, so its output is safe to
 paste somewhere or hand to an assistant. `--raw` includes them once you have
