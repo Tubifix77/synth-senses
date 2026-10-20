@@ -39,10 +39,42 @@ case:
   killing background work.
 
 The brief is to use whatever a modern phone offers while still degrading
-cleanly on an old one, so `minSdk` stays at **29**. That is not the same as
-designing for 29: a sensor or API that only exists higher up should be used
-where it exists and reported absent where it does not, which is what the
+cleanly on an old one, so `minSdk` is **28**. That is not the same as designing
+for 28: a sensor or API that only exists higher up should be used where it
+exists and reported absent where it does not, which is what the
 degrade-never-fabricate invariant already requires.
+
+### The second phone, which is the harder test
+
+A **Huawei P20 Lite on Android 9** — API 28, which is why the floor moved. It
+earns its place by being a worse environment than the Xiaomi in every way that
+matters:
+
+- **It is a household emergency phone.** Fixed in place, permanently on
+  charge, sound always up, and the only number some of the family have. That
+  makes one requirement absolute and above any sensing quality: **the app must
+  never cost that phone a call.** The ears already opened the mic in short
+  bursts and released it in a `finally`, which made a collision unlikely;
+  `micIsBusy` now makes it impossible, standing down from the first ring rather
+  than from the moment someone answers. Verify it anyway on the first evening —
+  ring the phone from another one while the service runs.
+- **It cannot report its own heat.** Thermal status is API 29 and headroom is
+  API 30, so both degrade to absent here. `self.battery_temp_c` still works and
+  is the only heat signal this phone has. On a device that is permanently
+  charging, expect it to read warm from the charging alone, and read it as a
+  trend rather than against a fixed number.
+- **EMUI 9 is at least as aggressive as HyperOS** about killing background
+  work, so the overnight-survival question is sharper here than on the Xiaomi.
+- **It may have no gyroscope.** Several sources say so; `status` settles it.
+  Without one, `gyro_rms` is zero forever and `classifyMotion` loses the
+  rotation evidence that separates "handled" from "still" and "vehicle" from
+  "walking". Motion still works off the accelerometer, more coarsely.
+
+What it is unusually good at is the thing this project is actually for. Fixed
+in one place with constant motion, posture and place, almost everything it
+reports is habituated away within the hour — so whatever is left is the room's
+own life. It is close to a pure test of whether the attention model earns its
+keep.
 
 What that brief needs and did not have is a way to ask the phone what it has.
 Spec sheets disagree about this device's sensors — a barometer is the open

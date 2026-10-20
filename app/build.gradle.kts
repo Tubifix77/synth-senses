@@ -11,7 +11,11 @@ android {
 
     defaultConfig {
         applicationId = "net.synthsenses"
-        minSdk = 29
+        // 28 rather than 29 so a Huawei P20 Lite on Android 9 can run this.
+        // Nothing in the dependency graph objects: the highest minSdk anything
+        // resolves to is 24, from MediaPipe. Verified with
+        // `python tools/transitive_sweep.py --minsdk 28`, not assumed.
+        minSdk = 28
         // targetSdk stays at 36 deliberately. compileSdk changes what the app is
         // compiled against; targetSdk changes how Android behaves towards it at
         // runtime. This app has never run on a device, so opting into a new

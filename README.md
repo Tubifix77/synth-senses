@@ -59,7 +59,7 @@ compileSdk 37, and nothing pinned below its current release.
 What that does and does not buy you:
 
 - **Verified.** It compiles and packages, and the APK has been opened and
-  checked: the manifest merges to compileSdk 37 / minSdk 29 / targetSdk 36, the
+  checked: the manifest merged to compileSdk 37 / minSdk 29 / targetSdk 36, the
   app's classes really are in the dex, and no model file is bundled. The three
   algorithms behave the way [docs/VALIDATION.md](docs/VALIDATION.md) describes,
   measured against the shipped Kotlin rather than a Python model of it, and the
@@ -281,7 +281,7 @@ list in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 | **BLE** | `BLUETOOTH_SCAN` | declared `neverForLocation` — **no location needed** |
 | **WiFi scan** | `ACCESS_FINE_LOCATION` | plus location services on, device-wide |
 | Cell info | `ACCESS_FINE_LOCATION` | same |
-| Steps | `ACTIVITY_RECOGNITION` | Android 10+ |
+| Steps | `ACTIVITY_RECOGNITION` | Android 10+ only; below that the counter needs no permission |
 | Sun times | coarse location | falls back to clock-only without it |
 | Interoception, body | none | free |
 

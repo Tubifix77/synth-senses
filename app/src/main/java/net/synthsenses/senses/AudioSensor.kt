@@ -3,6 +3,7 @@ package net.synthsenses.senses
 import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
@@ -23,6 +24,11 @@ import kotlin.math.sqrt
  *
  * If assets/yamnet.tflite is missing, classification is skipped and everything
  * else still works.
+ *
+ * It also stands aside for the telephone. One of the phones this runs on is a
+ * household's emergency line — fixed in place, always on, sound always up —
+ * and a sense that costs that phone a call is not worth having at any quality.
+ * See [micIsBusy].
  */
 class AudioSensor(private val context: Context) {
 
@@ -62,9 +68,20 @@ class AudioSensor(private val context: Context) {
         return classifier
     }
 
-    /** Records a window and interprets it. Returns null if the mic couldn't be opened. */
+    /**
+     * Records a window and interprets it. Returns null if the mic couldn't be
+     * opened, or if the phone is ringing or on a call.
+     */
     @SuppressLint("MissingPermission")
     suspend fun sample(): Hearing? = withContext(Dispatchers.IO) {
+        val mode = runCatching {
+            context.getSystemService(AudioManager::class.java)?.mode
+        }.getOrNull()
+        if (micIsBusy(mode)) {
+            Log.i(TAG, "phone is ringing or on a call — not touching the mic")
+            return@withContext null
+        }
+
         val wanted = SAMPLE_RATE * WINDOW_MS / 1000
         val minBuf = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
@@ -183,3 +200,31 @@ class AudioSensor(private val context: Context) {
         classifier = null
     }
 }
+
+/**
+ * Whether the phone's own telephony is using the audio path, given
+ * `AudioManager.getMode()`.
+ *
+ * One of the devices this runs on is a household's emergency phone: fixed in
+ * place, permanently charging, sound always up, and the only number some of the
+ * family have. The ears already open the mic in short bursts and release it in
+ * a `finally` rather than holding it, which makes a collision unlikely — but
+ * unlikely is the wrong standard for a phone whose entire job is to be
+ * answerable. This makes it impossible instead.
+ *
+ * Anything other than `MODE_NORMAL` counts as busy. That is deliberately
+ * broader than testing for the three call modes by name: it already covers
+ * `MODE_RINGTONE`, so the mic is left alone from the first ring rather than
+ * from the moment someone answers, and it covers call screening and the
+ * redirect modes added later without this code having heard of them. A mode
+ * added in some future Android is far more likely to be about a call than not,
+ * and the cost of being wrong in that direction is one missing sound label.
+ *
+ * A negative value is `MODE_INVALID` or `MODE_CURRENT`, which `getMode()` does
+ * not return in practice; a null means the service could not be reached. Both
+ * mean "could not tell", and neither is treated as busy — a phone that cannot
+ * report its mode is not thereby on a call, and failing closed would silently
+ * cost the sense entirely. `AudioRecord` still fails gracefully underneath.
+ */
+internal fun micIsBusy(mode: Int?): Boolean =
+    mode != null && mode > AudioManager.MODE_NORMAL

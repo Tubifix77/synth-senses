@@ -211,16 +211,22 @@ class RadioSensor(private val context: Context) {
                 ?.firstOrNull()
                 ?: return null
 
+            // CellInfoNr and CellIdentityNr are API 29, and minSdk is 28, so the
+            // 5G branch is tested for separately rather than sitting in the
+            // `when`. A phone old enough to lack the class is old enough to
+            // lack the radio, so nothing is lost by reporting "other" there.
+            if (Build.VERSION.SDK_INT >= 29 && best is CellInfoNr) {
+                return@runCatching Cell(
+                    "nr",
+                    (best.cellIdentity as? CellIdentityNr)?.nci?.toString(),
+                    best.cellSignalStrength.dbm
+                )
+            }
+
             when (best) {
                 is CellInfoLte -> Cell(
                     "lte",
                     (best.cellIdentity as? CellIdentityLte)?.ci?.toString(),
-                    best.cellSignalStrength.dbm
-                )
-
-                is CellInfoNr -> Cell(
-                    "nr",
-                    (best.cellIdentity as? CellIdentityNr)?.nci?.toString(),
                     best.cellSignalStrength.dbm
                 )
 

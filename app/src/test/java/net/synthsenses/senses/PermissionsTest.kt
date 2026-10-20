@@ -16,8 +16,8 @@ import org.junit.Test
  * times and validated across 2000 seeds — could not have worked at all on such
  * a phone, and no test anywhere would have gone red.
  *
- * minSdk is 29, so API 29 and 30 are not hypothetical corners. They are the
- * floor this app claims to support.
+ * minSdk is 28, so API 28, 29 and 30 are not hypothetical corners. They are
+ * the floor this app claims to support.
  */
 class PermissionsTest {
 
@@ -29,7 +29,7 @@ class PermissionsTest {
 
     @Test
     fun `below 31 a BLE scan asks for fine location, or it scans nothing`() {
-        for (sdk in listOf(29, 30)) {
+        for (sdk in listOf(28, 29, 30)) {
             assertTrue(
                 "API $sdk with BLE on must request fine location: without it the " +
                     "scan is empty and no place is ever learned",
@@ -58,7 +58,7 @@ class PermissionsTest {
 
     @Test
     fun `with every radio off, nothing asks for location`() {
-        for (sdk in listOf(29, 30, 31, 34, 36)) {
+        for (sdk in listOf(28, 29, 30, 31, 34, 36)) {
             assertFalse(
                 "API $sdk with no radios should not ask for location",
                 perms(sdk, ble = false).contains(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -96,16 +96,20 @@ class PermissionsTest {
     }
 
     @Test
-    fun `the step counter is asked for across the supported range`() {
+    fun `the step counter permission is asked for only where it exists`() {
         for (sdk in listOf(29, 31, 36)) {
             assertTrue("API $sdk should request activity recognition",
                 perms(sdk).contains(Manifest.permission.ACTIVITY_RECOGNITION))
         }
+        // ACTIVITY_RECOGNITION is new in API 29. At 28 the step counter needs
+        // no runtime permission at all, so asking would be asking for
+        // something that does not exist.
+        assertFalse(perms(28).contains(Manifest.permission.ACTIVITY_RECOGNITION))
     }
 
     @Test
     fun `nothing is requested twice`() {
-        for (sdk in listOf(29, 30, 31, 33, 36)) {
+        for (sdk in listOf(28, 29, 30, 31, 33, 36)) {
             val p = perms(sdk, ble = true, wifi = true, cell = true, location = true)
             assertTrue("API $sdk produced duplicates: $p", p.size == p.distinct().size)
         }
@@ -115,7 +119,7 @@ class PermissionsTest {
     fun `the panel can warn before the dialog appears, and agrees with the request`() {
         // The warning and the request must not disagree, or the user is told one
         // thing and asked another.
-        for (sdk in listOf(29, 30, 31, 34)) {
+        for (sdk in listOf(28, 29, 30, 31, 34)) {
             for (ble in listOf(true, false)) {
                 for (wifi in listOf(true, false)) {
                     val warns = willAskForLocation(sdk, ble, wifi, false, false)
@@ -142,7 +146,7 @@ class PermissionsTest {
         // the only range where the bug could bite.
         val (ble, wifi, cell) = defaults
         assertTrue(
-            requiredPermissions(29, ble, wifi, cell, location = false)
+            requiredPermissions(28, ble, wifi, cell, location = false)
                 .contains(Manifest.permission.ACCESS_FINE_LOCATION)
         )
     }

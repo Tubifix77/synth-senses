@@ -358,7 +358,7 @@ Doing so confirmed the things that are easy to assume and cheap to check:
 
 | Claim | Found |
 |---|---|
-| manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 29`, `targetSdkVersion 36` |
+| manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 29`, `targetSdkVersion 36` — the floor has since been lowered to 28, which this check has not been repeated against |
 | the app's own code is really packaged | all 11 classes present across 8 dex files |
 | it degrades without the model | no `yamnet.tflite`, as CI has no copy |
 | permissions are what the manifest declares | 18, plus one added by androidx |

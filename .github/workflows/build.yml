@@ -103,9 +103,17 @@ jobs:
           if-no-files-found: ignore
 
   emulator:
-    name: emulator smoke test
+    name: emulator smoke test (API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both ends of the supported range. 28 is minSdk -- the floor was
+        # claimed but never executed until this entry existed, which is the
+        # same "green because nothing ran" trap as an empty test suite. 35 is
+        # where the runtime rules worth tripping over live.
+        api-level: [28, 35]
     steps:
       - uses: actions/checkout@v7
 
@@ -128,13 +136,10 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # API 35 rather than this app's minSdk of 29, on purpose: the runtime
-      # rules worth tripping over live at the top end, not the bottom. A second
-      # run at 29 would be worth adding once this one is trusted.
       - name: Instrumented tests on an emulator
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
           force-avd-creation: false
@@ -149,7 +154,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: emulator-test-report
+          name: emulator-test-report-api${{ matrix.api-level }}
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/

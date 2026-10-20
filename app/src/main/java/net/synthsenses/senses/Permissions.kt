@@ -11,7 +11,7 @@ import android.Manifest
  *
  * `BLUETOOTH_SCAN` only exists from API 31, and this app declares it with
  * `neverForLocation` precisely so a BLE scan costs no location permission. On
- * API 29 and 30 there is no such permission and no such escape hatch: a BLE
+ * API 28, 29 and 30 there is no such permission and no such escape hatch: a BLE
  * scan returns an empty list unless `ACCESS_FINE_LOCATION` is held. The old
  * code asked for fine location only when wifi, cell or GPS were switched on —
  * all off by default — while BLE ships on. So on an Android 10 or 11 phone with
@@ -37,6 +37,8 @@ internal fun requiredPermissions(
     )
     if (sdkInt >= 33) wanted += Manifest.permission.POST_NOTIFICATIONS
     if (sdkInt >= 31 && ble) wanted += Manifest.permission.BLUETOOTH_SCAN
+    // ACTIVITY_RECOGNITION is new in API 29. Below it the step counter needs
+    // no runtime permission, so there is nothing to ask for.
     if (sdkInt >= 29) wanted += Manifest.permission.ACTIVITY_RECOGNITION
 
     // Wifi scan results and cell info need fine location on Android 10+. So

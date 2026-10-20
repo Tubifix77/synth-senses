@@ -225,6 +225,12 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
   disk.** Only derived labels, transcripts and numbers.
 - **New senses ship off by default**, especially anything needing a
   special-grant permission.
+- **The phone's own telephony outranks every sense.** One target device is a
+  household emergency line. `AudioSensor` stands down whenever
+  `AudioManager.mode` is anything but `MODE_NORMAL` — from the first ring, not
+  from the answer — and nothing here may hold the mic, change a volume, or pin
+  the CPU in a way that could cost a call. Losing a sound label is always the
+  right trade.
 - **`Habituation` and `PlaceMemory` take a `File`**, with a `Context`
   convenience constructor. That is deliberate — it is the only reason the maths
   is unit-testable without Robolectric. Do not collapse it back.
