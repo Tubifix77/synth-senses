@@ -191,29 +191,34 @@ class BodySensor(private val context: Context) : SensorEventListener {
      * Thresholds are empirical and phone-dependent. Watch accel_rms and gyro_rms
      * in the percept stream while you actually do each activity and retune — these
      * came from reasoning about magnitudes, not from your phone in your pocket.
+     *
+     * Every value this returns is a member of `Vocabulary.MOTION`, and a new
+     * one has to be appended there before it can be returned here. Consumers
+     * that cannot carry strings send the index into that list instead.
      */
     private fun classifyMotion(accelRms: Float, gyroRms: Float): String = when {
-        accelRms < 0.08f && gyroRms < 0.04f -> "still"
+        accelRms < 0.08f && gyroRms < 0.04f -> Vocabulary.STILL
         // rotation without much translation is a hand turning the phone over
-        gyroRms > 0.5f && accelRms < 0.9f -> "handled"
-        accelRms < 0.55f -> "handled"
-        accelRms < 3.0f -> "walking"
+        gyroRms > 0.5f && accelRms < 0.9f -> Vocabulary.HANDLED
+        accelRms < 0.55f -> Vocabulary.HANDLED
+        accelRms < 3.0f -> Vocabulary.WALKING
         // a vehicle is sustained acceleration with little rotation: a walk
         // swings the phone, a car does not
-        gyroRms < 0.35f -> "vehicle"
-        else -> "walking"
+        gyroRms < 0.35f -> Vocabulary.VEHICLE
+        else -> Vocabulary.WALKING
     }
 
+    /** Likewise, always a member of `Vocabulary.POSTURE`. */
     private fun posture(covered: Boolean?): String {
-        if (covered == true && (lux ?: 0f) < 5f) return "pocket"
-        if (!haveGravity) return "unknown"
+        if (covered == true && (lux ?: 0f) < 5f) return Vocabulary.POCKET
+        if (!haveGravity) return Vocabulary.POSTURE_UNKNOWN
         val gz = gravity[2]
         val g = SensorManager.GRAVITY_EARTH
         return when {
-            gz > 0.80f * g -> "face_up"
-            gz < -0.80f * g -> "face_down"
-            abs(gz) < 0.35f * g -> "upright"
-            else -> "tilted"
+            gz > 0.80f * g -> Vocabulary.FACE_UP
+            gz < -0.80f * g -> Vocabulary.FACE_DOWN
+            abs(gz) < 0.35f * g -> Vocabulary.UPRIGHT
+            else -> Vocabulary.TILTED
         }
     }
 

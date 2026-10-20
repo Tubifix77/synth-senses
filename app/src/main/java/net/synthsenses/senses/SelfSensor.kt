@@ -91,18 +91,24 @@ class SelfSensor(private val context: Context) {
         )
     }
 
-    /** NONE < LIGHT < MODERATE < SEVERE < CRITICAL < EMERGENCY < SHUTDOWN. */
+    /**
+     * NONE < LIGHT < MODERATE < SEVERE < CRITICAL < EMERGENCY < SHUTDOWN, which
+     * is the order of `Vocabulary.THERMAL`. Written out as an explicit `when`
+     * rather than indexing that list by the platform constant: the ladder is
+     * only usefully ordered if each name is tied to the status it means, not to
+     * a number that happens to line up today.
+     */
     private fun thermalName(): String {
-        if (Build.VERSION.SDK_INT < 29) return "UNKNOWN"
+        if (Build.VERSION.SDK_INT < 29) return Vocabulary.THERMAL_UNKNOWN
         return when (runCatching { power.currentThermalStatus }.getOrNull()) {
-            PowerManager.THERMAL_STATUS_NONE -> "NONE"
-            PowerManager.THERMAL_STATUS_LIGHT -> "LIGHT"
-            PowerManager.THERMAL_STATUS_MODERATE -> "MODERATE"
-            PowerManager.THERMAL_STATUS_SEVERE -> "SEVERE"
-            PowerManager.THERMAL_STATUS_CRITICAL -> "CRITICAL"
-            PowerManager.THERMAL_STATUS_EMERGENCY -> "EMERGENCY"
-            PowerManager.THERMAL_STATUS_SHUTDOWN -> "SHUTDOWN"
-            else -> "UNKNOWN"
+            PowerManager.THERMAL_STATUS_NONE -> Vocabulary.THERMAL_NONE
+            PowerManager.THERMAL_STATUS_LIGHT -> Vocabulary.THERMAL_LIGHT
+            PowerManager.THERMAL_STATUS_MODERATE -> Vocabulary.THERMAL_MODERATE
+            PowerManager.THERMAL_STATUS_SEVERE -> Vocabulary.THERMAL_SEVERE
+            PowerManager.THERMAL_STATUS_CRITICAL -> Vocabulary.THERMAL_CRITICAL
+            PowerManager.THERMAL_STATUS_EMERGENCY -> Vocabulary.THERMAL_EMERGENCY
+            PowerManager.THERMAL_STATUS_SHUTDOWN -> Vocabulary.THERMAL_SHUTDOWN
+            else -> Vocabulary.THERMAL_UNKNOWN
         }
     }
 

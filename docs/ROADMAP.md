@@ -179,11 +179,93 @@ socket, or a second port. All three are heavier. Try stdin first.
   frames or audio; whatever is on the other side inherits the obligation, and
   its storage is now the weakest link.
 
-## 3. Not planned
+## 3. Alongside: Potluck, a second consumer
+
+Specified, agreed on the Potluck side, **not approved here and not yet run**.
+Recorded because it otherwise exists only in messages between two sessions.
+
+Potluck is a separate project of the author's: a distributed runtime that
+federates ESP32-S3 boards, and optionally a PC, into one addressable machine
+whose boards pool their sensors. A phone with a camera, a microphone, a
+barometer and three radios is a richer node than any board in that cell, which
+is why it fits.
+
+It consumes percepts; it cannot consume them whole. A Potluck value is at most
+**8 bytes** with a closed unit enum, and its write API takes "a JSON bool or
+number". Labels, transcripts and the narration have no representation there and
+stay on this side. What crosses is ten numbers.
+
+| output | type | unit | from |
+|---|---|---|---|
+| `salience` | f32 | ratio | `attention.salience` |
+| `motion` | u32 | — | `body.motion`, 0 still … 3 vehicle |
+| `posture` | u32 | — | `body.posture`, 0 face_up … 5 unknown |
+| `steps` | u64 | count | `body.steps` |
+| `sound` | u32 | — | curated from `hearing.events`, 0 quiet … 5 other |
+| `loudness` | f32 | — | `hearing.level_db`, dBFS |
+| `place` | u32 | — | `radio.place_id`, `p3` → 3 |
+| `battery` | f32 | ratio | `self.battery` |
+| `battery_temp` | f32 | celsius | `self.battery_temp_c` |
+| `thermal` | u32 | — | `self.thermal`, 0 none … 6 shutdown, absent if UNKNOWN |
+
+Where a number stands for a label, it is the index into the matching list in
+[`Vocabulary.kt`](../app/src/main/java/net/synthsenses/senses/Vocabulary.kt).
+That order is now a wire contract that no percept ever shows: insert a state in
+the middle of `MOTION` and a board starts captioning "walking" while the phone
+is in a car, with nothing thrown and nothing logged. `VocabularyTest` pins the
+lists and `tools/test_docs.py` checks the ranges above against them, so the
+rule is **append, never insert**.
+
+Writing this table is what caught the first instance: `motion` was specified
+here as a five-value enum ending in `unclear`, and `PROTOCOL.md` listed an
+`unknown` that `classifyMotion` cannot return. Four values, and now tested.
+
+They live at `potluck://lab/act/phone/<name>`, written by a **PC-side bridge**
+reading `receiver.py`'s stdout — not by the phone, which would need TLS, cert
+pinning and pairing implemented in Kotlin for no gain. The bridge pairs as
+**"Synth Senses"** with the `write` right, and that exact string must match the
+`writers` entry in their cluster file.
+
+Four constraints the bridge has to honour, three of which come from Potluck's
+model rather than ours:
+
+- **Never replay the backlog.** The phone spools up to 2000 undelivered
+  percepts and flushes them on reconnect. Potluck holds a current value with an
+  age, not a series, so replaying publishes stale readings as current and
+  destroys the write budget. Fast-forward to the newest and drop the rest.
+- **Newest-wins per path, not a queue of writes.** Same reason. It also bounds
+  the queue at ten entries: ten values against 2 writes/s takes five seconds to
+  drain, and the default sample interval is five seconds, so an append-only
+  queue would never catch up.
+- **`stale_ms` of 300000**, about 2.5× the heartbeat. This source is
+  habituation-gated and a quiet room produces only heartbeats, so a short
+  staleness bound would mark a perfectly healthy phone STALE almost always.
+- **404 is a state, not an error.** Writes return 404 until the resource is
+  provisioned, so the bridge can be built and exercised before any of this is
+  live.
+
+One genuine point of fit. Potluck's `NO_DATA` is exactly right for a sensor the
+phone does not have: a value that is simply never written says "absent" rather
+than "zero", which is this project's first invariant expressed in someone
+else's type system.
+
+**What specifying it already bought.** Writing this up is what surfaced the
+Android 10 BLE defect — `ble_count` would have published a confident zero and
+`place` would have been permanently absent, because `PlaceMemory.recognise` was
+never reached on that phone. Fixed and pinned before anything shipped.
+
+## 4. Not planned
 
 Splitting the receiver into its own repository. The Unix shape that matters is
 already there: one producer, a documented text protocol, newline-delimited
 JSON, a reference consumer. Splitting now costs the wire-shape test that keeps
-[PROTOCOL.md](PROTOCOL.md) honest and buys version skew. The trigger to
-reconsider is a second consumer or a second producer, and keeping percepts as
-JSON lines is what will make that split cheap whenever it comes.
+[PROTOCOL.md](PROTOCOL.md) honest and buys version skew.
+
+The stated trigger was "a second consumer or a second producer", and **Potluck
+is now that second consumer**, so the decision has been revisited rather than
+left to rot. The answer is still no. Both consumers read the same JSON lines,
+the percept format did not have to change for either, and the Potluck bridge is
+a small program rather than a fork of the receiver. What a split would cost is
+unchanged. Revisit again if a consumer ever needs the wire format to change for
+its sake — that, rather than the count of consumers, is the thing that would
+actually argue for separating them.

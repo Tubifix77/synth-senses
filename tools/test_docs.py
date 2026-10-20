@@ -113,6 +113,64 @@ check("all four trigger values were found in the source",
 for t in sorted(triggers_src):
     check(f"`{t}` is documented", f"`{t}`" in integration)
 
+print("\nthe closed vocabularies, and their order")
+# Potluck, and anything else that cannot carry strings, sends the INDEX into
+# these lists. That makes the order a wire contract which no JSON ever shows,
+# so a reordering is invisible everywhere except here and in VocabularyTest.
+vocab_kt = read("app", "src", "main", "java", "net", "synthsenses",
+                "senses", "Vocabulary.kt")
+consts = dict(re.findall(r'const val ([A-Z_]+) = "([^"]+)"', vocab_kt))
+
+
+def vocab(name):
+    """The ordered list behind `val NAME = listOf(...)`, constants resolved."""
+    m = re.search(r"val %s = listOf\(([^)]*)\)" % name, vocab_kt, re.S)
+    if not m:
+        return []
+    out = []
+    for tok in re.split(r",\s*", m.group(1).strip()):
+        tok = tok.strip()
+        if tok:
+            out.append(consts.get(tok, tok.strip('"')))
+    return out
+
+
+def documented(field):
+    row = re.search(r"^\| `%s` \| (.+)$" % re.escape(field), protocol, re.M)
+    return re.findall(r"`([A-Za-z_]+)`", row.group(1)) if row else None
+
+
+# THERMAL carries UNKNOWN on the wire but deliberately keeps it out of the
+# ladder, so the document legitimately lists one more value than the list has.
+for field, name, extra in (("body.motion", "MOTION", []),
+                           ("body.posture", "POSTURE", []),
+                           ("self.thermal", "THERMAL", ["THERMAL_UNKNOWN"])):
+    src = vocab(name)
+    want = src + [consts[e] for e in extra]
+    doc = documented(field)
+    check("%s was parsed out of Vocabulary.kt" % name, bool(src), str(src))
+    check("PROTOCOL.md lists `%s` exactly as the source defines it" % field,
+          doc == want, "doc=%s src=%s" % (doc, want))
+
+# The roadmap states ordinal ranges to a consumer that will hard-code them, so
+# an off-by-one there is a silently mislabelled value on someone else's board.
+roadmap = read("docs", "ROADMAP.md")
+for field, name in (("body.motion", "MOTION"),
+                    ("body.posture", "POSTURE"),
+                    ("self.thermal", "THERMAL")):
+    m = re.search(r"`%s`, 0 ([a-z_]+) . (\d+) ([a-z_]+)" % re.escape(field), roadmap)
+    src = vocab(name)
+    if not m or not src:
+        check("the roadmap states the %s ordinal range" % name, False)
+        continue
+    first, last_i, last = m.group(1).strip().replace(" ", "_"), int(m.group(2)), m.group(3)
+    check("the roadmap's %s range matches the source" % name,
+          first.lower() == src[0].lower()
+          and last_i == len(src) - 1
+          and last.lower() == src[-1].lower(),
+          "doc=0 %s .. %d %s  src=0 %s .. %d %s"
+          % (first, last_i, last, src[0], len(src) - 1, src[-1]))
+
 print("\ncross-document consistency")
 check("INTEGRATION defers to PROTOCOL as normative",
       "normative" in integration and "PROTOCOL.md" in integration)

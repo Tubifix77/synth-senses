@@ -185,7 +185,7 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `hearing.events` | YAMNet class names. Empty array if `yamnet.tflite` is absent. |
 | `radio.*.id` | FNV-1a hash of the MAC or BSSID, 10 hex chars. Never a raw address. |
 | `radio.place_similarity` | coverage 0–1, see [VALIDATION.md](VALIDATION.md) |
-| `body.motion` | `still` \| `handled` \| `walking` \| `vehicle` \| `unknown` |
+| `body.motion` | `still` \| `handled` \| `walking` \| `vehicle` |
 | `body.posture` | `face_up` \| `face_down` \| `upright` \| `tilted` \| `pocket` \| `unknown` |
 | `body.magnetic_anomaly` | µT deviation from a slow baseline. Above ~15 means something metal or electrical is close. |
 | `body.pressure_delta_per_min` | hPa/min. Catches lifts, stairs, doors in sealed rooms. |

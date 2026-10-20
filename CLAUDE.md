@@ -182,6 +182,8 @@ app/src/main/java/net/synthsenses/
   senses/
     SenseService.kt        the loop; foreground service; command dispatch
     Percept.kt             wire schema + tokens() — the stimulus vocabulary
+    Vocabulary.kt          closed label lists, in ordinal order  <- order is wire
+    Permissions.kt         which runtime permissions, per API    <- tested
     Narrator.kt            deterministic on-device prose
     Habituation.kt         attention model          <- validated, tested
     PlaceMemory.kt         radio place learning     <- validated, tested
@@ -229,6 +231,11 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
 - **Continuous quantities are bucketed in `Percept.tokens()`.** A room at 310
   lux and the same room at 340 lux must produce the same token, or nothing ever
   habituates.
+- **The lists in `Vocabulary.kt` are append-only.** A consumer that cannot
+  carry strings carries the index instead, which makes their order part of the
+  wire format even though no percept ever shows it. Inserting a value silently
+  relabels everything after it on the far side. `VocabularyTest` pins the
+  order; `tools/test_docs.py` ties the docs to it.
 
 ## Changing the wire format
 
