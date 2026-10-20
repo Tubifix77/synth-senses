@@ -353,6 +353,73 @@ pb._drain(pending, budget, hub)
 check("but everything is refreshed at half of stale_ms, so a quiet room "
       "never reads STALE", len(hub.writes) == 20, str(len(hub.writes)))
 
+print("\nthe token does not travel to an unverified hub")
+# The hub serves a certificate of its own making, so verify_mode is
+# necessarily NONE and the pin is the only thing standing between a bearer
+# token and whoever answers on that address. This block exists because the
+# first version of this file described the pin in a docstring and never
+# called the function that checks it -- the mechanism was decorative, and
+# nothing would have said so.
+
+
+class FakeHub(pb.Hub):
+    """A hub whose certificate we can state rather than serve."""
+
+    def __init__(self, serving, **kw):
+        super().__init__("https://hub.invalid:8443", **kw)
+        self.serving = serving
+        self.asked = 0
+
+    def peer_fingerprint(self):
+        self.asked += 1
+        return self.serving
+
+
+good = "a" * 64
+other = "b" * 64
+
+hub = FakeHub(good, token="t", fingerprint=good)
+try:
+    hub.check_pin()
+    ok, why = True, ""
+except RuntimeError as e:
+    ok, why = False, str(e)
+check("a matching pin lets the token through", ok, why)
+
+hub = FakeHub(other, token="t", fingerprint=good)
+try:
+    hub.check_pin()
+    ok = False
+except RuntimeError as e:
+    ok = "not the one this token was paired with" in str(e)
+check("a different certificate refuses, and says what happened", ok)
+
+hub = FakeHub(good, token="t", fingerprint=None)
+try:
+    hub.check_pin()
+    ok = False
+except RuntimeError as e:
+    ok = "no certificate pin recorded" in str(e)
+check("no pin at all also refuses, rather than sending it anyway", ok)
+
+hub = FakeHub(other, token="t", fingerprint=good, insecure=True)
+try:
+    hub.check_pin()
+    ok = True
+except RuntimeError:
+    ok = False
+check("--insecure is the deliberate way out, and it works", ok)
+
+hub = FakeHub(good, token="t", fingerprint=good)
+hub.check_pin()
+hub.check_pin()
+hub.check_pin()
+check("the certificate is fetched once, not on every write",
+      hub.asked == 1, f"asked {hub.asked} times")
+
+check("pairing itself carries no token, which is how the pin gets recorded",
+      pb.Hub("https://h:8443").token is None)
+
 print(f"\n{len(failures)} failure(s)")
 for f in failures:
     print("  -", f)

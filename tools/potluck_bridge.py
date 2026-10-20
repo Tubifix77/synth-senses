@@ -383,6 +383,7 @@ class Hub:
         self.token = token
         self.fingerprint = fingerprint
         self.insecure = insecure
+        self._pin_ok = False       # checked once, not on every write
 
     def _context(self):
         ctx = ssl.create_default_context()
@@ -393,21 +394,55 @@ class Hub:
         ctx.verify_mode = ssl.CERT_NONE
         return ctx
 
-    def _check_pin(self, host, port):
-        if self.insecure or not self.fingerprint:
-            return
+    def host_port(self):
+        rest = self.base.split("://", 1)[-1]
+        host, _, port = rest.partition(":")
+        return host, int(port or (443 if self.base.startswith("https") else 80))
+
+    def peer_fingerprint(self):
+        """The SHA-256 of the certificate this hub is serving right now."""
+        host, port = self.host_port()
         ctx = self._context()
         with socket.create_connection((host, port), timeout=10) as raw:
             with ctx.wrap_socket(raw, server_hostname=host) as tls:
                 der = tls.getpeercert(binary_form=True)
-        got = hashlib.sha256(der).hexdigest()
+        return hashlib.sha256(der).hexdigest()
+
+    def check_pin(self):
+        """Refuse to send the token anywhere but the certificate it came from.
+
+        The hub serves a certificate of its own making, so there is no chain
+        for a public CA to vouch for and `verify_mode` is necessarily NONE.
+        That is only safe because of this: the fingerprint recorded at pairing
+        is checked before the bearer token is ever put on the wire.
+
+        Three outcomes, and the third is the one that matters. A pin that
+        matches proceeds. A pin that does not raises. **No pin at all also
+        raises**, because sending a bearer token to an unverified endpoint is
+        the thing the pin exists to prevent, and quietly doing it anyway would
+        make the whole mechanism decorative. `--insecure` is the deliberate
+        way out, and it says what it is.
+        """
+        if self._pin_ok or not self.base.startswith("https"):
+            return
+        if self.insecure:
+            self._pin_ok = True
+            return
+        if not self.fingerprint:
+            raise RuntimeError(
+                "no certificate pin recorded for this hub, so the pairing "
+                "token will not be sent. Pair again to record one, or pass "
+                "--insecure if you know the network is yours."
+            )
+        got = self.peer_fingerprint()
         if got.lower() != self.fingerprint.lower():
             raise RuntimeError(
                 "the hub's certificate is not the one this token was paired "
-                f"with (pinned {self.fingerprint[:16]}..., got {got[:16]}...). "
-                "Refusing to send the token. Re-pair if the hub was "
-                "legitimately reissued."
+                f"with (pinned {self.fingerprint[:16]}..., serving "
+                f"{got[:16]}...). Refusing to send the token. Pair again if "
+                "the hub was legitimately reissued."
             )
+        self._pin_ok = True
 
     def post(self, path, body):
         url = self.base + path
@@ -429,6 +464,11 @@ class Hub:
 
     def _send(self, req):
         """-> (status, parsed body or {}). Network trouble raises."""
+        if self.token:
+            # Only when a secret is about to travel. Pairing itself sends no
+            # token, which is what makes recording the fingerprint possible
+            # in the first place.
+            self.check_pin()
         ctx = self._context() if self.base.startswith("https") else None
         try:
             with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
@@ -670,6 +710,18 @@ def main():
             return 1
         stored["token"] = token
         stored["name"] = args.name
+        # The pin is the whole reason the token is safe to keep. Recorded
+        # here, from the certificate that just approved the pairing, and
+        # checked before every authenticated request afterwards.
+        if hub.base.startswith("https"):
+            try:
+                stored["fingerprint"] = hub.peer_fingerprint()
+                say(f"pinned the hub's certificate "
+                    f"({stored['fingerprint'][:16]}...)")
+            except Exception as e:
+                say(f"could not read the hub's certificate to pin it: {e}")
+                say("writes will refuse to send the token until you pair "
+                    "again, or pass --insecure")
         with open(args.token_file, "w", encoding="utf-8") as f:
             json.dump(stored, f, indent=2)
         say(f"token stored in {args.token_file}. Keep it; re-pairing under a "

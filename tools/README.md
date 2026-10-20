@@ -164,6 +164,12 @@ python3 tools/receiver.py | python3 tools/potluck_bridge.py --hub https://10.0.0
 - **Never replays a backlog.** The phone spools up to 2000 percepts and
   flushes them on reconnect; Potluck holds a current value, not a series, so
   the bridge keeps only the newest of each and drops the rest.
+- **The token only ever goes to the certificate it was issued by.** The hub
+  serves a certificate of its own making, so there is no chain to verify and
+  the pin recorded at pairing is the only thing between a bearer token and
+  whoever answers on that address. A mismatch refuses; **so does having no pin
+  at all**, because sending the token to an unverified endpoint is the thing
+  the pin exists to prevent. `--insecure` is the deliberate way out.
 - The token and certificate pin live in `.potluck-token.json` (gitignored).
 
 ## transitive_sweep.py
