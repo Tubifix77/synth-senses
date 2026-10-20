@@ -243,6 +243,13 @@ model rather than ours:
 - **404 is a state, not an error.** Writes return 404 until the resource is
   provisioned, so the bridge can be built and exercised before any of this is
   live.
+- **Print a 403's `result` text verbatim, do not summarise it.** Potluck's hub
+  diagnoses the one failure that otherwise looks like a bug in this project:
+  re-pairing under a name already taken yields "Synth Senses 2", while the
+  cluster file still names "Synth Senses", so a bridge that is paired, holds a
+  valid token and looks entirely correct has every write refused. The 403 names
+  both strings and says to revoke and pair again. Requested by Potluck, and
+  cheap insurance against an evening lost to it.
 
 One genuine point of fit. Potluck's `NO_DATA` is exactly right for a sensor the
 phone does not have: a value that is simply never written says "absent" rather
