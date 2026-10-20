@@ -360,6 +360,15 @@ shape as the ordinal problem and neither of them a bug:
   seconds, and is close to meaningless as a standing current value. Publishing
   the cumulative count and expecting the reset is the better of the two.
 
+**A consumer has pinned these, so changing one breaks a build elsewhere.**
+The Potluck Desk project keeps a copy of `potluck_bridge.py --vocabulary` at
+`tests/data/synth_senses_vocabulary.json` and asserts its own labels against
+it, so a rename here fails there until someone chooses a new label. That is
+the arrangement working as intended — a change should break a build rather
+than silently relabel a dial — but it means **telling them before a change
+lands, not after**. Renaming a value, reordering a list or adding a word to
+one are all breaking for them; adding a whole new value at the end is not.
+
 Where a number stands for a label, it is the index into the matching list in
 [`Vocabulary.kt`](../app/src/main/java/net/synthsenses/senses/Vocabulary.kt).
 That order is now a wire contract that no percept ever shows: insert a state in

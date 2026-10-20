@@ -218,7 +218,8 @@ tools/potluck_bridge.py    percepts -> ten numbers in a Potluck cell
 tools/test_potluck_bridge.py  its ordinals, budget, and that absence stays absent
 ```
 
-All four tool suites are stdlib-only and run in CI on every push. `python3
+All five tool suites are stdlib-only and run in CI on every push, as does
+`apk_facts.py` against the APK that job just built. `python3
 tools/<name>.py` runs any of them locally, which is faster than a CI cycle and
 needs no toolchain.
 
@@ -247,6 +248,12 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
 - **Continuous quantities are bucketed in `Percept.tokens()`.** A room at 310
   lux and the same room at 340 lux must produce the same token, or nothing ever
   habituates.
+- **A change to the ten Potluck values needs telling, not just testing.** The
+  Potluck Desk project pins `tools/potluck_bridge.py --vocabulary` and asserts
+  its labels against it, so a rename here breaks a build over there. That is
+  the point — better a red build than a silently relabelled dial — but say so
+  before it lands. Renaming, reordering or inserting a word is breaking;
+  appending a whole new value is not.
 - **The lists in `Vocabulary.kt` are append-only.** A consumer that cannot
   carry strings carries the index instead, which makes their order part of the
   wire format even though no percept ever shows it. Inserting a value silently
@@ -345,4 +352,10 @@ the magnetic baseline time constant is a guess, and the `ImageProxy` lifetime
 hack in `VisionSensor.onFrame` holds the proxy open for a fixed 1.5 s — the most
 suspect code in the repo.
 
-Fixing those needs a physical device and `adb logcat`.
+Fixing those needs a physical device. It needs `adb logcat` less than it did:
+`tools/digest.py` now reads both halves of the motion evidence — `accel_rms`
+**and** `gyro_rms` per motion state, since `classifyMotion` tests gyro in three
+of its branches — and flags a sense that worked and then stopped, which is the
+signature of the `ImageProxy` stall and of mic contention. Both of those fail
+by going quiet rather than by throwing, so they are visible in a percept log
+without a cable. The magnetic time constant still needs logcat.
