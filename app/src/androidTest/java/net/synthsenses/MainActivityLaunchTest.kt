@@ -1,11 +1,11 @@
 package net.synthsenses
 
-import android.Manifest
 import android.os.Build
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
+import net.synthsenses.senses.requiredPermissions
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -29,19 +29,30 @@ class MainActivityLaunchTest {
 
     /**
      * Granted up front so the launcher in `onCreate` returns without putting a
-     * system dialog in front of the test. These are exactly the permissions
-     * `askPermissions()` requests with the default sense settings; location is
-     * absent because wifi, cell and location all default to off.
+     * system dialog in front of the test. An ungranted permission leaves the
+     * activity at STARTED behind the dialog, and the failure reads as "never
+     * becomes RESUMED" — which looks like a crash and is not one.
+     *
+     * Derived from [requiredPermissions] rather than restated, because a
+     * restated copy drifts. This one did: it was written to mirror the old
+     * rule and said "location is absent because wifi, cell and location all
+     * default to off", which stopped being true when a BLE scan below API 31
+     * started requiring fine location. The copy was wrong for API 28, 29 and
+     * 30 from that moment, and nothing noticed until the emulator matrix
+     * gained an API 28 entry, because the only level ever run was 35 — where
+     * BLE takes the `BLUETOOTH_SCAN` path and needs no location at all.
+     *
+     * Every switch is passed as on, so this grants the superset the build
+     * could ask for at this API level. Granting more than the defaults need
+     * costs the test nothing and means no dialog can appear whatever the
+     * stored preferences happen to be.
      */
     @get:Rule
     val permissions: GrantPermissionRule = GrantPermissionRule.grant(
-        *buildList {
-            add(Manifest.permission.CAMERA)
-            add(Manifest.permission.RECORD_AUDIO)
-            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-            if (Build.VERSION.SDK_INT >= 31) add(Manifest.permission.BLUETOOTH_SCAN)
-            if (Build.VERSION.SDK_INT >= 29) add(Manifest.permission.ACTIVITY_RECOGNITION)
-        }.toTypedArray()
+        *requiredPermissions(
+            sdkInt = Build.VERSION.SDK_INT,
+            ble = true, wifi = true, cell = true, location = true
+        ).toTypedArray()
     )
 
     @Test

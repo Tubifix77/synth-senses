@@ -109,11 +109,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Both ends of the supported range. 28 is minSdk -- the floor was
-        # claimed but never executed until this entry existed, which is the
-        # same "green because nothing ran" trap as an empty test suite. 35 is
-        # where the runtime rules worth tripping over live.
-        api-level: [28, 35]
+        # Both ends of the real range, because the app is developed for two
+        # phones at once: a Huawei P20 Lite on Android 9 and a Xiaomi 14T Pro
+        # on Android 14.
+        #
+        # 28 is minSdk. Until this entry existed the floor was compiled and
+        # never once started, which is the same "green because nothing ran"
+        # trap as an empty test suite.
+        #
+        # 36 is targetSdk, and that is the reason for it rather than 35:
+        # compileSdk decides what the app is built against, targetSdk decides
+        # how Android treats it at runtime, and runtime behaviour is the only
+        # thing an emulator can actually test. 36 is also the newest stable
+        # google_apis x86_64 image Google publishes -- checked against
+        # dl.google.com's own sys-img manifest, where 37 exists only on the
+        # canary channel.
+        api-level: [28, 36]
     steps:
       - uses: actions/checkout@v7
 
@@ -135,6 +146,34 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+
+      # Twice in two days a runner has handed back a corrupt SDK archive --
+      # "Error on ZipFile unknown archive", once for the emulator package and
+      # once for the system image -- and both times the job died minutes later
+      # with a baffling "could not connect to TCP port 5554". sdkmanager
+      # reports that corruption as a *warning* and still exits 0, so nothing
+      # downstream notices until the emulator that was never installed fails to
+      # start.
+      #
+      # So install both here instead, retrying, and verify the files actually
+      # landed rather than trusting the exit code.
+      - name: Install the emulator and system image, with retries
+        run: |
+          img="system-images;android-${{ matrix.api-level }};google_apis;x86_64"
+          dir="$ANDROID_HOME/system-images/android-${{ matrix.api-level }}/google_apis/x86_64"
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          for attempt in 1 2 3; do
+            sdkmanager --install emulator "$img" > /dev/null || true
+            if [ -x "$ANDROID_HOME/emulator/emulator" ] && [ -d "$dir" ]; then
+              echo "emulator and $img present (attempt $attempt)"
+              exit 0
+            fi
+            echo "attempt $attempt left something missing; retrying"
+            rm -rf "$ANDROID_HOME/.downloadIntermediates" || true
+            sleep $((attempt * 20))
+          done
+          echo "::error::emulator or system image still missing after 3 attempts"
+          exit 1
 
       - name: Instrumented tests on an emulator
         uses: ReactiveCircus/android-emulator-runner@v2

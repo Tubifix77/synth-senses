@@ -83,6 +83,21 @@ So **`status` now reports `device` and `sensors`**: model, Android version, and
 each sensor the body sense uses with the hardware's own name for it. Type it
 first; it costs one line and replaces the guessing.
 
+### What the emulator can and cannot settle
+
+CI runs the instrumented tests at **API 28 and API 36** — minSdk and targetSdk,
+the two ends the app is actually developed for. It cannot measure anything on
+the list above; it answers "does this start, and does it survive a rotation",
+which is the question worth not spending a scarce evening with a real phone on.
+
+It earns its place. The API 28 entry failed on its first run, and the cause was
+a real drift rather than the emulator: `MainActivityLaunchTest` restated the
+permission list instead of deriving it, so when a BLE scan below API 31 started
+requiring fine location, the test stopped granting everything the app asks for
+and the activity sat behind a dialog it never dismissed. That had been wrong
+for API 28, 29 and 30 for as long as the fix had existed, and was invisible
+while the only level ever run was 35.
+
 ### Reading the test
 
 Point the phone at the receiver, let it run, then:
