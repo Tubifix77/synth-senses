@@ -135,6 +135,17 @@ for name, here in (("MOTION", pb.MOTION), ("POSTURE", pb.POSTURE),
     check(f"{name} matches Vocabulary.kt exactly",
           here == there, f"bridge={here} kotlin={there}")
 
+# SOUND is the bridge's own vocabulary rather than the phone's, so there is
+# no Kotlin to check it against -- but docs/ROADMAP.md states it to a
+# consumer that will label a dial with it, which makes that the other copy.
+_roadmap = read("docs", "ROADMAP.md")
+_doc_sound = re.findall(r"`(\d) ([a-z]+)`", _roadmap)
+_doc_sound = [name for num, name in _doc_sound if int(num) < len(pb.SOUND)]
+check("the roadmap spells out the sound vocabulary",
+      len(_doc_sound) == len(pb.SOUND), str(_doc_sound))
+check("and it is the one the bridge publishes",
+      _doc_sound == pb.SOUND, f"doc={_doc_sound} code={pb.SOUND}")
+
 check("the sound vocabulary starts at quiet", pb.SOUND[0] == "quiet")
 check("and ends at other, the catch-all", pb.SOUND[-1] == "other")
 check("every sound bucket is a member of SOUND",

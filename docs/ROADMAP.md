@@ -320,8 +320,26 @@ stay on this side. What crosses is ten numbers.
 | `battery_temp` | f32 | celsius | `self.battery_temp_c` |
 | `thermal` | u32 | — | `self.thermal`, 0 none … 6 shutdown, absent if UNKNOWN |
 
-Two of the ten carry a caveat that is not visible in the table, both of the
-same shape as the ordinal problem and neither of them a bug:
+Two of the ten are not simply read off a percept, and a consumer labelling
+them needs to know which:
+
+- **`sound` is the bridge's vocabulary, not the phone's.** YAMNet names
+  hundreds of classes and a board holds one small number, so they are
+  collapsed to six: `0 quiet`, `1 speech`, `2 music`, `3 people`,
+  `4 machine`, `5 other`. The mapping lives in `tools/potluck_bridge.py` and
+  is pinned by its tests. The loudest event wins, not the first. `quiet` is a
+  real reading — the ears worked and heard nothing worth naming — whereas no
+  hearing block at all is absence and is never written.
+- **`thermal` has no ordinal for UNKNOWN**, deliberately. UNKNOWN means the
+  platform would not say, which is absence rather than a rung on the ladder,
+  so the value is simply not written and Potluck reads `NO_DATA`. This is not
+  hypothetical: thermal status is API 29, so on the **Android 9 phone
+  `thermal` is permanently absent** and `battery_temp_c` is its only heat
+  signal. A display that renders a missing `thermal` as `NONE` would report a
+  cool phone rather than an unanswerable question.
+
+Two more carry a caveat that is not visible in the table, both of the same
+shape as the ordinal problem and neither of them a bug:
 
 - **`place` numbers are stable until someone resets them, and then they are
   not.** `PlaceMemory` hands out `p1`, `p2`, … in the order rooms are first
