@@ -131,9 +131,15 @@ class PermissionsTest {
     }
 
     @Test
-    fun `the default install on Tue's Android 10 phone asks for location`() {
+    fun `a default install at the minSdk floor asks for location`() {
         // Defaults are vision, hearing and BLE on; wifi, cell and GPS off. This
         // is the exact configuration that silently learned no places.
+        //
+        // It is worth being accurate about who this protects. The phone this
+        // will first run on is an Android 14 device, which takes the API 31+
+        // path and was never affected. This guards every phone between minSdk
+        // 29 and API 30 — the range the project still claims to support, and
+        // the only range where the bug could bite.
         val (ble, wifi, cell) = defaults
         assertTrue(
             requiredPermissions(29, ble, wifi, cell, location = false)

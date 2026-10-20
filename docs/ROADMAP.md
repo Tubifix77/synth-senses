@@ -25,6 +25,32 @@ evidence.
 
 See [VALIDATION.md](VALIDATION.md) for the full list of unmeasured constants.
 
+### The phone, and the range below it
+
+The device this will first run on is a **Xiaomi 14T Pro** — Android 14, so API
+34, on HyperOS. Two consequences worth holding separately from the general
+case:
+
+- It takes the API 31+ path everywhere one exists, so `BLUETOOTH_SCAN` works
+  without location, and `thermal_headroom` (API 30+) is available. Neither is
+  degraded on this phone.
+- **An aggressive vendor ROM is exactly the overnight-survival risk listed
+  above**, not a hypothetical. HyperOS is one of the more assertive ones about
+  killing background work.
+
+The brief is to use whatever a modern phone offers while still degrading
+cleanly on an old one, so `minSdk` stays at **29**. That is not the same as
+designing for 29: a sensor or API that only exists higher up should be used
+where it exists and reported absent where it does not, which is what the
+degrade-never-fabricate invariant already requires.
+
+What that brief needs and did not have is a way to ask the phone what it has.
+Spec sheets disagree about this device's sensors — a barometer is the open
+question — and this repo has a rule against settling such things from a sheet.
+So **`status` now reports `device` and `sensors`**: model, Android version, and
+each sensor the body sense uses with the hardware's own name for it. Type it
+first; it costs one line and replaces the guessing.
+
 ### Reading the test
 
 Point the phone at the receiver, let it run, then:
@@ -278,10 +304,18 @@ phone does not have: a value that is simply never written says "absent" rather
 than "zero", which is this project's first invariant expressed in someone
 else's type system.
 
-**What specifying it already bought.** Writing this up is what surfaced the
-Android 10 BLE defect — `ble_count` would have published a confident zero and
-`place` would have been permanently absent, because `PlaceMemory.recognise` was
-never reached on that phone. Fixed and pinned before anything shipped.
+**What specifying it already bought.** Writing this up surfaced a defect that
+breaks BLE scanning, and with it place learning, on every phone between minSdk
+29 and API 30: the app asked for `BLUETOOTH_SCAN`, which does not exist there,
+and never asked for the fine location a BLE scan needs instead. `ble_count` was
+a permanent zero, the fingerprint never went non-empty, and
+`PlaceMemory.recognise` was not reached once. Fixed and pinned.
+
+Being accurate about the blast radius, since an earlier version of this
+paragraph was not: the phone this will first run on is an **Android 14**
+device, which takes the API 31+ path and was never affected. The fix protects
+the older range the project still claims to support, and the bug would have
+been found the hard way by whoever first installed it there.
 
 ## 4. Not planned
 

@@ -373,6 +373,18 @@ class SenseService : LifecycleService() {
                     put("device_id", prefs.deviceId)
                     put("schema", SCHEMA_VERSION)
                     put("seq", seq)
+                    // Which phone, and what it actually has. The app degrades
+                    // silently on missing hardware, which is right at runtime
+                    // and useless when you are trying to find out what the
+                    // hardware is -- and reading logcat needs an adb this
+                    // project's PC side does not have.
+                    put("device", JSONObject().apply {
+                        put("model", Build.MODEL)
+                        put("manufacturer", Build.MANUFACTURER)
+                        put("android", Build.VERSION.RELEASE)
+                        put("sdk_int", Build.VERSION.SDK_INT)
+                    })
+                    put("sensors", body.inventory())
                     put("interval_ms", prefs.intervalMs)
                     put("heartbeat_ms", prefs.heartbeatMs)
                     put("threshold", prefs.threshold.toDouble())

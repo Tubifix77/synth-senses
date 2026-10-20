@@ -314,6 +314,13 @@ Returns a `status` reply including `most_habituated` — the tokens it has stopp
 noticing, with exposure counts. Worth reading when output has gone quiet and you
 want to know why.
 
+It also reports `device` and `sensors`: which phone this is, and which of the
+sensors the body sense uses are physically present, by the hardware's own
+names. The app degrades silently on missing hardware, so without this the only
+evidence is a logcat line and a USB cable. **Type `status` first on a new
+phone** — it is the difference between knowing there is no barometer and
+assuming it from a spec sheet.
+
 ## Replies
 
 ### `ack`
@@ -346,6 +353,13 @@ unreliably.
 {
   "type": "status",
   "device_id": "a3f9c1e07b2d", "schema": 2, "seq": 412,
+  "device": {"model": "23078PND5G", "manufacturer": "Xiaomi",
+             "android": "14", "sdk_int": 34},
+  "sensors": {
+    "light":       {"present": true,  "name": "TMD2755 Light", "feeds": "body.lux, and the dark half of pocket"},
+    "pressure":    {"present": false, "feeds": "body.pressure_hpa and its drift"},
+    "step_counter":{"present": true,  "name": "Step Counter", "feeds": "body.steps and steps_delta"}
+  },
   "interval_ms": 5000, "heartbeat_ms": 120000, "threshold": 0.35,
   "senses": {"vision": true, "lens": "back", "ocr": true, "hearing": true,
              "sound_model": true, "speech": false, "ble": true, "wifi": false,

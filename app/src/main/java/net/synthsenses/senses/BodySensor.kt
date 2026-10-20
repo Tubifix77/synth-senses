@@ -6,6 +6,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.util.Log
+import org.json.JSONObject
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -69,21 +70,27 @@ class BodySensor(private val context: Context) : SensorEventListener {
     private val orientation = FloatArray(3)
 
     fun start() {
-        register(Sensor.TYPE_LIGHT)
-        register(Sensor.TYPE_PROXIMITY)
-        register(Sensor.TYPE_PRESSURE)
-        register(Sensor.TYPE_MAGNETIC_FIELD)
-        register(Sensor.TYPE_ACCELEROMETER)
-        register(Sensor.TYPE_GYROSCOPE)
-        register(Sensor.TYPE_GRAVITY)
-        register(Sensor.TYPE_ROTATION_VECTOR)
-        // needs ACTIVITY_RECOGNITION on Android 10+; silently absent otherwise
-        register(Sensor.TYPE_STEP_COUNTER)
+        // Driven off BODY_SENSORS so the inventory `status` reports cannot
+        // drift from what is actually registered. The step counter also needs
+        // ACTIVITY_RECOGNITION from API 29; without it the sensor is there and
+        // simply never fires.
+        for (spec in BODY_SENSORS) register(spec.type)
 
         sensors.getDefaultSensor(Sensor.TYPE_PROXIMITY)?.let {
             proximityMax = it.maximumRange.takeIf { m -> m > 0f } ?: 5f
         }
+
+        val absent = missingSensors { sensors.getDefaultSensor(it)?.name }
+        Log.i(TAG, if (absent.isEmpty()) "every sensor this app uses is present"
+                   else "this phone has no ${absent.joinToString(", ")}")
     }
+
+    /**
+     * What this phone actually has, by the hardware's own names. Answers the
+     * question a spec sheet only guesses at, and the `status` command is the
+     * one channel that reaches a PC with no adb on it.
+     */
+    fun inventory(): JSONObject = inventoryJson { sensors.getDefaultSensor(it)?.name }
 
     private fun register(type: Int) {
         val s = sensors.getDefaultSensor(type)
