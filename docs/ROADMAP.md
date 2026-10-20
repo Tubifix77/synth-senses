@@ -401,9 +401,20 @@ model rather than ours:
 - **`stale_ms` of 300000**, about 2.5× the heartbeat. This source is
   habituation-gated and a quiet room produces only heartbeats, so a short
   staleness bound would mark a perfectly healthy phone STALE almost always.
-- **404 is a state, not an error.** Writes return 404 until the resource is
-  provisioned, so the bridge can be built and exercised before any of this is
-  live.
+- **404 is a state, not an error.** A path the cell's package does not name
+  answers `404 {"ok": false, "result": "no such resource in this cell..."}`,
+  so the bridge can be built and exercised long before any of it is live.
+  Potluck made this exact before provisioning existed: it used to be a 403,
+  which is indistinguishable from a permissions problem. **404 is the
+  provisioning signal; a 403 is always something else.**
+- **Send each value as the type its manifest declares.** A percept carrying
+  `"battery": 1` parses to an integer and serialises back as `1`, which a hub
+  reads as a 32-bit integer and an `f32` resource can refuse. Not an edge
+  case: a fully charged phone reads exactly 1.0, and the P20 Lite lives
+  permanently on a charger, so that would have been its usual reading. The
+  bridge coerces by declared kind, and Potluck coerces on its side too — but
+  depending on someone else's coercion for something statable exactly is how
+  this sort of thing works until it does not.
 - **Print a 403's `result` text verbatim, do not summarise it.** Potluck's hub
   diagnoses the one failure that otherwise looks like a bug in this project:
   re-pairing under a name already taken yields "Synth Senses 2", while the

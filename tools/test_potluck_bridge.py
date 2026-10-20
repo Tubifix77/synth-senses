@@ -199,6 +199,37 @@ check("an unknown motion label is absent rather than guessed",
 check("a bool never crosses as a number",
       "steps" not in pb.values_from(percept(body={"steps": True})))
 
+print("\neach value goes out as the type its manifest declares")
+# A percept carrying `"battery": 1` parses to a Python int and serialises
+# back as `1`, which a hub reads as a 32-bit integer and an f32 resource can
+# refuse. Not an edge case: a fully charged phone reads exactly 1.0, and one
+# of the two target phones lives permanently on a charger, so this would have
+# been the common reading on that device rather than a rare one.
+_whole = percept(**{
+    "self": {"battery": 1, "battery_temp_c": 31, "thermal": "NONE"},
+    "attention": {"salience": 1},
+    "hearing": {"level_db": -30, "events": []},
+})
+_v = pb.values_from(_whole)
+for _name, _kind, _unit, _read, _eps in pb.TEN:
+    if _name not in _v:
+        continue
+    _want = float if _kind.startswith("f") else int
+    check(f"{_name} is a {_want.__name__} on the wire, as {_kind} says",
+          type(_v[_name]) is _want,
+          f"got {type(_v[_name]).__name__} {_v[_name]!r}")
+
+check("a whole-number f32 serialises with its fraction, not as an integer",
+      json.dumps(_v["battery"]) == "1.0", json.dumps(_v["battery"]))
+check("and a negative f32 keeps its sign",
+      json.dumps(_v["loudness"]) == "-30.0", json.dumps(_v["loudness"]))
+
+# Every unsigned value here is an ordinal or a count. A negative one means a
+# bug upstream, and publishing it would hide that behind a plausible reading.
+_neg = pb.values_from(percept(body={"steps": -5}))
+check("a negative count is dropped rather than published as unsigned",
+      "steps" not in _neg, str(_neg.get("steps")))
+
 print("\nthe sound curation")
 for label, want in (("Speech", "speech"), ("Conversation", "speech"),
                     ("Child speech, kid speaking", "speech"),

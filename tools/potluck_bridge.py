@@ -230,15 +230,35 @@ def values_from(percept):
     `place 0`.
     """
     out = {}
-    for name, _kind, _unit, read, _eps in TEN:
+    for name, kind, _unit, read, _eps in TEN:
         try:
             value = read(percept)
         except Exception:
             value = None
         if value is None or isinstance(value, bool):
             continue
-        if isinstance(value, (int, float)):
-            out[name] = value
+        if not isinstance(value, (int, float)):
+            continue
+        # Send the declared type, rather than whatever JSON the number
+        # happened to arrive as. A percept carrying `"battery": 1` parses to
+        # a Python int and serialises back as `1`, which a hub reads as a
+        # 32-bit integer and an f32 resource can refuse. That is not an edge
+        # case here: a fully charged phone reads exactly 1.0, and one of the
+        # two target phones lives permanently on a charger. Potluck now
+        # coerces to the declared type on its side too, but depending on
+        # someone else's coercion for something statable exactly is the kind
+        # of thing that works until it does not.
+        if kind.startswith("f"):
+            value = float(value)
+        else:
+            if value < 0:
+                # Every unsigned value here is an ordinal or a count. A
+                # negative one means a bug upstream, and publishing it as a
+                # huge unsigned number would hide that behind a plausible
+                # reading.
+                continue
+            value = int(value)
+        out[name] = value
     return out
 
 
