@@ -208,6 +208,28 @@ stay on this side. What crosses is ten numbers.
 | `battery_temp` | f32 | celsius | `self.battery_temp_c` |
 | `thermal` | u32 | — | `self.thermal`, 0 none … 6 shutdown, absent if UNKNOWN |
 
+Two of the ten carry a caveat that is not visible in the table, both of the
+same shape as the ordinal problem and neither of them a bug:
+
+- **`place` numbers are stable until someone resets them, and then they are
+  not.** `PlaceMemory` hands out `p1`, `p2`, … in the order rooms are first
+  seen, and persists the counter, so `p3` keeps meaning the same room across
+  restarts. `forget {"what":"places"}` sets it back to 1, and the next rooms
+  learned take those numbers in whatever order they are walked into. A board
+  captioning "place 3" would go on captioning it, meaning somewhere else. The
+  command is typed deliberately, so this is a consequence to know rather than a
+  trap to defend against — but the board's place labels should be read as
+  provisional, and re-checked after a reset. There is no fix available on the
+  Potluck side: `place_name` exists here, and a name is a string, which is the
+  one thing an 8-byte value cannot carry.
+- **`steps` counts from the last reboot, not from install.** That is
+  `TYPE_STEP_COUNTER`'s contract, so the value drops to zero when the phone
+  restarts, and anything differencing it sees a large negative. The percept
+  also carries `body.steps_delta`, already clamped non-negative, which is the
+  reboot-safe alternative — but it covers one sample interval, which is five
+  seconds, and is close to meaningless as a standing current value. Publishing
+  the cumulative count and expecting the reset is the better of the two.
+
 Where a number stands for a label, it is the index into the matching list in
 [`Vocabulary.kt`](../app/src/main/java/net/synthsenses/senses/Vocabulary.kt).
 That order is now a wire contract that no percept ever shows: insert a state in
