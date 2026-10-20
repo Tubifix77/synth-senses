@@ -22,6 +22,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -363,6 +364,41 @@ clock.advance(4)                                            # now past half
 pb._drain(pending, budget, hub)
 check("but everything is refreshed at half of stale_ms, so a quiet room "
       "never reads STALE", len(hub.writes) == 20, str(len(hub.writes)))
+
+print("\nthe contract a consumer checks itself against")
+# A consumer that renders these numbers keeps a copy of the words, and a copy
+# drifts: a desktop view came to label ordinal 3 "impact" while this bridge
+# meant "people", carried over from a proposal of mine that was superseded
+# without anyone noticing. No ordinal had moved, so reporting "no ordinal
+# moved" was true and useless -- the words had.
+#
+# Reaching into that consumer's files from here would invert the dependency
+# and would skip in CI whenever the other project is not checked out, which
+# is worse than no test. So the contract is published instead and each
+# consumer asserts its own copy against it. That only works if what is
+# published is complete, which is what these check.
+_vocab = json.loads(subprocess.run(
+    [sys.executable,
+     os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                  "potluck_bridge.py"), "--vocabulary"],
+    capture_output=True, text=True, encoding="utf-8").stdout)
+
+check("the contract names every value",
+      [v["name"] for v in _vocab["values"]] == [n for n, *_ in pb.TEN],
+      str([v["name"] for v in _vocab["values"]]))
+check("with their kinds and units",
+      [(v["kind"], v["unit"]) for v in _vocab["values"]]
+      == [(k, u) for _n, k, u, _r, _e in pb.TEN])
+for _name, _table in (("motion", pb.MOTION), ("posture", pb.POSTURE),
+                      ("thermal", pb.THERMAL), ("sound", pb.SOUND)):
+    check(f"and publishes the {_name} ordinals in order",
+          _vocab["ordinals"][_name] == _table,
+          str(_vocab["ordinals"].get(_name)))
+check("and says which readings are absent rather than zero",
+      set(_vocab["absent"]) == {"thermal", "sound"},
+      str(sorted(_vocab["absent"])))
+check("and tells the reader the rule that makes ordinals safe",
+      "append, never insert" in _vocab["note"], _vocab.get("note", "")[:80])
 
 print("\nthe published table and the documented one are the same table")
 # docs/ROADMAP.md states these to a consumer that will hard-code them, and

@@ -148,6 +148,16 @@ python3 tools/potluck_bridge.py --hub https://10.0.0.5:8443 --pair
 python3 tools/receiver.py | python3 tools/potluck_bridge.py --hub https://10.0.0.5:8443
 ```
 
+**If you consume these numbers, bind your labels to `--vocabulary`.** Any
+consumer that renders an ordinal keeps its own copy of the words, and a copy
+drifts — a desktop view once labelled `3` as "impact" while this bridge meant
+"people", carried over from a superseded proposal. No ordinal had moved, so
+nobody checking ordinals saw it. `--vocabulary` prints the ten values with
+their kinds and units, every ordinal list in order, and which readings are
+absent rather than zero. Assert your copy against that in your own CI: this
+repo deliberately does not reach into yours, because a test that skips
+whenever the other project is not checked out is worse than no test.
+
 ### Notes
 
 - **404 is a state, not an error.** Until the cell's owner provisions the

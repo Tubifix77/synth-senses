@@ -674,7 +674,49 @@ def main():
                          "you do not own)")
     ap.add_argument("--manifest", action="store_true",
                     help="print the inbox manifest and exit")
+    ap.add_argument("--vocabulary", action="store_true",
+                    help="print the published contract as JSON and exit: the "
+                         "ten values and every ordinal list, for a consumer "
+                         "to check its own labels against")
     args = ap.parse_args()
+
+    if args.vocabulary:
+        # The contract, in a form another program can diff against.
+        #
+        # A consumer that renders these numbers has to keep a copy of the
+        # words, and a copy drifts -- that is how a desktop view came to
+        # label ordinal 3 "impact" while this bridge meant "people", from an
+        # early proposal of mine that was superseded without anyone noticing
+        # the words had moved even though no ordinal had.
+        #
+        # The fix is not for this repo to reach into a consumer's files and
+        # check them. That inverts the dependency, and a test that silently
+        # skips when the other project is not checked out is worse than no
+        # test. So this publishes instead: the producer states the contract,
+        # and each consumer asserts its own copy against this output in its
+        # own CI, where failing is useful.
+        print(json.dumps({
+            "source": "synth-senses tools/potluck_bridge.py",
+            "note": "ordinals are indices into these lists; append, never "
+                    "insert. A value whose reading is absent is never "
+                    "written and reads as NO_DATA.",
+            "values": [
+                {"name": n, "kind": k, "unit": u} for n, k, u, _r, _e in TEN
+            ],
+            "ordinals": {
+                "motion": MOTION,
+                "posture": POSTURE,
+                "thermal": THERMAL,
+                "sound": SOUND,
+            },
+            "absent": {
+                "thermal": "UNKNOWN has no ordinal: it means the platform "
+                           "would not say. Permanently absent below API 29.",
+                "sound": "quiet is a real reading; no hearing block at all "
+                         "is absence and is never written.",
+            },
+        }, indent=2))
+        return 0
 
     if args.manifest:
         print(json.dumps({
