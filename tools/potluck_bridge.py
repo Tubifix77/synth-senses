@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish a phone's percepts into a Potluck cell, as ten numbers.
+"""Publish a phone's percepts into a Potluck cell, as eleven numbers.
 
 Potluck is a separate project of the author's: a runtime that federates
 ESP32-S3 boards, and optionally a PC, into one addressable machine whose
@@ -10,7 +10,7 @@ this exists.
 It consumes percepts; it cannot consume them whole. A Potluck inbox value is
 at most **eight bytes** -- a bool or a number -- so labels, transcripts and
 the narration have no representation there and stay on this side. What
-crosses is ten numbers, listed in TEN below.
+crosses is eleven numbers, listed in VALUES below.
 
     python3 tools/receiver.py | python3 tools/potluck_bridge.py --dry-run
 
@@ -102,7 +102,7 @@ SOUND_MAP = (
 )
 
 
-# ------------------------------------------------------------- the ten values
+# ---------------------------------------------------------- the published values
 #
 # name, kind, unit, and how to read it out of a percept. `kind` is what
 # Potluck's manifest should declare; `unit` is from its closed enum, or None
@@ -197,11 +197,14 @@ def thermal_number(percept):
 
 # Each entry: (name, kind, unit, reader, epsilon)
 #
+# Called VALUES rather than VALUES because it is eleven now and will not stay
+# still. Potluck's inbox holds at most twelve, which is the real ceiling.
+#
 # `epsilon` is how much a float must move before it is worth a write. This is
 # the same reasoning as Percept.tokens() bucketing its continuous quantities:
 # a room at 310 lux and the same room at 340 lux must not look like news. Here
 # the cost of pretending otherwise is the write budget rather than habituation.
-TEN = [
+VALUES = [
     ("salience",     "f32", "ratio",   lambda p: _dig(p, "attention", "salience"), 0.05),
     ("motion",       "u32", None,      lambda p: _idx(MOTION, _dig(p, "body", "motion")), 0),
     ("posture",      "u32", None,      lambda p: _idx(POSTURE, _dig(p, "body", "posture")), 0),
@@ -216,10 +219,21 @@ TEN = [
     ("battery",      "f32", "ratio",   lambda p: _dig(p, "self", "battery"), 0.02),
     ("battery_temp", "f32", "celsius", lambda p: _dig(p, "self", "battery_temp_c"), 0.5),
     ("thermal",      "u32", None,      thermal_number, 0),
+    # Approved for the first rollout on 2026-10-21. Appended rather than
+    # inserted, which is what keeps every other ordinal where it was and makes
+    # this non-breaking for a consumer that has already pinned the list.
+    #
+    # The epsilon is 2 because a BLE count dithers: a phone in someone's
+    # pocket walks past and the number moves by one, which is not news and
+    # would cost a write every sample. `Percept.tokens()` reached the same
+    # conclusion independently and buckets this field for habituation rather
+    # than using it raw.
+    ("ble_count",    "u32", "count",   lambda p: _dig(p, "radio", "ble_count"), 2),
 ]
 
 MAX_INBOX_VALUES = 12          # Potluck INTEGRATIONS.md step 7
-assert len(TEN) <= MAX_INBOX_VALUES
+assert len(VALUES) <= MAX_INBOX_VALUES, (
+    "an inbox holds at most %d values; this is %d" % (MAX_INBOX_VALUES, len(VALUES)))
 
 
 def values_from(percept):
@@ -230,7 +244,7 @@ def values_from(percept):
     `place 0`.
     """
     out = {}
-    for name, kind, _unit, read, _eps in TEN:
+    for name, kind, _unit, read, _eps in VALUES:
         try:
             value = read(percept)
         except Exception:
@@ -269,7 +283,7 @@ def manifest_outputs():
     is none.
     """
     parts = []
-    for name, kind, unit, _read, _eps in TEN:
+    for name, kind, unit, _read, _eps in VALUES:
         parts.append(f"{name}:{kind}:{unit}" if unit else f"{name}:{kind}")
     return " ".join(parts)
 
@@ -297,7 +311,7 @@ class Pending:
     Potluck holds a current value and its age, not a series. So this is a map
     of at most ten entries rather than a queue of writes: when a value changes
     twice before either reaches the hub, the older one is not a backlog item,
-    it is simply wrong and is dropped. That bound matters -- ten values at two
+    it is simply wrong and is dropped. That bound matters -- eleven values at two
     writes a second takes five seconds to drain, which is the whole default
     sample interval, so an append-only queue could never catch up.
     """
@@ -314,7 +328,7 @@ class Pending:
 
     def offer(self, values):
         """Take a percept's worth of values; queue only what is worth sending."""
-        eps_of = {n: e for n, _k, _u, _r, e in TEN}
+        eps_of = {n: e for n, _k, _u, _r, e in VALUES}
         with self.lock:
             for name, value in values.items():
                 if changed(name, self.written.get(name), value,
@@ -596,7 +610,7 @@ def run(stream, pending, budget, send, on_percept=None, tick=0.2,
     offers.
 
     A spooled backlog is not replayed: each percept overwrites the pending
-    value, so a flush of two thousand leaves ten numbers, the newest of each.
+    value, so a flush of two thousand leaves eleven numbers, the newest of each.
     Potluck holds a current reading, not a history.
     """
     stop = threading.Event()
@@ -673,7 +687,7 @@ def _drain(pending, budget, send, patient=False, sleep=time.sleep,
 def main():
     utf8_streams()
     ap = argparse.ArgumentParser(
-        description="Publish percepts into a Potluck cell as ten numbers.",
+        description="Publish percepts into a Potluck cell as eleven numbers.",
         epilog="Reads percepts as JSON lines on stdin, from tools/receiver.py.")
     ap.add_argument("--hub", help="https://<host>:8443 of the Potluck hub")
     ap.add_argument("--system", default="lab", help="the cell id in the path")
@@ -696,7 +710,7 @@ def main():
                     help="print the inbox manifest and exit")
     ap.add_argument("--vocabulary", action="store_true",
                     help="print the published contract as JSON and exit: the "
-                         "ten values and every ordinal list, for a consumer "
+                         "values and every ordinal list, for a consumer "
                          "to check its own labels against")
     args = ap.parse_args()
 
@@ -721,7 +735,7 @@ def main():
                     "insert. A value whose reading is absent is never "
                     "written and reads as NO_DATA.",
             "values": [
-                {"name": n, "kind": k, "unit": u} for n, k, u, _r, _e in TEN
+                {"name": n, "kind": k, "unit": u} for n, k, u, _r, _e in VALUES
             ],
             "ordinals": {
                 "motion": MOTION,
@@ -747,7 +761,7 @@ def main():
         }, indent=2))
         say("")
         say("and in the cluster file, for each value:")
-        for name, _k, _u, _r, _e in TEN:
+        for name, _k, _u, _r, _e in VALUES:
             say(f'  "act/phone/{name}": "read_write"')
         say("")
         say(f'with "writers": ["{args.name}"] on each.')

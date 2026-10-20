@@ -129,7 +129,7 @@ and already left on stdout, and the sender still gets its response.
 ## potluck_bridge.py
 
 Publishes a phone's percepts into a [Potluck](https://github.com/Tubifix77)
-cell as ten numbers — salience, motion, posture, steps, sound class, loudness,
+cell as eleven numbers — salience, motion, posture, steps, sound class, loudness,
 place, battery, battery temperature and thermal state.
 
 ```bash
@@ -152,7 +152,7 @@ python3 tools/receiver.py | python3 tools/potluck_bridge.py --hub https://10.0.0
 consumer that renders an ordinal keeps its own copy of the words, and a copy
 drifts — a desktop view once labelled `3` as "impact" while this bridge meant
 "people", carried over from a superseded proposal. No ordinal had moved, so
-nobody checking ordinals saw it. `--vocabulary` prints the ten values with
+nobody checking ordinals saw it. `--vocabulary` prints the values with
 their kinds and units, every ordinal list in order, and which readings are
 absent rather than zero. Assert your copy against that in your own CI: this
 repo deliberately does not reach into yours, because a test that skips

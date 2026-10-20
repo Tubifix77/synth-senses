@@ -84,7 +84,7 @@ class Hub:
 
 
 def percept(**over):
-    """A complete percept: every one of the ten values present."""
+    """A complete percept: every one of the published values present."""
     p = {
         "schema": 2, "seq": 1, "trigger": "salient", "device_id": "t",
         "attention": {"salience": 0.70, "novel": [], "known": 3},
@@ -153,24 +153,30 @@ check("every sound bucket is a member of SOUND",
       all(b in pb.SOUND for b, _ in pb.SOUND_MAP))
 
 print("\nthe shape Potluck will accept")
-check("ten values, under the inbox limit of twelve",
-      len(pb.TEN) == 10 and len(pb.TEN) <= pb.MAX_INBOX_VALUES,
-      f"{len(pb.TEN)} values")
+# The one count stated literally, on purpose. Appending a value is a
+# change a consumer has pinned and must be told about, so it should cost
+# a deliberate edit here rather than sliding through. Everything else
+# derives from len(VALUES).
+check("eleven values, under the inbox limit of twelve",
+      len(pb.VALUES) == 11 and len(pb.VALUES) <= pb.MAX_INBOX_VALUES,
+      f"{len(pb.VALUES)} values")
 check("every name is unique",
-      len({n for n, *_ in pb.TEN}) == len(pb.TEN))
-kinds = {k for _n, k, *_ in pb.TEN}
+      len({n for n, *_ in pb.VALUES}) == len(pb.VALUES))
+kinds = {k for _n, k, *_ in pb.VALUES}
 check("every kind is one Potluck can hold in eight bytes",
       kinds <= {"f32", "u32", "u64", "i32", "bool"}, str(sorted(kinds)))
 manifest = pb.manifest_outputs()
 check("the manifest string is name:kind[:unit] throughout",
       all(re.fullmatch(r"[a-z_]+:[a-z0-9]+(:[a-z]+)?", part)
           for part in manifest.split()), manifest)
-check("and names all ten", len(manifest.split()) == 10)
+check("and names every one of them",
+      len(manifest.split()) == len(pb.VALUES), manifest)
 
 # ------------------------------------------------------------- what crosses
 print("\nwhat crosses")
 v = pb.values_from(percept())
-check("a complete percept supplies all ten", len(v) == 10, str(sorted(v)))
+check("a complete percept supplies every value",
+      len(v) == len(pb.VALUES), str(sorted(v)))
 check("salience crosses as the ratio it is", v["salience"] == 0.70)
 check("motion crosses as its ordinal", v["motion"] == 0, str(v.get("motion")))
 check("posture too", v["posture"] == 0, str(v.get("posture")))
@@ -194,6 +200,17 @@ for label, over, missing in cases:
     check(f"{label}: {missing} is absent, not zero",
           missing not in got, f"got {got.get(missing)!r}")
 
+# ble_count is the value this distinction was learned on. Below API 31 a BLE
+# scan needs fine location, which the app never requested, so the scan came
+# back empty and the count was a confident, permanent zero -- indistinguishable
+# on a dial from a genuinely empty room. The fix was in the app; the duty here
+# is to keep "the radio did not run" and "the radio ran and saw nothing" as
+# different things on the wire.
+check("no radio block at all leaves ble_count absent, so Potluck reads NO_DATA",
+      "ble_count" not in pb.values_from(percept(radio=None)))
+check("but a genuine zero is published, because seeing nothing is a reading",
+      pb.values_from(percept(radio={"ble_count": 0}))["ble_count"] == 0)
+
 check("an unknown motion label is absent rather than guessed",
       "motion" not in pb.values_from(percept(body={"motion": "teleporting"})))
 check("a bool never crosses as a number",
@@ -211,7 +228,7 @@ _whole = percept(**{
     "hearing": {"level_db": -30, "events": []},
 })
 _v = pb.values_from(_whole)
-for _name, _kind, _unit, _read, _eps in pb.TEN:
+for _name, _kind, _unit, _read, _eps in pb.VALUES:
     if _name not in _v:
         continue
     _want = float if _kind.startswith("f") else int
@@ -255,13 +272,14 @@ check("the loudest event wins, not the first",
 print("\nnewest wins, and a backlog is never replayed")
 hub = Hub()
 drive([json.dumps(percept())], hub)
-check("a first percept writes every value it has", len(hub.writes) == 10,
+check("a first percept writes every value it has",
+      len(hub.writes) == len(pb.VALUES),
       f"{len(hub.writes)} writes")
 
 hub = Hub()
 drive([json.dumps(percept())] * 5, hub)
 check("four identical percepts after it write nothing more",
-      len(hub.writes) == 10, f"{len(hub.writes)} writes")
+      len(hub.writes) == len(pb.VALUES), f"{len(hub.writes)} writes")
 
 hub = Hub()
 backlog = [json.dumps(percept(seq=i, attention={"salience": i / 2000.0}))
@@ -271,8 +289,9 @@ pending = pb.Pending(300000, now=clock)
 budget = pb.Budget(per_second=0, burst=0, now=clock)       # nothing may go out
 for line in backlog:
     pending.offer(pb.values_from(json.loads(line)))
-check("two thousand spooled percepts leave ten values pending, not twenty "
-      "thousand writes", len(pending.pending) == 10, str(len(pending.pending)))
+check("two thousand spooled percepts leave eleven values pending, not twenty "
+      "thousand writes", len(pending.pending) == len(pb.VALUES),
+      str(len(pending.pending)))
 check("and the pending salience is the newest one",
       abs(pending.pending["salience"] - 1999 / 2000.0) < 1e-9,
       str(pending.pending["salience"]))
@@ -370,14 +389,14 @@ drive([json.dumps({"type": "ack", "cmd": "look", "ok": True}),
        json.dumps({"type": "status", "device": {"model": "x"}}),
        json.dumps(percept())], hub)
 check("a reply on the stream is ignored, a percept is not",
-      len(hub.writes) == 10, f"{len(hub.writes)} writes")
+      len(hub.writes) == len(pb.VALUES), f"{len(hub.writes)} writes")
 
 print("\nrubbish on the stream")
 hub = Hub()
 drive(["", "   ", "not json at all", "[1,2,3]", '"a string"',
        json.dumps(percept())], hub)
 check("junk lines are skipped and the percept still lands",
-      len(hub.writes) == 10, f"{len(hub.writes)} writes")
+      len(hub.writes) == len(pb.VALUES), f"{len(hub.writes)} writes")
 
 print("\nrefreshing before Potluck calls us stale")
 clock = Clock()
@@ -386,15 +405,18 @@ pending = pb.Pending(10000, now=clock)                      # stale_ms 10 s
 budget = pb.Budget(per_second=1000.0, burst=10000, now=clock)
 pending.offer(pb.values_from(percept()))
 pb._drain(pending, budget, hub)
-check("everything goes out once", len(hub.writes) == 10, str(len(hub.writes)))
+check("everything goes out once", len(hub.writes) == len(pb.VALUES),
+      str(len(hub.writes)))
 clock.advance(2)
 pb._drain(pending, budget, hub)
-check("nothing is rewritten two seconds later", len(hub.writes) == 10,
+check("nothing is rewritten two seconds later",
+      len(hub.writes) == len(pb.VALUES),
       str(len(hub.writes)))
 clock.advance(4)                                            # now past half
 pb._drain(pending, budget, hub)
 check("but everything is refreshed at half of stale_ms, so a quiet room "
-      "never reads STALE", len(hub.writes) == 20, str(len(hub.writes)))
+      "never reads STALE", len(hub.writes) == 2 * len(pb.VALUES),
+      str(len(hub.writes)))
 
 print("\nthe contract a consumer checks itself against")
 # A consumer that renders these numbers keeps a copy of the words, and a copy
@@ -415,11 +437,11 @@ _vocab = json.loads(subprocess.run(
     capture_output=True, text=True, encoding="utf-8").stdout)
 
 check("the contract names every value",
-      [v["name"] for v in _vocab["values"]] == [n for n, *_ in pb.TEN],
+      [v["name"] for v in _vocab["values"]] == [n for n, *_ in pb.VALUES],
       str([v["name"] for v in _vocab["values"]]))
 check("with their kinds and units",
       [(v["kind"], v["unit"]) for v in _vocab["values"]]
-      == [(k, u) for _n, k, u, _r, _e in pb.TEN])
+      == [(k, u) for _n, k, u, _r, _e in pb.VALUES])
 for _name, _table in (("motion", pb.MOTION), ("posture", pb.POSTURE),
                       ("thermal", pb.THERMAL), ("sound", pb.SOUND)):
     check(f"and publishes the {_name} ordinals in order",
@@ -444,8 +466,9 @@ for line in roadmap.splitlines():
         unit = m.group(3).strip()
         doc_rows[m.group(1)] = (m.group(2), None if unit in ("", "\u2014") else unit)
 
-here = {n: (k, u) for n, k, u, _r, _e in pb.TEN}
-check("the roadmap documents a value table at all", len(doc_rows) == 10,
+here = {n: (k, u) for n, k, u, _r, _e in pb.VALUES}
+check("the roadmap documents a value table at all",
+      len(doc_rows) == len(pb.VALUES),
       f"found {len(doc_rows)}: {sorted(doc_rows)}")
 check("the same ten names", set(doc_rows) == set(here),
       f"doc-only={sorted(set(doc_rows) - set(here))} "

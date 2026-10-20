@@ -293,8 +293,22 @@ never reproduces in CI, which is Linux and UTF-8 already.
 
 ## 3. Alongside: Potluck, a second consumer
 
-Specified, agreed on the Potluck side, **not approved here and not yet run**.
-Recorded because it otherwise exists only in messages between two sessions.
+**The eleven values were approved by the author on 2026-10-21** — "yes to the
+values" — so the set below is settled rather than proposed. Nothing has run
+yet: no percept has reached a cell, because no percept has yet come off a
+phone at all.
+
+Recorded here because it otherwise exists only in messages between sessions.
+
+Approval settles *what* crosses. It does not settle the two things that still
+gate this: **the bridge has only ever been exercised in `--dry-run`**, and
+every bug that mattered in it was invisible in that mode — the drain loop
+that stalled on silence, the certificate pin that was never checked, the
+pairing that could not pair, the `f32` that went out as an integer. The
+remedy is the same one this project applies to everything else: run it
+against the real thing early, so that provisioning and pairing fail on a
+quiet morning rather than during the one evening someone is standing there
+with a phone.
 
 Potluck is a separate project of the author's: a distributed runtime that
 federates ESP32-S3 boards, and optionally a PC, into one addressable machine
@@ -305,7 +319,7 @@ is why it fits.
 It consumes percepts; it cannot consume them whole. A Potluck value is at most
 **8 bytes** with a closed unit enum, and its write API takes "a JSON bool or
 number". Labels, transcripts and the narration have no representation there and
-stay on this side. What crosses is ten numbers.
+stay on this side. What crosses is eleven numbers.
 
 | output | type | unit | from |
 |---|---|---|---|
@@ -319,8 +333,23 @@ stay on this side. What crosses is ten numbers.
 | `battery` | f32 | ratio | `self.battery` |
 | `battery_temp` | f32 | celsius | `self.battery_temp_c` |
 | `thermal` | u32 | — | `self.thermal`, 0 none … 6 shutdown, absent if UNKNOWN |
+| `ble_count` | u32 | count | `radio.ble_count` |
 
-Two of the ten are not simply read off a percept, and a consumer labelling
+`ble_count` was added to the set on 2026-10-21, after the rest. It is
+**appended, never inserted**, so every other value keeps its place and a
+consumer that has already pinned the list is not broken by it. It is the one
+value here that only works because of a bug found while writing this section
+down: below API 31 a BLE scan needs fine location, which the app never asked
+for, so on an Android 9 or 10 phone it would have published a confident zero
+forever.
+
+Its epsilon is 2 rather than 0, unlike the other counts. A BLE count dithers
+— someone walks past with a phone in a pocket and the number moves by one,
+which is not news and would cost a write every sample. `Percept.tokens()`
+reached the same conclusion independently and buckets this field rather than
+habituating on it raw.
+
+Two of these are not simply read off a percept, and a consumer labelling
 them needs to know which:
 
 - **`sound` is the bridge's vocabulary, not the phone's.** YAMNet names
@@ -395,7 +424,7 @@ model rather than ours:
   age, not a series, so replaying publishes stale readings as current and
   destroys the write budget. Fast-forward to the newest and drop the rest.
 - **Newest-wins per path, not a queue of writes.** Same reason. It also bounds
-  the queue at ten entries: ten values against 2 writes/s takes five seconds to
+  the queue at eleven entries: eleven values against 2 writes/s takes six seconds to
   drain, and the default sample interval is five seconds, so an append-only
   queue would never catch up.
 - **`stale_ms` of 300000**, about 2.5× the heartbeat. This source is

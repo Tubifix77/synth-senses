@@ -214,7 +214,7 @@ tools/test_transitive_sweep.py  the sweep's version ordering and ceiling detecti
 tools/test_digest.py       the digest, and above all that redaction holds
 tools/test_docs.py         docs/INTEGRATION.md's facts against the source
 tools/apk_facts.py         reads a built APK's binary manifest; CI gates on it
-tools/potluck_bridge.py    percepts -> ten numbers in a Potluck cell
+tools/potluck_bridge.py    percepts -> eleven numbers in a Potluck cell
 tools/test_potluck_bridge.py  its ordinals, budget, and that absence stays absent
 ```
 
@@ -248,7 +248,7 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
 - **Continuous quantities are bucketed in `Percept.tokens()`.** A room at 310
   lux and the same room at 340 lux must produce the same token, or nothing ever
   habituates.
-- **A change to the ten Potluck values needs telling, not just testing.** The
+- **A change to the published Potluck values needs telling, not just testing.** The
   Potluck Desk project pins `tools/potluck_bridge.py --vocabulary` and asserts
   its labels against it, so a rename here breaks a build over there. That is
   the point — better a red build than a silently relabelled dial — but say so
