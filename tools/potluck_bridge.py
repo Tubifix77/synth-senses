@@ -389,6 +389,12 @@ class Budget:
     with a Retry-After over that. Running at exactly the ceiling means living
     on the edge of being throttled, so this sits below it and leaves the burst
     allowance as headroom rather than as the plan.
+
+    **The share is counted per pairing name, not per process.** Two bridges
+    holding the same token look to the hub like one program writing at twice
+    the rate, and the first real 429 was exactly that -- two copies running at
+    once, eleven values each, against a budget for eleven. No amount of
+    tuning here fixes that; run one bridge.
     """
 
     def __init__(self, per_second=1.2, burst=2, now=None):

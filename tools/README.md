@@ -175,6 +175,11 @@ whenever the other project is not checked out is worse than no test.
 
 ### Notes
 
+- **Run one bridge.** The hub counts a program's write share by *pairing
+  name*, not by process, so two copies holding the same token look like one
+  program writing at twice the rate and start collecting 429s. That was the
+  cause of the first real throttle here — two bridges, eleven values each,
+  against a budget sized for eleven.
 - **404 is a state, not an error.** Until the cell's owner provisions the
   inbox, every write answers 404; the bridge backs off and says so. That is
   what lets it be built and watched before any of it is live.
