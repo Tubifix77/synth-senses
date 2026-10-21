@@ -86,6 +86,10 @@ class SenseService : LifecycleService() {
         body = BodySensor(this)
         selfSensor = SelfSensor(this)
         audio = AudioSensor(this)
+        // Make the drop folder exist, so there is somewhere visible to put
+        // the sound model. Android/data is restricted on modern phones and
+        // HyperOS does not even list it; Android/media is browsable.
+        audio.prepareModelDir()
         speech = SpeechSensor(this)
         habituation = Habituation(this)
         link = Link(spool) { cmd ->

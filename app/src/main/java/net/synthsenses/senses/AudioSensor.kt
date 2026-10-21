@@ -81,9 +81,10 @@ class AudioSensor(private val context: Context) {
             return asset
         }
 
-        val file = File(context.getExternalFilesDir(null), MODEL_ASSET)
-        if (!file.isFile) {
-            Log.i(TAG, "no $MODEL_ASSET in assets and none at ${file.absolutePath}")
+        val file = modelFile()
+        if (file == null) {
+            Log.i(TAG, "no $MODEL_ASSET in assets, and none in "
+                + modelDirs().joinToString(", ") { it.absolutePath })
             return null
         }
         return runCatching {
@@ -100,6 +101,34 @@ class AudioSensor(private val context: Context) {
         }.onFailure {
             Log.w(TAG, "could not read $MODEL_ASSET from ${file.absolutePath}", it)
         }.getOrNull()
+    }
+
+    /**
+     * Where a model file may be dropped, in the order they are tried.
+     *
+     * `getExternalFilesDir` is the obvious one and is useless on a modern
+     * phone: Android 11 restricted `Android/data`, so a file manager cannot
+     * see into it and MTP over a cable cannot either. HyperOS does not even
+     * list the folder. Creating one by hand does not help, because the
+     * directory exists and is access-controlled rather than missing.
+     *
+     * `getExternalMediaDirs` is the accessible sibling. `Android/media` was
+     * deliberately left browsable, so a file manager can write there, and
+     * Android still gives each package its own directory inside it. The app
+     * creates it on start so there is somewhere to drop the file into.
+     */
+    private fun modelDirs(): List<File> = buildList {
+        runCatching { context.externalMediaDirs.filterNotNull() }
+            .getOrDefault(emptyList()).forEach { add(it) }
+        context.getExternalFilesDir(null)?.let { add(it) }
+    }
+
+    private fun modelFile(): File? =
+        modelDirs().map { File(it, MODEL_ASSET) }.firstOrNull { it.isFile }
+
+    /** Make somewhere for the model to be put, so the folder exists to find. */
+    fun prepareModelDir() {
+        runCatching { modelDirs().firstOrNull()?.mkdirs() }
     }
 
     private fun ensureClassifier(): AudioClassifier? {
