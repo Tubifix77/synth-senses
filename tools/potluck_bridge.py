@@ -818,9 +818,10 @@ def main():
                     "again, or pass --insecure")
         with open(args.token_file, "w", encoding="utf-8") as f:
             json.dump(stored, f, indent=2)
-        say(f"token stored in {args.token_file}. Keep it; re-pairing under a "
-            f"name already taken becomes {args.name!r} with a number added, "
-            f"and then every write is refused.")
+        say(f"token stored in {args.token_file}. Keep it: pairing again under "
+            f"a name already taken becomes {args.name + ' 2'!r}, while the "
+            f"cluster file still says {args.name!r}, and then every write is "
+            f"refused by a program that looks perfectly paired.")
         return 0
 
     dry = args.dry_run or hub is None
