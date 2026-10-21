@@ -525,7 +525,7 @@ def _loads(raw):
         return {"result": raw[:300]}
 
 
-def pair(hub, name, right, poll_s=3, timeout_s=300):
+def pair(hub, name, right, poll_s=3, timeout_s=300, asks=3):
     """Ask to be paired, then wait for the owner to approve it on the PC.
 
     The name matters more than it looks. A second program asking under a name
@@ -536,29 +536,51 @@ def pair(hub, name, right, poll_s=3, timeout_s=300):
     verbatim rather than summarising it. Revoke the old pairing first:
     `python -m potluck.hubauth revoke "Synth Senses"` on the hub's PC.
     """
-    status, body, _ = hub.post("/api/pair", {"name": name, "right": right})
-    if status != 202:
-        say(f"pairing refused: {status} {body.get('result') or body}")
-        return None
-    pair_id = body.get("pair_id")
-    say(f"asked to pair as {name!r} with the {right!r} right.")
-    say(f"approve it on the hub's PC (pair id {pair_id}); "
-        f"expires in {body.get('expires_in_s')} s")
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        time.sleep(poll_s)
-        status, body, _ = hub.get(f"/api/pair/{pair_id}")
-        state = body.get("state")
-        if state == "approved":
-            say("approved.")
-            return body.get("token")
-        if state == "denied":
-            say("denied by the owner.")
+    # Said once, before the first request, because both of the things that
+    # went wrong the first time this ran for real were about finding the
+    # button rather than about pairing.
+    say("")
+    say("  Bring the Potluck Desk window to the front, and make sure nothing")
+    say("  is covering the top of it. The request appears there as a banner")
+    say("  within a couple of seconds; Allow and Deny sit at its RIGHT-HAND")
+    say("  END, which is easy to hide behind another window.")
+    say("")
+
+    for attempt in range(1, asks + 1):
+        status, body, _ = hub.post("/api/pair", {"name": name, "right": right})
+        if status != 202:
+            say(f"pairing refused: {status} {body.get('result') or body}")
             return None
-        if status == 404:
-            say("the pairing request expired or was already collected.")
-            return None
-    say("gave up waiting for approval.")
+        pair_id = body.get("pair_id")
+        window = body.get("expires_in_s")
+        say(f"asked to pair as {name!r} with the {right!r} right"
+            + (f" (attempt {attempt} of {asks})" if asks > 1 else ""))
+        say(f"waiting for Allow on the hub's PC — pair id {pair_id}, "
+            f"{window} s to answer")
+
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            time.sleep(poll_s)
+            status, body, _ = hub.get(f"/api/pair/{pair_id}")
+            state = body.get("state")
+            if state == "approved":
+                say("approved.")
+                return body.get("token")
+            if state == "denied":
+                # A deliberate no. Asking again would be pestering someone who
+                # has already answered.
+                say("denied by the owner. Not asking again.")
+                return None
+            if status == 404:
+                break
+        # The window lapsed. That is not a failure of anything, it is someone
+        # not having got to the button yet, so ask again rather than making
+        # them retype the command -- which is what happened the first time.
+        if attempt < asks:
+            say("that request expired before it was answered; asking again.")
+        else:
+            say(f"gave up after {asks} requests. Re-run when you are ready to "
+                f"click Allow.")
     return None
 
 

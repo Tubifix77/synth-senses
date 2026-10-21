@@ -456,10 +456,28 @@ The steps have to happen in this order, and the first is not optional:
    ```
 
    It records the certificate fingerprint alongside the token, and every
-   authenticated request afterwards checks it. Keep `.potluck-token.json`:
-   re-pairing under a name already taken becomes `Synth Senses 2` while the
-   cluster file still says `Synth Senses`, and then every write is refused by
-   a program that looks perfectly paired.
+   authenticated request afterwards checks it — **compare the printed
+   fingerprint against the one the hub reports**, because the pin is the only
+   thing standing between a bearer token and whoever answers on that address.
+   Keep `.potluck-token.json`: pairing again under a name already taken
+   becomes `Synth Senses 2` while the cluster file still says `Synth Senses`,
+   and then every write is refused by a program that looks perfectly paired.
+
+   **Which half of this an installer could do, and which it must never.** The
+   first real pairing took three attempts, and neither failure was pairing's:
+   the Allow button was hidden behind another window, and then the five-minute
+   window lapsed while we looked for it. Both are ceremony, and `--pair` now
+   absorbs them — it says where the button is before asking, and re-asks up to
+   three times when a window lapses rather than making anyone retype the
+   command, which is fifteen minutes of grace instead of five. A denial is
+   never re-asked; someone who said no has answered.
+
+   **The click itself must stay manual, and not because it is hard to
+   automate.** Approval is a human act on the hub's own PC, checked against
+   the address the request came from. A program that could approve its own
+   request would make pairing worthless — anything on the network could pair
+   itself and start writing. It is one click, once, for the life of the
+   token.
 3. **Run it against live percepts.**
 
    ```bash

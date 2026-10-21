@@ -533,6 +533,67 @@ for name in sorted(set(doc_rows) & set(here)):
           doc_rows[name] == here[name],
           f"doc={doc_rows[name]} code={here[name]}")
 
+print("\nasking to pair, and waiting for a human")
+# The first real pairing took three goes, and neither failure was pairing's
+# fault: the Allow button was behind another window, and then the five-minute
+# window lapsed while we looked for it. Both are ceremony, and ceremony is
+# the part a program should absorb. The click itself is not -- approval is a
+# human act on the hub's own PC, checked against the address the request came
+# from, and a program that approved its own request would make the whole
+# mechanism pointless.
+
+
+class _Pairing:
+    """A hub that expires `lapses` requests, then answers `end`."""
+
+    base = "https://hub.invalid:8443"
+
+    def __init__(self, lapses=0, end="approved"):
+        self.lapses, self.end = lapses, end
+        self.asks = 0
+
+    def post(self, path, body):
+        self.asks += 1
+        return 202, {"pair_id": "id%d" % self.asks, "expires_in_s": 300}, {}
+
+    def get(self, path):
+        if self.asks > self.lapses:
+            return 200, {"state": self.end, "token": "a-token"}, {}
+        return 404, {}, {}
+
+
+_h = _Pairing(lapses=0)
+check("an approval on the first ask needs only one request",
+      pb.pair(_h, "Synth Senses", "write", poll_s=0, timeout_s=0.01)
+      == "a-token" and _h.asks == 1, f"{_h.asks} asks")
+
+_h = _Pairing(lapses=2)
+_tok = pb.pair(_h, "Synth Senses", "write", poll_s=0, timeout_s=0.01)
+check("a lapsed window is re-asked rather than retyped",
+      _tok == "a-token" and _h.asks == 3, f"{_h.asks} asks, token {_tok!r}")
+
+_h = _Pairing(lapses=9)
+check("but it gives up rather than pestering forever",
+      pb.pair(_h, "Synth Senses", "write", poll_s=0, timeout_s=0.01) is None
+      and _h.asks == 3, f"{_h.asks} asks")
+
+_h = _Pairing(lapses=0, end="denied")
+check("a denial is final and is never asked again",
+      pb.pair(_h, "Synth Senses", "write", poll_s=0, timeout_s=0.01) is None
+      and _h.asks == 1, f"{_h.asks} asks")
+
+
+class _Refuses:
+    base = "https://hub.invalid:8443"
+
+    def post(self, path, body):
+        return 429, {"result": "too many pending requests"}, {}
+
+
+check("a hub that refuses the request says so and stops",
+      pb.pair(_Refuses(), "Synth Senses", "write", poll_s=0,
+              timeout_s=0.01) is None)
+
 print("\nthe token does not travel to an unverified hub")
 # The hub serves a certificate of its own making, so verify_mode is
 # necessarily NONE and the pin is the only thing standing between a bearer
