@@ -279,7 +279,7 @@ class _Answer:
 # IS provisioned, and anyone reading our inference rather than the hub's
 # words would go looking in the wrong place. That happened on the evening
 # this was provisioned, which is why the wording is quoted now.
-_ok, _hold, _note, _ = pb.write_value(
+_ok, _hold, _note, _, _ = pb.write_value(
     _Answer(404, "no such resource in this cell (not in its package)"),
     "lab", "battery", 0.5)
 check("a 404 repeats the hub's own wording", "no such resource" in _note, _note)
@@ -287,29 +287,29 @@ check("and is still a back-off rather than a failure", not _ok and _hold > 0)
 check("a 404 with no wording still says something useful",
       "not provisioned" in pb.write_value(_Answer(404), "lab", "x", 1)[2])
 
-_ok, _hold, _note, _ = pb.write_value(
+_ok, _hold, _note, _, _ = pb.write_value(
     _Answer(403, "not writable by this program: it is paired as "
                  "'Synth Senses 2' and the writers list names 'Synth Senses'"),
     "lab", "battery", 0.5)
 check("a 403 is passed through verbatim, re-pairing hint and all",
       "Synth Senses 2" in _note, _note)
 
-_ok, _hold, _note, _ = pb.write_value(
+_ok, _hold, _note, _, _ = pb.write_value(
     _Answer(429, "slow down: ...", {"Retry-After": "7"}), "lab", "battery", 0.5)
 check("a 429 honours Retry-After rather than guessing", _hold == 7, str(_hold))
 
-_ok, _hold, _note, _ = pb.write_value(
+_ok, _hold, _note, _, _ = pb.write_value(
     _Answer(429, "slow down: ...", {"Retry-After": "nonsense"}),
     "lab", "battery", 0.5)
 check("and an unparseable Retry-After does not crash the writer", _hold > 0,
       str(_hold))
 
-_ok, _hold, _note, _ = pb.write_value(
+_ok, _hold, _note, _, _ = pb.write_value(
     _Answer(504, "the owning board did not answer"), "lab", "battery", 0.5)
 check("a 504 from the owning board is reported and retried later",
       not _ok and _hold > 0 and "did not answer" in _note, _note)
 
-_ok, _hold, _note, _ = pb.write_value(_Answer(200, "applied"), "lab", "battery", 0.5)
+_ok, _hold, _note, _, _ = pb.write_value(_Answer(200, "applied"), "lab", "battery", 0.5)
 check("and a 200 is simply applied", _ok and _note == "applied", _note)
 
 print("\nthe sound curation")
@@ -474,10 +474,78 @@ pb._drain(_p404, _b404, _h404)
 check("an unprovisioned value stays pending, so it lands once provisioned",
       _p404.pending.get("lat") == 56.0922722, str(_p404.pending))
 
-check("a 404 stops the flood after one attempt rather than trying them all",
-      len(hub.writes) == 1, f"{len(hub.writes)} writes")
-check("and holds off before trying again",
-      budget.blocked_until > clock(), str(budget.blocked_until - clock()))
+# These two checks used to read "a 404 stops the flood after one attempt" and
+# "holds off before trying again", asserting one write and a held budget. That
+# sounded protective and was the bug: the budget gates every path, so a single
+# unprovisioned value stood the entire writer down. What is wanted is a bound
+# *per path*, not a queue that stops at the first failure.
+check("every path gets its own attempt rather than the queue stopping at the first",
+      len(hub.writes) == len(set(hub.names)) and len(hub.writes) >= 10,
+      f"{len(hub.writes)} writes, {len(set(hub.names))} distinct")
+check("and a 404 does not stand the whole writer down",
+      budget.blocked_until <= clock(),
+      f"blocked for {budget.blocked_until - clock():.0f}s")
+
+print("\none absent value must not starve the other eleven")
+# Reported by the Potluck Desk session watching the hub, not by anything here:
+# "Synth Senses" was making about one write a minute and none of them landed.
+# `lat` was unprovisioned, so it answered 404 with a 60 s hold -- and because
+# `written_at` defaults to 0, a value that has never been written sorts to the
+# *head* of the oldest-written-first queue. So every pass took `lat` first,
+# failed, held the shared budget for a minute and returned. Keeping the 404'd
+# value was right; retrying it from the head of a queue that stopped at the
+# first failure starved the other eleven completely.
+_clk = Clock()
+_starve = Hub(answer=lambda n, v: (False, 60, "404: not in its package", True, False)
+              if n in ("lat", "lon") else (True, 0, "applied", False, False))
+_sp = pb.Pending(300000, now=_clk)
+_sb = pb.Budget(per_second=1000.0, burst=10000, now=_clk)
+_sp.offer({"lat": 56.09, "lon": 10.11, "sound": 5, "battery": 0.9, "place": 1})
+pb._drain(_sp, _sb, _starve)
+
+check("the writable values go out despite an unprovisioned one at the head",
+      sorted(n for n in _starve.names if n not in ("lat", "lon"))
+      == ["battery", "place", "sound"], str(_starve.names))
+check("the absent ones are tried once each, not in a loop",
+      [_starve.names.count("lat"), _starve.names.count("lon")] == [1, 1],
+      str(_starve.names))
+check("and they stay pending, so provisioning them later still lands",
+      _sp.pending.get("lat") == 56.09 and _sp.pending.get("lon") == 10.11,
+      str(_sp.pending))
+check("the shared budget is untouched by a per-path failure",
+      _sb.blocked_until <= _clk(), str(_sb.blocked_until - _clk()))
+
+# The hold is real: a second pass inside the window must not retry it, and
+# must not be blocked by it either.
+_sp.offer({"sound": 6})
+pb._drain(_sp, _sb, _starve)
+check("a held path is not retried before its hold expires",
+      [_starve.names.count("lat"), _starve.names.count("lon")] == [1, 1],
+      str(_starve.names))
+check("while a value behind it still gets through",
+      _starve.names.count("sound") == 2, str(_starve.names))
+
+_clk.advance(61)
+pb._drain(_sp, _sb, _starve)
+check("and once the hold expires it is tried again",
+      _starve.names.count("lat") == 2, str(_starve.names))
+
+print("\na throttle, unlike an absence, is program-wide")
+# The distinction the fix turns on. A 404 is about one path; a 429 is the hub
+# telling this writer to slow down, so trying the next path would only earn
+# another one.
+_tclk = Clock()
+_thub = Hub(answer=lambda n, v: (False, 5, "throttled: over share", True, True))
+_tp = pb.Pending(300000, now=_tclk)
+_tb = pb.Budget(per_second=1000.0, burst=10000, now=_tclk)
+_tp.offer({"sound": 5, "battery": 0.9, "place": 1})
+pb._drain(_tp, _tb, _thub)
+check("a throttle stops the pass instead of working down the queue",
+      len(_thub.writes) == 1, f"{len(_thub.writes)} writes")
+check("and it does hold the shared budget, because the limit is shared",
+      _tb.blocked_until > _tclk(), str(_tb.blocked_until - _tclk()))
+check("nothing is lost: all three are still pending",
+      sorted(_tp.pending) == ["battery", "place", "sound"], str(_tp.pending))
 
 print("\na throttle is not a refusal")
 # The first real 429, on the opening eleven-value burst: "slow down: this
@@ -497,7 +565,7 @@ for _status, _result, _keep, _why in (
         # absent are not the same thing, and only one of them is permanent.
         (403, "not_found", True, "403 not_found is absence, so keep"),
         (403, "not found", True, "and the spaced spelling too")):
-    _ok, _hold, _note, _kept = pb.write_value(
+    _ok, _hold, _note, _kept, _ = pb.write_value(
         _Answer(_status, _result), "lab", "sound", 5)
     check(f"{_status}: {_why}", _kept == _keep,
           f"keep={_kept} want={_keep}")

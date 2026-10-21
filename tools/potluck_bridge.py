@@ -371,6 +371,7 @@ class Pending:
         self.pending = {}        # name -> value waiting to go
         self.written = {}        # name -> value the hub last accepted
         self.written_at = {}     # name -> when that happened
+        self.held = {}           # name -> don't try this one again before
         self.now = now or time.monotonic
         # The reader offers while the drainer takes. Reentrant because
         # refresh_due() is called from inside the drain loop.
@@ -402,16 +403,31 @@ class Pending:
                     self.pending[name] = value
 
     def take(self):
-        """One (name, value) to write, or None. Oldest-written first."""
+        """One (name, value) to write, or None. Oldest-written first.
+
+        A path standing down under its own hold is skipped rather than
+        returned. That is what stops a single unwritable value from sitting at
+        the head of the queue forever: `written_at` defaults to 0, so a value
+        that has **never** been written sorts first by construction, and an
+        unprovisioned path is exactly that.
+        """
+        now = self.now()
         with self.lock:
-            if not self.pending:
+            ready = [n for n in self.pending if self.held.get(n, 0) <= now]
+            if not ready:
                 return None
-            name = min(self.pending, key=lambda n: self.written_at.get(n, 0))
+            name = min(ready, key=lambda n: self.written_at.get(n, 0))
             return name, self.pending[name]
+
+    def hold(self, name, seconds):
+        """Stand one path down, leaving every other path writable."""
+        with self.lock:
+            self.held[name] = max(self.held.get(name, 0), self.now() + seconds)
 
     def accepted(self, name, value):
         with self.lock:
             self.pending.pop(name, None)
+            self.held.pop(name, None)
             self.written[name] = value
             self.written_at[name] = self.now()
 
@@ -419,6 +435,7 @@ class Pending:
         """Drop it. A newer value will come; a retry loop would not help."""
         with self.lock:
             self.pending.pop(name, None)
+            self.held.pop(name, None)
 
 
 class Budget:
@@ -445,7 +462,12 @@ class Budget:
         self.blocked_until = 0.0
 
     def hold_off(self, seconds):
-        """Honour a Retry-After, or back off from a 404."""
+        """Honour a Retry-After. Program-wide, so only a throttle belongs here.
+
+        A 404 used to back off through this, which was a real defect: the
+        budget gates every path, so one unprovisioned value stood the whole
+        writer down. Per-path holds live on `Pending` now.
+        """
         self.blocked_until = max(self.blocked_until, self.now() + seconds)
 
     def ready(self):
@@ -643,18 +665,19 @@ def pair(hub, name, right, poll_s=3, timeout_s=300, asks=3):
 def write_value(hub, system, name, value, dry_run=False):
     """One write.
 
-    -> (ok, hold_seconds, note, keep). `keep` says whether the value is still
+    -> (ok, hold_seconds, note, keep, throttled). `keep` says whether the
+    value is still
     worth writing: a refusal means drop it, but a throttle or a board that did
     not answer means *not now*, and discarding a perfectly good reading there
     leaves the cell showing something older until the next stale-refresh.
     """
     path = f"potluck://{system}/act/phone/{name}"
     if dry_run:
-        return True, 0, f"would write {path} = {value}", False
+        return True, 0, f"would write {path} = {value}", False, False
     status, body, headers = hub.post("/api/write", {"path": path, "value": value})
     result = body.get("result")
     if status == 200:
-        return True, 0, str(result), False
+        return True, 0, str(result), False, False
     if status == 404:
         # Not an error, and **not a reason to forget the value**. The usual
         # cause is that the cell's owner has not provisioned the path yet,
@@ -676,7 +699,7 @@ def write_value(hub, system, name, value, dry_run=False):
         # the hub said, the same as for a 403, and label the inference as an
         # inference.
         return False, 60, (f"404: {result}" if result
-                           else "404, probably not provisioned yet"), True
+                           else "404, probably not provisioned yet"), True, False
     if status == 429:
         try:
             wait = int(headers.get("Retry-After", "2"))
@@ -684,7 +707,7 @@ def write_value(hub, system, name, value, dry_run=False):
             wait = 2
         # Keep it. The reading is current and correct; the hub is simply
         # asking us to wait, and dropping it would publish staleness.
-        return False, wait, f"throttled: {result}", True
+        return False, wait, f"throttled: {result}", True, True
     if status == 403:
         # Observed live while Potluck re-applied the cell's package: a 403
         # whose body is just "not_found". Mid-reconfiguration the resource is
@@ -695,15 +718,15 @@ def write_value(hub, system, name, value, dry_run=False):
         # recovered only because the next sample carried a different reading.
         if "not_found" in str(result or "").lower().replace(" ", "_"):
             return False, 30, (f"403 {result}: reads as not provisioned,"
-                               " so keeping it"), True
+                               " so keeping it"), True, False
         # Printed exactly as given, at Potluck's request. It is the one
         # message that diagnoses the re-pairing trap, naming both the pairing
         # name and the writers entry, and summarising it would lose precisely
         # the part that matters.
-        return False, 30, f"refused (403): {result}", False
+        return False, 30, f"refused (403): {result}", False, False
     # 504 is the owning board not answering in time, which is transient in
     # exactly the way a refusal is not.
-    return False, 10, f"{status}: {result}", status == 504
+    return False, 10, f"{status}: {result}", status == 504, False
 
 
 # ------------------------------------------------------------------- the loop
@@ -788,12 +811,30 @@ def _drain(pending, budget, send, patient=False, sleep=time.sleep,
             continue
         name, value = item
         budget.spend()
-        ok, hold, note, keep = send(name, value)
+        # Four- or five-tuple: the fifth element says the failure was a
+        # throttle, which is the only one that is about this program rather
+        # than about one path. Test doubles may still answer with four.
+        answer = send(name, value)
+        ok, hold, note, keep = answer[:4]
+        throttled = answer[4] if len(answer) > 4 else False
         if ok:
             pending.accepted(name, value)
+            continue
+        if keep:
+            # Stand down this path alone and carry on with the rest. Holding
+            # the budget here starved the queue: `lat` was unprovisioned, so
+            # it 404'd with a 60 s hold, and because a never-written value
+            # sorts to the head of the queue it was taken first on every pass
+            # -- one absent path reduced all twelve values to a single write
+            # a minute. Keeping a 404'd value was right; retrying it from the
+            # head of a queue that stopped at the first failure was not.
+            pending.hold(name, hold)
         else:
-            if not keep:
-                pending.rejected(name)
+            pending.rejected(name)
+        if throttled:
+            # A throttle genuinely is program-wide. The hub is telling this
+            # writer to slow down, so trying the next path would only earn
+            # another 429, and the budget is the right place to carry it.
             if hold:
                 budget.hold_off(hold)
             if not patient:
@@ -993,15 +1034,15 @@ def main():
     counts = {"written": 0, "refused": 0}
 
     def send(name, value):
-        ok, hold, note, keep = write_value(hub, args.system, name, value,
-                                           dry_run=dry)
+        ok, hold, note, keep, throttled = write_value(
+            hub, args.system, name, value, dry_run=dry)
         counts["written" if ok else "refused"] += 1
         # A kept value is coming back, so say so rather than letting a
         # throttle read like a loss.
         say(("  -> " if ok else "  .. " if keep else "  !! ")
             + f"{name} = {value}   {note}"
             + ("  (will retry)" if keep else ""))
-        return ok, hold, note, keep
+        return ok, hold, note, keep, throttled
 
     try:
         if args.follow:

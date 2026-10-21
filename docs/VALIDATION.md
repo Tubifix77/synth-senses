@@ -503,6 +503,49 @@ Two details that matter more than they look:
   `a single stray device cannot match a known place`, and it is the reason
   the guard could not simply be "the fingerprint is small".
 
+### One unprovisioned value starved the other eleven
+
+Not found here. The **Potluck Desk** session noticed it from the other end,
+watching the hub: `Synth Senses` was making about one write a minute — writes
+382 to 383 over a minute — and none of them was landing, while the receiver
+was up, the phone connected and `percepts.jsonl` written seconds earlier.
+
+Three things had to line up, and all three were mine:
+
+1. `Pending.take()` is oldest-written-first, keyed on
+   `written_at.get(name, 0)`. A value that has **never** been written has no
+   entry, so it defaults to 0 and sorts to the *head of the queue by
+   construction*. `lat` was unprovisioned, so it was taken first on every
+   single pass.
+2. `write_value` returns a 60-second hold for a 404, and `_drain` applied it
+   with `budget.hold_off(hold)` — but the budget gates **every** path, not the
+   one that failed.
+3. `_drain` ended the pass with `return` on any failure, so nothing behind the
+   failing value was ever reached.
+
+So each pass took `lat`, 404'd, stood the whole writer down for a minute and
+returned. One write a minute, exactly as measured, and none of the other
+eleven values ever went out.
+
+**The 404-keeps-the-value fix of 3e4953f is what made this permanent.** That
+fix was right — a value never written successfully is not in `written`, so
+refresh-before-stale can never re-offer it, and dropping a 404 meant `lat`
+would wait for the reading itself to change, which for a stationary phone is
+never. But before it, `rejected()` dropped the value and the queue moved on.
+Keeping it was correct; retrying it from the head of a queue that stopped at
+the first failure was not. **A fix that removes a drop has to say where the
+retry goes.**
+
+Holds are now per path, on `Pending`, and a failure no longer ends the pass.
+The budget keeps exactly one job: the program-wide rate limit. That division
+is the real lesson — a 404, a 403 and a 504 are facts about *one resource*,
+while a 429 is a fact about *this program*, and one shared backoff cannot
+represent both.
+
+Two checks in the suite had asserted the broken behaviour, reading "a 404
+stops the flood after one attempt" and "holds off before trying again". It
+sounded protective. What it measured was the queue being abandoned.
+
 ### The cap hid a tie, and insertion order broke it
 
 The same log exposed a second, independent defect. `coverage` is

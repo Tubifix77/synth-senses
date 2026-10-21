@@ -132,6 +132,17 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **One unprovisioned value no longer starves every other value.** A 404
+  returns a 60-second hold, and that hold was applied to the shared rate
+  budget rather than to the path that failed, while the drain loop ended the
+  whole pass on any failure. Since `Pending.take()` is oldest-written-first
+  and a never-written value sorts to the head of the queue by construction, an
+  unprovisioned `lat` was taken first on every pass, failed, and stood the
+  entire writer down — about one write a minute, with none of the other eleven
+  values landing. Holds are now per path and a failure no longer ends the
+  pass; the rate budget keeps only the program-wide limit, which is the one
+  thing a 429 genuinely is. Found by the Potluck Desk session watching the hub
+  from the other side, not by any test here.
 - **A momentarily thin scan no longer mints a duplicate of the room you are
   standing in.** Place recognition measured only how much of a place was
   visible, never how much of what was visible belonged to the place, so a
