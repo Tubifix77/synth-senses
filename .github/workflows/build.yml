@@ -42,6 +42,33 @@ jobs:
 
       # yamnet.tflite is deliberately absent — AudioSensor degrades at runtime,
       # so its absence must not break the build. This job proves that.
+      # The sound model is 4 MB, not in the repo, and an APK without it is
+      # permanently deaf -- which every APK this project built was, until a
+      # phone was finally pointed at one. The fix is not to commit a 4 MB
+      # third-party binary but to fetch it here, where there is a network,
+      # and check it against the size and hash that app/src/main/assets
+      # already documents for a human doing this by hand.
+      #
+      # A failure here fails the build on purpose: carrying on would produce
+      # a deaf APK indistinguishable from a working one, which is exactly the
+      # failure that cost an evening.
+      - name: Fetch the sound model
+        run: |
+          set -euo pipefail
+          dest=app/src/main/assets/yamnet.tflite
+          url=https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/latest/yamnet.tflite
+          want=4d8b4a53282dc83ef04e3e7dbc4fbc98082e34e44ed798e16c3a0cdd4c584faf
+          for attempt in 1 2 3; do
+            curl -fsSL --retry 2 -o "$dest" "$url" && break
+            echo "attempt $attempt failed; retrying"
+            sleep $((attempt * 5))
+          done
+          got=$(sha256sum "$dest" | cut -d' ' -f1)
+          size=$(stat -c%s "$dest")
+          echo "$size bytes, sha256 $got"
+          test "$got" = "$want" || { echo "::error::sha256 mismatch"; exit 1; }
+          test "$size" = "4126810" || { echo "::error::unexpected size"; exit 1; }
+
       - name: Assemble
         run: gradle --no-daemon assembleDebug
 
@@ -53,7 +80,7 @@ jobs:
       # the build again.
       - name: Read the facts out of the APK
         run: |
-          python3 tools/apk_facts.py app/build/outputs/apk/debug/app-debug.apk             --expect-min-sdk 28             --expect-target-sdk 36             --expect-compile-sdk 37             --forbid assets/README.md             --forbid assets/yamnet.tflite
+          python3 tools/apk_facts.py app/build/outputs/apk/debug/app-debug.apk             --expect-min-sdk 28             --expect-target-sdk 36             --expect-compile-sdk 37             --forbid assets/README.md             --require assets/yamnet.tflite
 
       - name: Upload APK
         if: success()

@@ -222,6 +222,9 @@ def main():
     ap.add_argument("--forbid", action="append", default=[],
                     help="a packaged path that must NOT be present, e.g. "
                          "assets/README.md (repeatable)")
+    ap.add_argument("--require", action="append", default=[],
+                    help="a packaged path that MUST be present, e.g. "
+                         "assets/yamnet.tflite (repeatable)")
     args = ap.parse_args()
 
     f = facts(args.apk)
@@ -251,16 +254,23 @@ def main():
             failures.append(label)
 
     if args.expect_min_sdk or args.expect_target_sdk or args.expect_compile_sdk \
-            or args.forbid:
+            or args.forbid or args.require:
         print("\nchecks")
     expect("minSdk", f.get("minSdkVersion"), args.expect_min_sdk)
     expect("targetSdk", f.get("targetSdkVersion"), args.expect_target_sdk)
     expect("compileSdk", f.get("compileSdkVersion"), args.expect_compile_sdk)
+    packaged = set(zipfile.ZipFile(args.apk).namelist())
     for forbidden in args.forbid:
-        present = forbidden in zipfile.ZipFile(args.apk).namelist()
+        present = forbidden in packaged
         print(f"  {'FAIL' if present else 'PASS'}  not shipped: {forbidden}")
         if present:
             failures.append(forbidden)
+    for needed in args.require:
+        present = needed in packaged
+        size = f" ({f.get('entries') and ''}{len(packaged)} entries)" if False else ""
+        print(f"  {'PASS' if present else 'FAIL'}  shipped: {needed}{size}")
+        if not present:
+            failures.append("missing " + needed)
 
     if failures:
         print(f"\n{len(failures)} failure(s)")

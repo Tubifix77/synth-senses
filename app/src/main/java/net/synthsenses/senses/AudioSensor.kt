@@ -63,12 +63,18 @@ class AudioSensor(private val context: Context) {
     /**
      * The model, from the APK if it is there and from a file if it is not.
      *
-     * `yamnet.tflite` is 4 MB and gitignored, so **CI can never put it in
-     * assets** — which made every APK this project has ever built permanently
-     * deaf, with no way to fix it short of a local Android toolchain that this
-     * machine does not have. Confirmed against tasks-core 1.0.0's own bytecode
-     * rather than assumed: `BaseOptions` exposes `setModelAssetPath`,
-     * `setModelAssetBuffer` and `setModelAssetFileDescriptor`.
+     * `yamnet.tflite` is 4 MB and gitignored. CI fetches it during the
+     * build and verifies it against the published hash, so a CI-built APK
+     * ships able to hear. That was not always so: every APK this project
+     * built before 2026-10-21 was permanently deaf, with no fix short of
+     * a local Android toolchain this machine does not have.
+     *
+     * The file path stays as a fallback, because it costs nothing and
+     * covers a locally built APK and anyone who would rather the build
+     * not reach the network. Confirmed against tasks-core 1.0.0's own
+     * bytecode rather than assumed: `BaseOptions` exposes
+     * `setModelAssetPath`, `setModelAssetBuffer` and
+     * `setModelAssetFileDescriptor`.
      *
      * So: the asset first, for a build that shipped with one, then a file
      * dropped into the app's own external files directory, which needs no

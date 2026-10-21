@@ -432,7 +432,7 @@ Doing so confirmed the things that are easy to assume and cheap to check:
 |---|---|
 | manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 28`, `targetSdkVersion 36` |
 | the app's own code is really packaged | 369 references to `Lnet/synthsenses/` across 8 dex files |
-| it degrades without the model | no `yamnet.tflite`, as CI has no copy |
+| it degrades without the model | no `yamnet.tflite` was packaged, as CI had no copy — **changed on 2026-10-21**: CI now fetches the model and verifies its hash, and `apk_facts.py --require` fails the build if it is missing |
 | permissions are what the manifest declares | 19 — the 18 declared, plus `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` added by androidx |
 | the foreground service declares the types it uses | `200 = location\|camera\|microphone` |
 | it still ships for every ABI | `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` |
