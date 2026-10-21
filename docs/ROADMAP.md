@@ -432,6 +432,14 @@ reading `NO_DATA`, which is the correct state for an inbox nothing has
 written to yet. That is `--manifest` validated end to end, by a third party,
 before a single percept existed.
 
+Two things that will waste ten minutes otherwise. **On Windows the command is
+`python`, not `python3`** — the examples below and elsewhere in this repo say
+`python3` because that is what a Linux or macOS reader needs, and the launcher
+alias on Windows answers `python3` with a Microsoft Store advert. And **the hub
+address must be the machine's LAN address, not `127.0.0.1`**: pairing exists
+only on the hub's `--listen` interface, and on loopback there is no login at
+all and so nothing to pair with.
+
 The steps have to happen in this order, and the first is not optional:
 
 1. **Install the current Potluck package** (`packaging\install.ps1` in that
