@@ -25,6 +25,12 @@ gradle/wrapper/gradle-wrapper.jar
 # Signing material — never commit these
 *.jks
 *.keystore
+
+# the debug keystore is committed on purpose, so every build signs the same
+# way and an update installs over the top instead of forcing an uninstall.
+# It is not a secret: the password is android and Google publishes it, and
+# it signs debug builds only. Release keys stay excluded above.
+!app/debug.keystore
 keystore.properties
 signing.properties
 

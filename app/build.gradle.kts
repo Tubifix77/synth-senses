@@ -27,6 +27,24 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // A committed debug keystore, so every build signs identically and an
+    // update installs over the top. Without it Gradle mints a fresh default
+    // key on each ephemeral CI runner, every APK is signed differently, and
+    // Android refuses the update -- forcing an uninstall that takes the
+    // settings, the learned places and the sound model with it. That cost a
+    // full re-setup during the first evening on hardware.
+    //
+    // It is not a secret. The password is `android`, Google publishes it, and
+    // it signs debug builds only; `.gitignore` still excludes release keys.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
