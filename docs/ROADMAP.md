@@ -301,14 +301,31 @@ phone at all.
 Recorded here because it otherwise exists only in messages between sessions.
 
 Approval settles *what* crosses. It does not settle the two things that still
-gate this: **the bridge has only ever been exercised in `--dry-run`**, and
-every bug that mattered in it was invisible in that mode — the drain loop
-that stalled on silence, the certificate pin that was never checked, the
-pairing that could not pair, the `f32` that went out as an integer. The
-remedy is the same one this project applies to everything else: run it
-against the real thing early, so that provisioning and pairing fail on a
-quiet morning rather than during the one evening someone is standing there
-with a phone.
+gate this. Every bug in the bridge that mattered was invisible in `--dry-run`
+— the drain loop that stalled on silence, the certificate pin that was never
+checked, the pairing that could not pair, the `f32` that went out as an
+integer — which is why it was run against the real hub on a quiet morning
+rather than during the evening that matters.
+
+**That run happened on 2026-10-21, and it worked.** Paired as `Synth Senses`
+with the `write` right, certificate pinned (`88de3510…`, matching what the
+hub reports), and one hand-made percept written to the live cell:
+
+```
+  -> battery = 0.95   applied
+```
+
+So the chain below the phone is proven rather than assumed: the token is
+accepted, the pin is checked, the write reaches the hub, the hub routes it to
+the board the inbox is pinned to, the declared type survives, and `applied`
+comes back.
+
+**What a single write does not prove**, and none of it is small: nothing has
+come off a phone, so the percept-shaped end of this is still untested. The
+rate budget has never been under load. The refresh-before-`stale_ms`
+behaviour has never run for five minutes, let alone a night. And the drain
+loop's whole reason for existing — that writes keep going while the phone is
+silent — is exactly the part a one-shot write cannot exercise.
 
 Potluck is a separate project of the author's: a distributed runtime that
 federates ESP32-S3 boards, and optionally a PC, into one addressable machine
@@ -487,12 +504,23 @@ The steps have to happen in this order, and the first is not optional:
    Values fill in as they are written. Anything the phone cannot sense stays
    `NO_DATA`, which is the point rather than a defect.
 
-**Do step 3 on a quiet morning before doing it on the evening that matters.**
-This bridge has been exercised almost entirely in `--dry-run`, and every bug
-in it that counted was invisible in that mode: a drain loop that stalled on
-silence, a certificate pin that was never checked, a pairing that could not
-pair, an `f32` that went out as an integer. The next one will be invisible
-there too.
+**Step 3 was done on a quiet morning before the evening that matters, and it
+is worth doing that way again after any change here.** Every bug in this
+bridge that counted was invisible in `--dry-run`: a drain loop that stalled
+on silence, a certificate pin that was never checked, a pairing that could
+not pair, an `f32` that went out as an integer. The next one will be
+invisible there too.
+
+The single-value smoke test, which needs no phone and writes one number:
+
+```bash
+echo '{"schema":2,"seq":1,"trigger":"requested","self":{"battery":0.95}}' | \
+  python tools/potluck_bridge.py --hub https://<hub>:8443
+```
+
+`applied` means the whole chain below the phone is working. The value shows on
+the Phone desktop, reads STALE after five minutes, and is overwritten the
+moment real percepts arrive.
 
 They live at `potluck://lab/act/phone/<name>`, written by a **PC-side bridge**
 reading `receiver.py`'s stdout — not by the phone, which would need TLS, cert

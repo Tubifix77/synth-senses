@@ -61,6 +61,14 @@ the build files, so a bare run always checks against the real ceiling. Pass
 What is genuinely untested is everything that needs hardware. No percept has
 ever come off a real phone.
 
+The Potluck side is one step further on: as of 2026-10-21 the bridge is
+paired against the real hub, the certificate is pinned, and a hand-made
+percept wrote `battery = 0.95` to the live cell and came back `applied`. So
+the chain below the phone works. Nothing about the phone end of it does yet,
+and the rate budget, the refresh-before-stale behaviour and the drain loop
+under real cadence are all still unexercised — a one-shot write cannot touch
+them.
+
 ## How work lands: main, and nothing else
 
 Trunk only. Commit and push straight to `main`. No feature branches, no pull
