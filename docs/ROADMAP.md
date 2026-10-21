@@ -18,6 +18,41 @@ amount of further design work substitutes for thirty minutes with a device and
 - battery life, currently an estimate
 - whether the foreground service survives the night on an aggressive vendor ROM
 
+### Speech needs an offline recogniser, not the system one
+
+Measured on the P20, 2026-10-21, and it is a blocker rather than a polish item.
+
+`SpeechSensor` calls `SpeechRecognizer.startListening()`, which hands the mic
+to the system recognition service -- and that service plays its own start and
+stop earcons. **No flag disables them.** Observed on the P20:
+
+- the earcon sounds on **every** attempt, and attempts are voice-triggered, so
+  it chimes whenever anyone speaks near the phone
+- it **plays through Do Not Disturb**, verified with two forced `listen`
+  commands while DND was active
+- only muting the **media** stream silenced it, verified by three attempts at
+  confidence 0.96, 0.74 and 0.94 that the user did not hear
+
+So the sense is unusable on a phone anyone can hear. The obvious workaround --
+having the app mute a stream around each call -- is forbidden by the telephony
+invariant: if the app died mid-mute, the household emergency line would sit
+silent with nobody knowing.
+
+And it bought nothing anyway. **Ten voice detections produced zero
+transcripts**, every one returning null, with the error code discarded until
+`6e6e695` added `speech_last_error`. Whether the system recogniser can work at
+all on an unpatched Android 9 Huawei in Danish is still unknown.
+
+The fix is to transcribe on-device, with a model in the APK, which is what the
+code map has always *claimed* this sensor does -- `SpeechSensor.kt` is
+described as "offline transcription" while its own doc comment admits
+`EXTRA_PREFER_OFFLINE` is "a request, not a guarantee". The mic buffer is
+already in hand for the YAMNet classifier, so the audio does not need
+capturing twice. Open questions: which model, Danish support, its size on top
+of an APK already at 182 MiB, and its licence.
+
+Until then `speech` stays off on any phone that is not muted.
+
 ### What this list is for, and what it is not
 
 **The hardware test is a test of the app, not of the phone.** That sounds
