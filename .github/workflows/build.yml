@@ -51,6 +51,25 @@ jobs:
       # binary manifest out of the artifact that was actually built -- no
       # aapt, no Android SDK, pure stdlib -- so the claims cannot drift from
       # the build again.
+      # TEMPORARY: mint a debug keystore once so it can be committed.
+      # Every CI runner is ephemeral, so Gradle generates a fresh default
+      # debug key per build, every APK is signed with a different key, and
+      # Android refuses to update an app whose signature changed -- which
+      # forces an uninstall on every single update and takes the user's
+      # settings, learned places and the sound model with it. A committed
+      # debug keystore fixes that. It is not a secret: the password is
+      # `android` and Google publishes it. This step is removed once the
+      # keystore is in the repo.
+      - name: Mint a debug keystore
+        run: |
+          keytool -genkeypair -v             -keystore debug.keystore             -storepass android -keypass android             -alias androiddebugkey             -keyalg RSA -keysize 2048 -validity 10950             -dname "CN=Android Debug,O=Android,C=US"
+          ls -la debug.keystore
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debug-keystore
+          path: debug.keystore
+
       - name: Read the facts out of the APK
         run: |
           python3 tools/apk_facts.py app/build/outputs/apk/debug/app-debug.apk             --expect-min-sdk 28             --expect-target-sdk 36             --expect-compile-sdk 37             --forbid assets/README.md             --forbid assets/yamnet.tflite
