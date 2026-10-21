@@ -34,11 +34,40 @@ class SpeechSensor(private val context: Context) {
 
     private var lastRunAt = 0L
 
+    /**
+     * Why the last attempt produced nothing, or null if the last one worked.
+     *
+     * `transcript: null` meant three different things -- speech switched off,
+     * nobody spoke, and the recogniser failed -- and `onError` threw the code
+     * away, so the third was invisible. An evening on the P20 produced ten
+     * voice detections and zero transcripts with nothing anywhere saying why.
+     * This is the same hole `sound_last_error` was added to close for the
+     * classifier, and it shows up in `status` beside it.
+     */
+    @Volatile
+    var lastError: String? = null
+        private set
+
+    /** The constants, by name, because a bare "error 12" helps nobody. */
+    private fun errorName(code: Int): String = when (code) {
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network timeout"
+        SpeechRecognizer.ERROR_NETWORK -> "network error"
+        SpeechRecognizer.ERROR_AUDIO -> "audio recording error"
+        SpeechRecognizer.ERROR_SERVER -> "server error"
+        SpeechRecognizer.ERROR_CLIENT -> "client error"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "no speech input"
+        SpeechRecognizer.ERROR_NO_MATCH -> "no match"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "recogniser busy"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "insufficient permissions"
+        else -> "error $code"
+    }
+
     fun dueFor(nowMs: Long) = nowMs - lastRunAt >= MIN_GAP_MS
 
     suspend fun transcribeOnce(): String? = withContext(Dispatchers.Main) {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             Log.i(TAG, "no recognizer on this device")
+            lastError = "no recogniser installed"
             return@withContext null
         }
         lastRunAt = System.currentTimeMillis()
@@ -59,10 +88,16 @@ class SpeechSensor(private val context: Context) {
                     .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()
                     ?.takeIf { it.isNotBlank() }
+                // An empty result is not a failure: it is the recogniser
+                // saying it heard nothing it could transcribe. Distinguish it
+                // from the error path rather than reporting both as silence.
+                lastError = if (best == null) "returned no text" else null
                 if (!result.isCompleted) result.complete(best)
             }
 
             override fun onError(code: Int) {
+                lastError = errorName(code)
+                Log.i(TAG, "recogniser failed: ${errorName(code)}")
                 if (!result.isCompleted) result.complete(null)
             }
 
