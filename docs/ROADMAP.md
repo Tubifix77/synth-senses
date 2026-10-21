@@ -463,9 +463,17 @@ the wired LAN, so a cabled PC on `192.168.0.7` and a phone on
   connection outbound, which NAT passes happily; nothing needs to reach the
   phone.
 
-Confirmed on this setup: the file server's log showed the *router's* address
-on the wired LAN, not the phone's, which is what made the two look like one
-network for most of an evening.
+Confirmed on this setup: the phone's own settings showed `192.168.86.23`
+while the cabled PC was `192.168.0.7`. The file server's log had shown
+`192.168.0.160` for the APK download, which is the wifi router's address on
+the wired LAN rather than the phone's — and that is what made the two look
+like one network for most of an evening.
+
+**Nothing here needs building around.** The reason the address kept having to
+be retyped was that every update forced an uninstall and wiped it; the
+committed debug keystore ended that, `prefs.endpoint` persists, and the field
+is populated from it at launch. Type the receiver's full address once. The
+octet shortcut only applies to an empty field, which it no longer is.
 
 Two things that will waste ten minutes otherwise. **On Windows the command is
 `python`, not `python3`** — the examples below and elsewhere in this repo say
