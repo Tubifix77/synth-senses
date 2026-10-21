@@ -417,6 +417,17 @@ class SenseService : LifecycleService() {
                         put("location", prefs.location)
                         put("voice", voice?.ready ?: false)
                     })
+                    // Crashes land as files beside the sound model, because
+                    // logcat is unreachable without adb. Naming them here
+                    // makes a crash visible from the receiver rather than
+                    // only on the phone.
+                    put("crashes", JSONArray().apply {
+                        externalMediaDirs.filterNotNull().firstOrNull()
+                            ?.listFiles { f -> f.name.startsWith("crash-") }
+                            ?.sortedByDescending { it.lastModified() }
+                            ?.take(5)
+                            ?.forEach { put(it.name) }
+                    })
                     put("habituation", JSONObject().apply {
                         put("tokens", known)
                         put("quiet", quiet)
