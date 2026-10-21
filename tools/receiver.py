@@ -217,9 +217,24 @@ def handle_reply(msg, node):
               f"{'ok' if msg.get('ok') else 'FAILED'} — {msg.get('detail')}")
     elif kind == "places":
         say("  <- places:")
+        total = len(msg.get("places", []))
+        degenerate = 0
         for pl in msg.get("places", []):
+            # stable_anchors is the number passing the persistence filter, so
+            # the ones that actually contribute to recognition. The app has
+            # always sent it; printing only `anchors` hid exactly the number
+            # that explains a place recognising unreliably -- or a place with
+            # one anchor scoring a perfect match on seeing that one anchor.
+            stable = pl.get("stable_anchors")
+            mark = ""
+            if isinstance(stable, int) and stable == 0:
+                degenerate += 1
+                mark = "   <-- nothing stable: cannot recognise on evidence"
             say(f"       {pl['id']:>4}  {pl.get('name') or '(unnamed)':<16} "
-                  f"visits {pl['visits']:<5} anchors {pl['anchors']}")
+                f"visits {pl['visits']:<5} anchors {pl['anchors']:<5} "
+                f"stable {stable if stable is not None else '?'}{mark}")
+        if total:
+            say(f"       -- {total} places, {degenerate} with no stable anchors")
     elif kind == "status":
         say("  <- status:\n" + json.dumps(msg, indent=6)[:2000])
     elif kind == "hello":
