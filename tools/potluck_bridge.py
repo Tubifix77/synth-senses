@@ -81,6 +81,14 @@ POSTURE = ["face_up", "face_down", "upright", "tilted", "pocket", "unknown"]
 THERMAL = ["NONE", "LIGHT", "MODERATE", "SEVERE", "CRITICAL", "EMERGENCY",
            "SHUTDOWN"]
 
+# Every closed vocabulary this project has. Which of them are *published*
+# depends on which values are in VALUES, so --vocabulary filters this rather
+# than restating it: thermal is still a real ladder and VocabularyTest still
+# pins its order, but nothing carries it as a number since the coordinates
+# took its slot, and a contract that lists it says two things at once.
+#
+# Defined below the lists it names, so it is assembled after them.
+
 # This one is ours, not the phone's. YAMNet names hundreds of classes and a
 # board can hold one small number, so they are collapsed to the distinction a
 # room actually cares about. Order is a contract exactly as above.
@@ -102,6 +110,25 @@ SOUND_MAP = (
                  "microwave", "television", "radio")),
 )
 
+
+
+#: value name -> the word list its ordinal indexes into.
+VOCABULARIES = {
+    "motion": MOTION,
+    "posture": POSTURE,
+    "thermal": THERMAL,
+    "sound": SOUND,
+}
+
+#: value name -> why a reading can be absent rather than zero.
+ABSENT_NOTES = {
+    "thermal": "UNKNOWN has no ordinal: it means the platform would not say. "
+               "Permanently absent below API 29.",
+    "sound": "quiet is a real reading; no hearing block at all is absence "
+             "and is never written.",
+    "lat": "written only while the user has location switched on.",
+    "lon": "written only while the user has location switched on.",
+}
 
 # ---------------------------------------------------------- the published values
 #
@@ -240,8 +267,8 @@ VALUES = [
     # forty, so a tighter threshold would spend the write budget on noise
     # without telling anyone anything. Precision is not affected -- what is
     # written is what the phone reported.
-    ("lat",          "f32", None,      lambda p: _dig(p, "gps", "lat"), 0.0002),
-    ("lon",          "f32", None,      lambda p: _dig(p, "gps", "lon"), 0.0002),
+    ("lat",          "f32", "degree",  lambda p: _dig(p, "gps", "lat"), 0.0002),
+    ("lon",          "f32", "degree",  lambda p: _dig(p, "gps", "lon"), 0.0002),
     # Approved for the first rollout on 2026-10-21. Appended rather than
     # inserted, which is what keeps every other ordinal where it was and makes
     # this non-breaking for a consumer that has already pinned the list.
@@ -859,6 +886,7 @@ def main():
         # test. So this publishes instead: the producer states the contract,
         # and each consumer asserts its own copy against this output in its
         # own CI, where failing is useful.
+        published = {n for n, *_ in VALUES}
         print(json.dumps({
             "source": "synth-senses tools/potluck_bridge.py",
             "note": "ordinals are indices into these lists; append, never "
@@ -867,18 +895,14 @@ def main():
             "values": [
                 {"name": n, "kind": k, "unit": u} for n, k, u, _r, _e in VALUES
             ],
-            "ordinals": {
-                "motion": MOTION,
-                "posture": POSTURE,
-                "thermal": THERMAL,
-                "sound": SOUND,
-            },
-            "absent": {
-                "thermal": "UNKNOWN has no ordinal: it means the platform "
-                           "would not say. Permanently absent below API 29.",
-                "sound": "quiet is a real reading; no hearing block at all "
-                         "is absence and is never written.",
-            },
+            # Filtered to what is actually published, so the contract says
+            # one thing. thermal stayed listed here after the coordinates
+            # took its slot, which the Potluck Desk spotted: its words were
+            # still in `ordinals` while its value was gone from `values`.
+            "ordinals": {n: words for n, words in VOCABULARIES.items()
+                         if n in published},
+            "absent": {n: why for n, why in ABSENT_NOTES.items()
+                       if n in published},
         }, indent=2))
         return 0
 

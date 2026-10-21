@@ -387,8 +387,8 @@ stay on this side. What crosses is eleven numbers.
 | `place` | u32 | — | `radio.place_id`, `p3` → 3 |
 | `battery` | f32 | ratio | `self.battery` |
 | `battery_temp` | f32 | celsius | `self.battery_temp_c` |
-| `lat` | f32 | — | `gps.lat`, exact, when location is on |
-| `lon` | f32 | — | `gps.lon`, exact, when location is on |
+| `lat` | f32 | degree | `gps.lat`, exact, when location is on |
+| `lon` | f32 | degree | `gps.lon`, exact, when location is on |
 | `ble_count` | u32 | count | `radio.ble_count` |
 
 `ble_count` was added to the set on 2026-10-21, after the rest. It is

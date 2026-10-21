@@ -618,14 +618,26 @@ check("the contract names every value",
 check("with their kinds and units",
       [(v["kind"], v["unit"]) for v in _vocab["values"]]
       == [(k, u) for _n, k, u, _r, _e in pb.VALUES])
-for _name, _table in (("motion", pb.MOTION), ("posture", pb.POSTURE),
-                      ("thermal", pb.THERMAL), ("sound", pb.SOUND)):
-    check(f"and publishes the {_name} ordinals in order",
-          _vocab["ordinals"][_name] == _table,
-          str(_vocab["ordinals"].get(_name)))
-check("and says which readings are absent rather than zero",
-      set(_vocab["absent"]) == {"thermal", "sound"},
-      str(sorted(_vocab["absent"])))
+_published = {n for n, *_ in pb.VALUES}
+for _name, _table in pb.VOCABULARIES.items():
+    if _name in _published:
+        check(f"and publishes the {_name} ordinals in order",
+              _vocab["ordinals"][_name] == _table,
+              str(_vocab["ordinals"].get(_name)))
+
+# The contract must describe only what it publishes. thermal's words stayed
+# listed after the coordinates took its slot -- spotted by the consumer, not
+# by a test, because nothing tied the two halves together.
+check("no word list is published for a value that is not",
+      set(_vocab["ordinals"]) <= _published,
+      f"extra: {sorted(set(_vocab['ordinals']) - _published)}")
+check("nor an absence note",
+      set(_vocab["absent"]) <= _published,
+      f"extra: {sorted(set(_vocab['absent']) - _published)}")
+check("every published ordinal value has its word list",
+      {n for n, k, *_ in pb.VALUES if k.startswith("u") and n in pb.VOCABULARIES}
+      <= set(_vocab["ordinals"]),
+      str(sorted(_vocab["ordinals"])))
 check("and tells the reader the rule that makes ordinals safe",
       "append, never insert" in _vocab["note"], _vocab.get("note", "")[:80])
 
