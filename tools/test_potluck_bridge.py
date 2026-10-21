@@ -74,7 +74,10 @@ class Hub:
 
     def __init__(self, answer=None):
         self.writes = []
-        self.answer = answer or (lambda n, v: (True, 0, "applied"))
+        # Four-tuple, matching write_value: the last element says whether a
+        # failed value is still worth keeping. A throttle keeps; a refusal
+        # does not.
+        self.answer = answer or (lambda n, v: (True, 0, "applied", False))
 
     def __call__(self, name, value):
         self.writes.append((name, value))
@@ -271,7 +274,7 @@ class _Answer:
 # IS provisioned, and anyone reading our inference rather than the hub's
 # words would go looking in the wrong place. That happened on the evening
 # this was provisioned, which is why the wording is quoted now.
-_ok, _hold, _note = pb.write_value(
+_ok, _hold, _note, _ = pb.write_value(
     _Answer(404, "no such resource in this cell (not in its package)"),
     "lab", "battery", 0.5)
 check("a 404 repeats the hub's own wording", "no such resource" in _note, _note)
@@ -279,29 +282,29 @@ check("and is still a back-off rather than a failure", not _ok and _hold > 0)
 check("a 404 with no wording still says something useful",
       "not provisioned" in pb.write_value(_Answer(404), "lab", "x", 1)[2])
 
-_ok, _hold, _note = pb.write_value(
+_ok, _hold, _note, _ = pb.write_value(
     _Answer(403, "not writable by this program: it is paired as "
                  "'Synth Senses 2' and the writers list names 'Synth Senses'"),
     "lab", "battery", 0.5)
 check("a 403 is passed through verbatim, re-pairing hint and all",
       "Synth Senses 2" in _note, _note)
 
-_ok, _hold, _note = pb.write_value(
+_ok, _hold, _note, _ = pb.write_value(
     _Answer(429, "slow down: ...", {"Retry-After": "7"}), "lab", "battery", 0.5)
 check("a 429 honours Retry-After rather than guessing", _hold == 7, str(_hold))
 
-_ok, _hold, _note = pb.write_value(
+_ok, _hold, _note, _ = pb.write_value(
     _Answer(429, "slow down: ...", {"Retry-After": "nonsense"}),
     "lab", "battery", 0.5)
 check("and an unparseable Retry-After does not crash the writer", _hold > 0,
       str(_hold))
 
-_ok, _hold, _note = pb.write_value(
+_ok, _hold, _note, _ = pb.write_value(
     _Answer(504, "the owning board did not answer"), "lab", "battery", 0.5)
 check("a 504 from the owning board is reported and retried later",
       not _ok and _hold > 0 and "did not answer" in _note, _note)
 
-_ok, _hold, _note = pb.write_value(_Answer(200, "applied"), "lab", "battery", 0.5)
+_ok, _hold, _note, _ = pb.write_value(_Answer(200, "applied"), "lab", "battery", 0.5)
 check("and a 200 is simply applied", _ok and _note == "applied", _note)
 
 print("\nthe sound curation")
@@ -449,7 +452,7 @@ check("the default rate is under the hub's two a second",
 
 print("\nwhat the hub says back")
 clock = Clock()
-hub = Hub(answer=lambda n, v: (False, 60, "not provisioned yet (404)"))
+hub = Hub(answer=lambda n, v: (False, 60, "not provisioned yet (404)", False))
 pending = pb.Pending(300000, now=clock)
 budget = pb.Budget(per_second=1000.0, burst=10000, now=clock)
 pb.run(iter([json.dumps(percept())]), pending, budget, hub, tick=0,
@@ -458,6 +461,44 @@ check("a 404 stops the flood after one attempt rather than trying them all",
       len(hub.writes) == 1, f"{len(hub.writes)} writes")
 check("and holds off before trying again",
       budget.blocked_until > clock(), str(budget.blocked_until - clock()))
+
+print("\na throttle is not a refusal")
+# The first real 429, on the opening eleven-value burst: "slow down: this
+# program is over its share". The bridge printed it correctly and then threw
+# the value away, because every failure took the same path. But a 429 does not
+# mean the reading is wrong, it means not now -- and dropping it left the cell
+# showing an older value until the stale-refresh 150 s later.
+for _status, _result, _keep, _why in (
+        (200, "applied", False, "applied, nothing to keep"),
+        (429, "slow down: ...", True, "throttled, so keep and retry"),
+        (504, "the owning board did not answer", True, "transient, so keep"),
+        (404, "no such resource in this cell", False, "not provisioned, drop"),
+        (403, "not writable by this program", False, "refused, drop")):
+    _ok, _hold, _note, _kept = pb.write_value(
+        _Answer(_status, _result), "lab", "sound", 5)
+    check(f"{_status}: {_why}", _kept == _keep,
+          f"keep={_kept} want={_keep}")
+
+# And the drain must act on it: a throttled value stays queued.
+_hub = Hub(answer=lambda n, v: (False, 3, "throttled: ...", True))
+_clock = Clock()
+_pending = pb.Pending(300000, now=_clock)
+_budget = pb.Budget(per_second=1000.0, burst=10000, now=_clock)
+_pending.offer({"sound": 5})
+pb._drain(_pending, _budget, _hub)
+check("a throttled value is still pending afterwards",
+      _pending.pending.get("sound") == 5, str(_pending.pending))
+
+_hub2 = Hub(answer=lambda n, v: (False, 30, "refused (403): ...", False))
+_pending2 = pb.Pending(300000, now=Clock())
+_budget2 = pb.Budget(per_second=1000.0, burst=10000, now=Clock())
+_pending2.offer({"sound": 5})
+pb._drain(_pending2, _budget2, _hub2)
+check("a refused value is dropped rather than retried forever",
+      "sound" not in _pending2.pending, str(_pending2.pending))
+
+check("the default burst leaves headroom under the hub's four",
+      pb.Budget().burst <= 2, str(pb.Budget().burst))
 
 print("\nreplies are not percepts")
 hub = Hub()

@@ -391,7 +391,7 @@ class Budget:
     allowance as headroom rather than as the plan.
     """
 
-    def __init__(self, per_second=1.2, burst=3, now=None):
+    def __init__(self, per_second=1.2, burst=2, now=None):
         self.rate = per_second
         self.burst = burst
         self.tokens = float(burst)
@@ -596,14 +596,20 @@ def pair(hub, name, right, poll_s=3, timeout_s=300, asks=3):
 
 
 def write_value(hub, system, name, value, dry_run=False):
-    """One write. -> (ok, retry_after_seconds, human explanation)."""
+    """One write.
+
+    -> (ok, hold_seconds, note, keep). `keep` says whether the value is still
+    worth writing: a refusal means drop it, but a throttle or a board that did
+    not answer means *not now*, and discarding a perfectly good reading there
+    leaves the cell showing something older until the next stale-refresh.
+    """
     path = f"potluck://{system}/act/phone/{name}"
     if dry_run:
-        return True, 0, f"would write {path} = {value}"
+        return True, 0, f"would write {path} = {value}", False
     status, body, headers = hub.post("/api/write", {"path": path, "value": value})
     result = body.get("result")
     if status == 200:
-        return True, 0, str(result)
+        return True, 0, str(result), False
     if status == 404:
         # Not an error: back off and keep going. The usual cause is that the
         # cell's owner has not provisioned the inbox yet, and this program is
@@ -617,20 +623,24 @@ def write_value(hub, system, name, value, dry_run=False):
         # the hub said, the same as for a 403, and label the inference as an
         # inference.
         return False, 60, (f"404: {result}" if result
-                           else "404, probably not provisioned yet")
+                           else "404, probably not provisioned yet"), False
     if status == 429:
         try:
             wait = int(headers.get("Retry-After", "2"))
         except (TypeError, ValueError):
             wait = 2
-        return False, wait, f"throttled: {result}"
+        # Keep it. The reading is current and correct; the hub is simply
+        # asking us to wait, and dropping it would publish staleness.
+        return False, wait, f"throttled: {result}", True
     if status == 403:
         # Printed exactly as given, at Potluck's request. It is the one
         # message that diagnoses the re-pairing trap, naming both the pairing
         # name and the writers entry, and summarising it would lose precisely
         # the part that matters.
-        return False, 30, f"refused (403): {result}"
-    return False, 10, f"{status}: {result}"
+        return False, 30, f"refused (403): {result}", False
+    # 504 is the owning board not answering in time, which is transient in
+    # exactly the way a refusal is not.
+    return False, 10, f"{status}: {result}", status == 504
 
 
 # ------------------------------------------------------------------- the loop
@@ -715,11 +725,12 @@ def _drain(pending, budget, send, patient=False, sleep=time.sleep,
             continue
         name, value = item
         budget.spend()
-        ok, hold, note = send(name, value)
+        ok, hold, note, keep = send(name, value)
         if ok:
             pending.accepted(name, value)
         else:
-            pending.rejected(name)
+            if not keep:
+                pending.rejected(name)
             if hold:
                 budget.hold_off(hold)
             if not patient:
@@ -922,10 +933,15 @@ def main():
     counts = {"written": 0, "refused": 0}
 
     def send(name, value):
-        ok, hold, note = write_value(hub, args.system, name, value, dry_run=dry)
+        ok, hold, note, keep = write_value(hub, args.system, name, value,
+                                           dry_run=dry)
         counts["written" if ok else "refused"] += 1
-        say(("  -> " if ok else "  !! ") + f"{name} = {value}   {note}")
-        return ok, hold, note
+        # A kept value is coming back, so say so rather than letting a
+        # throttle read like a loss.
+        say(("  -> " if ok else "  .. " if keep else "  !! ")
+            + f"{name} = {value}   {note}"
+            + ("  (will retry)" if keep else ""))
+        return ok, hold, note, keep
 
     try:
         if args.follow:
