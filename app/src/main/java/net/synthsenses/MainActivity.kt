@@ -105,7 +105,8 @@ private fun ControlPanel(
     // The phone's own /24. The receiver is almost always on it, so this is the
     // part of the address the phone can supply for itself — what it cannot
     // know is which machine on the subnet is running the receiver.
-    val subnet = remember { Endpoint.subnetPrefix(Discovery.localIPv4(context)) }
+    val myIp = remember { Discovery.localIPv4(context) }
+    val subnet = remember { Endpoint.subnetPrefix(myIp) }
 
     // On a first run the field used to be empty under a grey example from
     // someone else's subnet, which reads as a value that is already there.
@@ -296,8 +297,26 @@ private fun ControlPanel(
                             prefs.endpoint = found
                             findNote = "found it"
                         } else {
-                            findNote = "nothing answered — is tools/receiver.py " +
-                                "running on this network?"
+                            // This used to read "is tools/receiver.py running on
+                            // this network?", which sent people to debug the one
+                            // machine that was fine. Found on the P20: it had just
+                            // downloaded the APK over TCP from the very host it
+                            // then claimed not to see. The beacon is a broadcast
+                            // and broadcasts do not cross a router, so on a mesh
+                            // behind a second router discovery can never work --
+                            // and the field above is prefilled from *this* phone's
+                            // subnet, which in that case is the wrong one.
+                            findNote = when {
+                                myIp == null ->
+                                    "nothing answered, and this phone has no IPv4 " +
+                                    "address — check it is on WiFi."
+                                else ->
+                                    "nothing answered. This phone is $myIp, and the " +
+                                    "beacon is a broadcast, which cannot cross " +
+                                    "between networks. If the receiver is on another " +
+                                    "one, the address above is the wrong guess — type " +
+                                    "the one the receiver prints when it starts."
+                            }
                         }
                     }
                 },

@@ -17,9 +17,15 @@ import java.net.SocketTimeoutException
  * Two separate things, both of which the phone can do for itself and neither of
  * which it was doing:
  *
- * 1. [localIPv4] — the phone's own address. Its /24 is almost certainly the
+ * 1. [localIPv4] — the phone's own address. Its /24 is *usually* the
  *    receiver's /24 too, which turns thirty characters of typing into one to
- *    three digits. Read from `ConnectivityManager`'s `LinkProperties` rather
+ *    three digits. Usually, not certainly: on a mesh behind a second router
+ *    the phone sits on one subnet and a cabled PC on another, and then the
+ *    prefix is a confident wrong answer. The field is prefilled from it
+ *    anyway, because the common case is worth the keystrokes -- but a failed
+ *    [listen] says which address the phone actually has, so a wrong guess is
+ *    visible rather than mystifying. Read from `ConnectivityManager`'s
+ *    `LinkProperties` rather
  *    than `WifiManager.getConnectionInfo`, which is deprecated, needs location
  *    permission on recent Android, and knows nothing about ethernet or USB
  *    tethering.
@@ -28,9 +34,14 @@ import java.net.SocketTimeoutException
  *    socket opened at launch is a thing running that nobody asked for.
  *
  * Both fail to null rather than throwing. A phone with no network, a locked-
- * down hotspot that drops broadcasts, an emulator with no LAN — all of those
- * mean the field stays as it was and the user types an address, which is
- * exactly where this started.
+ * down hotspot that drops broadcasts, an emulator with no LAN, **a phone on a
+ * different subnet from the receiver** — all of those mean the field stays as
+ * it was and the user types an address, which is exactly where this started.
+ *
+ * That last case is not exotic and is not fixable here: a broadcast does not
+ * cross a router, so no amount of listening will find a receiver one hop away.
+ * Discovery is a convenience for the flat-network case and typing the address
+ * is the path that always works.
  */
 object Discovery {
 
