@@ -629,9 +629,17 @@ def write_value(hub, system, name, value, dry_run=False):
     if status == 200:
         return True, 0, str(result), False
     if status == 404:
-        # Not an error: back off and keep going. The usual cause is that the
-        # cell's owner has not provisioned the inbox yet, and this program is
-        # meant to be run and watched long before that happens.
+        # Not an error, and **not a reason to forget the value**. The usual
+        # cause is that the cell's owner has not provisioned the path yet,
+        # which means it will exist later -- so the reading is kept and
+        # retried after the hold rather than dropped.
+        #
+        # Dropping it was a real bug, and a quiet one. A value that has never
+        # been written is not in `written`, so `refresh_due` never re-offers
+        # it; a dropped 404 would therefore wait for the reading itself to
+        # change before trying again. For `lat` on a phone sitting on a desk
+        # that is roughly never, so the coordinates would have stayed NO_DATA
+        # after provisioning until someone carried the phone twenty metres.
         #
         # But "usual" is not "only", and printing the inference rather than
         # the hub's own words has already been wrong once: a hub can answer
@@ -641,7 +649,7 @@ def write_value(hub, system, name, value, dry_run=False):
         # the hub said, the same as for a 403, and label the inference as an
         # inference.
         return False, 60, (f"404: {result}" if result
-                           else "404, probably not provisioned yet"), False
+                           else "404, probably not provisioned yet"), True
     if status == 429:
         try:
             wait = int(headers.get("Retry-After", "2"))

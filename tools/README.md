@@ -180,9 +180,14 @@ whenever the other project is not checked out is worse than no test.
   program writing at twice the rate and start collecting 429s. That was the
   cause of the first real throttle here — two bridges, eleven values each,
   against a budget sized for eleven.
-- **404 is a state, not an error.** Until the cell's owner provisions the
-  inbox, every write answers 404; the bridge backs off and says so. That is
-  what lets it be built and watched before any of it is live.
+- **404 is a state, not an error.** Until the cell's owner provisions a path,
+  every write to it answers 404; the bridge backs off, says so, and **keeps
+  the reading**, retrying about once a minute. That last part matters: a
+  value that has never been written is not eligible for the stale-refresh, so
+  a dropped 404 would wait for the reading itself to change before trying
+  again — and a stationary phone's latitude does not change. It would have
+  stayed NO_DATA after provisioning until someone carried the phone twenty
+  metres.
 - **A 403 is printed exactly as the hub words it.** One of them diagnoses the
   trap where re-pairing under a taken name becomes `Synth Senses 2` while the
   cluster file still says `Synth Senses`, so every write is refused by a

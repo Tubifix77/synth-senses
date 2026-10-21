@@ -462,6 +462,18 @@ pending = pb.Pending(300000, now=clock)
 budget = pb.Budget(per_second=1000.0, burst=10000, now=clock)
 pb.run(iter([json.dumps(percept())]), pending, budget, hub, tick=0,
        sleep=lambda s: clock.advance(s))
+# A never-written value is not in `written`, so refresh_due cannot re-offer
+# it. If a 404 dropped the reading, the value would wait for the reading
+# itself to change before being retried -- which for a stationary phone's
+# latitude is never. So a 404 keeps it, and provisioning later just works.
+_h404 = Hub(answer=lambda n, v: (False, 60, "404: not in its package", True))
+_p404 = pb.Pending(300000, now=Clock())
+_b404 = pb.Budget(per_second=1000.0, burst=10000, now=Clock())
+_p404.offer({"lat": 56.0922722})
+pb._drain(_p404, _b404, _h404)
+check("an unprovisioned value stays pending, so it lands once provisioned",
+      _p404.pending.get("lat") == 56.0922722, str(_p404.pending))
+
 check("a 404 stops the flood after one attempt rather than trying them all",
       len(hub.writes) == 1, f"{len(hub.writes)} writes")
 check("and holds off before trying again",
@@ -477,7 +489,8 @@ for _status, _result, _keep, _why in (
         (200, "applied", False, "applied, nothing to keep"),
         (429, "slow down: ...", True, "throttled, so keep and retry"),
         (504, "the owning board did not answer", True, "transient, so keep"),
-        (404, "no such resource in this cell", False, "not provisioned, drop"),
+        (404, "no such resource in this cell", True,
+         "not provisioned yet, so keep: it will exist later"),
         (403, "not writable by this program", False, "refused, drop")):
     _ok, _hold, _note, _kept = pb.write_value(
         _Answer(_status, _result), "lab", "sound", 5)
