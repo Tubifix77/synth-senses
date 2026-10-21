@@ -255,17 +255,34 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
   notification is required by Android and is the only thing it may put on
   screen; it is `IMPORTANCE_LOW`, `setSilent(true)`, and **re-posted only when
   its text actually changes**, which is why that text is built from enabled
-  senses and link state rather than from anything per-sample.
+  senses and link state rather than from anything per-sample. The narration
+  used to go there, refreshed on every sample — above the habituation return,
+  so even the samples deemed not worth sending re-posted it.
 
-  The narration used to go there, refreshed on every sample — above the
-  habituation return, so even the samples deemed not worth sending re-posted
-  it. On EMUI a notification whose text changed is re-bannered with a chime.
+  The reason this is an invariant and not a preference: the Xiaomi is always
+  muted, so anything audible is invisible on it, while the P20 is the
+  household emergency line and **has its ringer on precisely because it
+  must**. Telling the user to mute the phone is telling them to break the
+  phone's actual job, so "the user can silence it" is never the answer.
 
-  The reason this is an invariant and not a preference: the test phone is
-  always muted, so it was invisible there, while the P20 is the household
-  emergency line and **has its ringer on precisely because it must**. Telling
-  the user to mute the phone is telling them to break the phone's actual job,
-  so "the user can silence it" is not an available answer here.
+- **`AudioSensor` opens and closes the mic once per sample, on purpose.**
+  Holding it open across samples would be faster, and would be a sense
+  permanently occupying the microphone of a phone that has to be able to take
+  an emergency call. Do not "optimise" the cycling away.
+
+  It has one visible consequence, and it is not ours to fix: **EMUI announces
+  mic-open and mic-close as an accessibility feature**, so on a Huawei the
+  phone chimes twice per sample — twenty-four times a minute at the 5 s
+  default. It is switched off under accessibility settings, on the phone.
+  Worth telling anyone installing this on a Huawei, because nothing in the app
+  can suppress it and the obvious suspects are all innocent.
+
+  Recorded because two plausible wrong answers were shipped before the right
+  one: the foreground notification (whose banner sound was already off) and
+  the speech recogniser's earcons (`speech` was on, but the chime predated
+  it and follows any mic use). The user found it. **An audible symptom on an
+  unfamiliar ROM is a ROM setting until proven otherwise** — check what the
+  platform announces before reading your own code for a speaker.
 - **`Habituation` and `PlaceMemory` take a `File`**, with a `Context`
   convenience constructor. That is deliberate — it is the only reason the maths
   is unit-testable without Robolectric. Do not collapse it back.
