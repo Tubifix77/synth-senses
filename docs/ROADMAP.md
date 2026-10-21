@@ -18,6 +18,38 @@ amount of further design work substitutes for thirty minutes with a device and
 - battery life, currently an estimate
 - whether the foreground service survives the night on an aggressive vendor ROM
 
+### The control panel can lie about what the phone is doing
+
+Found on the P20, 2026-10-21. Every sense switch in `MainActivity` is
+
+    var speech by remember { mutableStateOf(prefs.speech) }
+
+which samples the stored setting once, when the screen is first composed, and
+never reads it again. Only `Live.status` is reactive, and it carries the link
+state rather than the sense flags.
+
+So any change made over the link -- `{"cmd":"set","speech":false}` -- is obeyed
+by the service and **invisible to the panel**, which goes on drawing the value
+it captured earlier. Observed exactly that: speech was switched off remotely,
+the beeping stopped, and the toggle still read ON. The user could see that the
+phone had changed behaviour and that the screen disagreed, with no way to tell
+which was right.
+
+This is worse than a cosmetic mismatch. The panel is the only on-device way to
+check what the app is doing with the microphone and the camera, and after any
+remote command it can show the opposite of the truth -- including showing
+`speech` **off** while the mic is in fact being handed to the system
+recogniser. A control that can misreport a privacy-relevant state is not a
+control.
+
+The fix is a single source of truth: the toggles should render the service's
+own state rather than a one-shot copy of `Prefs`, so that a remote `set`, a
+local tap and the running service cannot disagree. Re-reading on resume is the
+cheap half and leaves the window open while the screen is in front of you.
+
+Same shape as the rest of the week: one fact kept in two places with nothing
+forcing them to agree.
+
 ### Speech needs an offline recogniser, not the system one
 
 Measured on the P20, 2026-10-21, and it is a blocker rather than a polish item.
