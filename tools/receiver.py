@@ -691,9 +691,25 @@ def main():
             + ("; replies go to stdout" if REPLIES else ""))
         threading.Thread(target=commands_from_stdin, daemon=True).start()
 
-    while True:
-        sock, addr = srv.accept()
-        threading.Thread(target=handle_conn, args=(sock, addr), daemon=True).start()
+    # A bare blocking accept() swallows Ctrl+C on Windows: the main thread sits
+    # in a C-level call that never yields, so SIGINT is not delivered until a
+    # connection happens to arrive. Observed the first evening this was run for
+    # real -- the only way out was the console's own `quit`, which does not
+    # exist when stdin is a pipe. A short timeout gives the interpreter a
+    # chance to notice.
+    srv.settimeout(0.5)
+    try:
+        while True:
+            try:
+                sock, addr = srv.accept()
+            except socket.timeout:
+                continue
+            threading.Thread(target=handle_conn, args=(sock, addr),
+                             daemon=True).start()
+    except KeyboardInterrupt:
+        say("")
+        say("stopping.")
+        return 0
 
 
 if __name__ == "__main__":
