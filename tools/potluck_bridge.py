@@ -229,7 +229,19 @@ VALUES = [
     ("place",        "u32", None,      place_number, 0),
     ("battery",      "f32", "ratio",   lambda p: _dig(p, "self", "battery"), 0.02),
     ("battery_temp", "f32", "celsius", lambda p: _dig(p, "self", "battery_temp_c"), 0.5),
-    ("thermal",      "u32", None,      thermal_number, 0),
+    # Latitude and longitude, when the user has switched location on. Left
+    # out of the first eleven, which was a bug rather than a trade: the app
+    # transmits exact coordinates the moment the toggle is on, and a bridge
+    # that silently drops them breaks the user's stated intent somewhere they
+    # cannot see.
+    #
+    # The epsilon is 0.0002 degrees, about twenty metres. A stationary phone's
+    # fix wanders by tens of metres and the accuracy estimate here is around
+    # forty, so a tighter threshold would spend the write budget on noise
+    # without telling anyone anything. Precision is not affected -- what is
+    # written is what the phone reported.
+    ("lat",          "f32", None,      lambda p: _dig(p, "gps", "lat"), 0.0002),
+    ("lon",          "f32", None,      lambda p: _dig(p, "gps", "lon"), 0.0002),
     # Approved for the first rollout on 2026-10-21. Appended rather than
     # inserted, which is what keeps every other ordinal where it was and makes
     # this non-breaking for a consumer that has already pinned the list.

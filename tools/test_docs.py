@@ -173,9 +173,12 @@ for field, name, extra in (("body.motion", "MOTION", []),
 # The roadmap states ordinal ranges to a consumer that will hard-code them, so
 # an off-by-one there is a silently mislabelled value on someone else's board.
 roadmap = read("docs", "ROADMAP.md")
+# Only the vocabularies that actually cross as ordinals. THERMAL's order is
+# still a severity ladder and VocabularyTest still pins it, but nothing
+# publishes it as a number any more -- it was swapped out of the Potluck set
+# for the exact coordinates, so the roadmap has no ordinal range to state.
 for field, name in (("body.motion", "MOTION"),
-                    ("body.posture", "POSTURE"),
-                    ("self.thermal", "THERMAL")):
+                    ("body.posture", "POSTURE")):
     m = re.search(r"`%s`, 0 ([a-z_]+) . (\d+) ([a-z_]+)" % re.escape(field), roadmap)
     src = vocab(name)
     if not m or not src:

@@ -99,6 +99,7 @@ def percept(**over):
                     "events": [{"name": "Speech", "conf": 0.79}]},
         "radio": {"place_id": "p3", "ble_count": 4},
         "self": {"battery": 0.63, "battery_temp_c": 31.4, "thermal": "NONE"},
+        "gps": {"lat": 56.0922722, "lon": 10.118418, "acc_m": 41.46},
     }
     for key, value in over.items():
         if isinstance(value, dict) and isinstance(p.get(key), dict):
@@ -162,8 +163,8 @@ print("\nthe shape Potluck will accept")
 # change a consumer has pinned and must be told about, so it should cost
 # a deliberate edit here rather than sliding through. Everything else
 # derives from len(VALUES).
-check("eleven values, under the inbox limit of twelve",
-      len(pb.VALUES) == 11 and len(pb.VALUES) <= pb.MAX_INBOX_VALUES,
+check("twelve values, exactly the inbox limit",
+      len(pb.VALUES) == 12 and len(pb.VALUES) <= pb.MAX_INBOX_VALUES,
       f"{len(pb.VALUES)} values")
 check("every name is unique",
       len({n for n, *_ in pb.VALUES}) == len(pb.VALUES))
@@ -185,7 +186,11 @@ check("a complete percept supplies every value",
 check("salience crosses as the ratio it is", v["salience"] == 0.70)
 check("motion crosses as its ordinal", v["motion"] == 0, str(v.get("motion")))
 check("posture too", v["posture"] == 0, str(v.get("posture")))
-check("thermal NONE is rung zero", v["thermal"] == 0)
+check("latitude crosses exactly as reported", v["lat"] == 56.0922722,
+      repr(v.get("lat")))
+check("and longitude too", v["lon"] == 10.118418, repr(v.get("lon")))
+check("thermal no longer crosses: it was swapped out for the coordinates",
+      "thermal" not in v)
 check("p3 becomes 3", v["place"] == 3, str(v.get("place")))
 check("steps cross whole", v["steps"] == 8241)
 check("speech is recognised", v["sound"] == pb.SOUND.index("speech"))
@@ -196,7 +201,7 @@ cases = [
     ("no place learned yet", {"radio": {"place_id": None}}, "place"),
     ("no hearing block", {"hearing": None}, "loudness"),
     ("no battery temperature", {"self": {"battery_temp_c": None}}, "battery_temp"),
-    ("thermal UNKNOWN, as on Android 9", {"self": {"thermal": "UNKNOWN"}}, "thermal"),
+    ("location switched off", {"gps": None}, "lat"),
     ("no attention block", {"attention": None}, "salience"),
     ("no step counter", {"body": {"steps": None}}, "steps"),
 ]

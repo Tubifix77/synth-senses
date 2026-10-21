@@ -387,7 +387,8 @@ stay on this side. What crosses is eleven numbers.
 | `place` | u32 | — | `radio.place_id`, `p3` → 3 |
 | `battery` | f32 | ratio | `self.battery` |
 | `battery_temp` | f32 | celsius | `self.battery_temp_c` |
-| `thermal` | u32 | — | `self.thermal`, 0 none … 6 shutdown, absent if UNKNOWN |
+| `lat` | f32 | — | `gps.lat`, exact, when location is on |
+| `lon` | f32 | — | `gps.lon`, exact, when location is on |
 | `ble_count` | u32 | count | `radio.ble_count` |
 
 `ble_count` was added to the set on 2026-10-21, after the rest. It is
@@ -414,13 +415,15 @@ them needs to know which:
   is pinned by its tests. The loudest event wins, not the first. `quiet` is a
   real reading — the ears worked and heard nothing worth naming — whereas no
   hearing block at all is absence and is never written.
-- **`thermal` has no ordinal for UNKNOWN**, deliberately. UNKNOWN means the
-  platform would not say, which is absence rather than a rung on the ladder,
-  so the value is simply not written and Potluck reads `NO_DATA`. This is not
-  hypothetical: thermal status is API 29, so on the **Android 9 phone
-  `thermal` is permanently absent** and `battery_temp_c` is its only heat
-  signal. A display that renders a missing `thermal` as `NONE` would report a
-  cool phone rather than an unanswerable question.
+- **`lat` and `lon` cross exactly as the phone reports them**, to seven
+  decimal places, whenever the user has switched `location` on. They were
+  left out of the first eleven, and that was a **bug rather than a trade**:
+  the app transmits coordinates the moment the toggle is on, so a bridge that
+  silently dropped them broke the user's stated intent somewhere invisible.
+  They replaced `thermal`, which was the least informative of the set —
+  constantly `0` on an Android 16 phone and permanently absent below API 29,
+  where thermal status does not exist at all. Twelve values is the inbox cap,
+  so the set is now full.
 
 Two more carry a caveat that is not visible in the table, both of the same
 shape as the ordinal problem and neither of them a bug:
