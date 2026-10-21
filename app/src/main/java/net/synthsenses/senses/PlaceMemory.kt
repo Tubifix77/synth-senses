@@ -351,7 +351,24 @@ class PlaceMemory(private val file: File) {
                 val id = o.getString("id")
                 places[id] = Known(
                     id = id,
-                    name = o.optString("name", "").takeIf { it.isNotBlank() },
+                    // Android's JSONObject.optString returns the four-character
+                    // string "null" for a JSONObject.NULL value, rather than the
+                    // fallback -- so an unnamed place came back literally named
+                    // "null" after one save/load cycle, and the narration said
+                    // "I am in null." Unnamed is the normal case, since nothing
+                    // names a place unless someone sends name_place.
+                    //
+                    // The JVM tests cannot catch this: they run against the real
+                    // org.json, where optString honours the fallback. Only the
+                    // instrumented tests see Android's own implementation.
+                    // Link.kt already guarded this correctly with isNull; this
+                    // did not.
+                    //
+                    // The `!= "null"` also cleans up data already on disk: a
+                    // place loaded as "null" was re-saved under that name by the
+                    // next observe(), so the string is really there now.
+                    name = (if (o.isNull("name")) null else o.optString("name", ""))
+                        ?.takeIf { it.isNotBlank() && it != "null" },
                     anchors = anchors,
                     visits = o.optInt("visits", 1),
                     firstMs = o.optLong("first", 0L),

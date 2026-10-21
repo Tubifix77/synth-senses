@@ -136,7 +136,11 @@ object Endpoint {
         val o = runCatching { JSONObject(payload) }.getOrNull() ?: return null
         if (o.optInt(BEACON_MAGIC, 0) != BEACON_VERSION) return null
 
-        val claimed = o.optString("ws", "")
+        // optString yields "null" for JSONObject.NULL on Android, not the
+        // fallback. Harmless here because a malformed beacon is rejected
+        // below either way, but the pattern is the one that broke
+        // PlaceMemory, so it is not left lying around.
+        val claimed = if (o.isNull("ws")) "" else o.optString("ws", "")
         if (claimed.isNotBlank()) {
             val url = normalize(claimed)
             if (url.isNotEmpty()) return url

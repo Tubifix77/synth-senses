@@ -270,6 +270,36 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
   relabels everything after it on the far side. `VocabularyTest` pins the
   order; `tools/test_docs.py` ties the docs to it.
 
+## A trap the JVM tests cannot see
+
+`testImplementation("org.json:json:20260814")` shadows `android.jar`'s stub
+with the real org.json, which is what makes `Percept`, `Spool` and the
+command parsing unit-testable at all. It also means **the JVM tests run
+against a different JSON implementation from the phone**, and the two
+disagree in at least one way that matters:
+
+**`JSONObject.optString(key, fallback)` returns the four-character string
+`"null"` on Android when the value is `JSONObject.NULL`.** The real org.json
+returns the fallback. So this looked correct and was not:
+
+```kotlin
+name = o.optString("name", "").takeIf { it.isNotBlank() }   // "null" on a phone
+```
+
+Every unnamed place came back named `"null"` after one reload, and the
+narration said "I am in null." Unnamed is the normal case, since nothing names
+a place unless someone sends `name_place`. The unit tests passed throughout;
+it took an evening on hardware to see it. `Link.kt` had already guarded the
+same call with `isNull`, which is what makes it an oversight rather than a
+surprise.
+
+Guard it as `if (o.isNull(k)) null else o.optString(k, "")`, and put the
+regression test in **`androidTest`** — that is the only source set that sees
+Android's own implementation. `PlaceNameRoundTripTest` is the example.
+
+Anything else that round-trips through `JSONObject` on the phone deserves the
+same suspicion, and the same test location.
+
 ## Changing the wire format
 
 Adding a nullable field is fine and needs no version bump.
