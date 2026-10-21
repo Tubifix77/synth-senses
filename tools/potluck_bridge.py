@@ -686,6 +686,16 @@ def write_value(hub, system, name, value, dry_run=False):
         # asking us to wait, and dropping it would publish staleness.
         return False, wait, f"throttled: {result}", True
     if status == 403:
+        # Observed live while Potluck re-applied the cell's package: a 403
+        # whose body is just "not_found". Mid-reconfiguration the resource is
+        # momentarily absent rather than forbidden, so this is the 404 case
+        # wearing the wrong status, and dropping it was the same mistake --
+        # a value that has never been written successfully is not in
+        # `written`, so refresh-before-stale can never re-offer it. That one
+        # recovered only because the next sample carried a different reading.
+        if "not_found" in str(result or "").lower().replace(" ", "_"):
+            return False, 30, (f"403 {result}: reads as not provisioned,"
+                               " so keeping it"), True
         # Printed exactly as given, at Potluck's request. It is the one
         # message that diagnoses the re-pairing trap, naming both the pairing
         # name and the writers entry, and summarising it would lose precisely

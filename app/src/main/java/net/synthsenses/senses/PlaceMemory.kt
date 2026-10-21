@@ -45,6 +45,24 @@ import kotlin.math.min
  * the passers-by still sitting in its denominator at full weight, and every
  * recognition teaches it. Nothing about a settled place changes.
  *
+ * Coverage answers how much of the place is visible, and that is only half of
+ * the question. It cannot tell a scan of a *different* room from a scan showing
+ * a thin *subset* of this one, because both score low the same way. On hardware
+ * that gap cost a duplicate: one sample saw 10 of its usual 18 access points,
+ * coverage fell to 0.49 against a bar of 0.50, and a second id was minted for
+ * the room the phone was already lying still in. So minting also consults the
+ * other direction:
+ *
+ *     containment = Σ signal weight (as heard now) over this place's visible
+ *                   anchors, divided by the same over everything visible
+ *
+ * High containment means most of what I can see belongs to somewhere I already
+ * know, which is a degraded scan of that place rather than a new one — so no
+ * new place is minted, and the scan teaches nothing, because counting it as a
+ * visit would dilute every anchor's persistence. A single stray device shares
+ * nothing with the room, so it is still correctly new. See `docs/VALIDATION.md`
+ * for the measured separation between the three cases.
+ *
  * Measured behaviour, 12 revisits after 6 training visits, over 200 seeds of
  * the simulation driven through this class's real entry point:
  *
@@ -118,6 +136,16 @@ class PlaceMemory(private val file: File) {
         /** Guards against a one-anchor place matching everything. */
         private const val MIN_SHARED = 2
 
+        /**
+         * How much of what is visible must belong to a known place before a
+         * scan is treated as that place seen badly, rather than as somewhere
+         * new. Measured against the three cases that have to stay apart: a
+         * degraded scan of the current room sits near 1.0, an adjacent room
+         * sharing four weakened access points sits near 0.2, and a single
+         * stray device sits at 0. Half is the gap.
+         */
+        private const val CONTAINED = 0.5f
+
         private const val MAX_PLACES = 120
         private const val MAX_ANCHORS = 80
         private const val RSSI_BLEND = 0.25f
@@ -160,15 +188,28 @@ class PlaceMemory(private val file: File) {
         if (fingerprint.isEmpty()) return null
         val now = System.currentTimeMillis()
 
+        // The weight of everything visible right now: the denominator for
+        // containment below. Computed once, because it does not vary by place.
+        var seenWeight = 0f
+        for (rssi in fingerprint.values) seenWeight += signalWeight(rssi)
+
         var bestId: String? = null
-        var bestCoverage = 0f
+        var best = Score(0f, 0, 0f, 0f)
         for ((id, known) in places) {
-            val c = coverage(known, fingerprint)
-            if (c > bestCoverage) {
-                bestCoverage = c
+            val s = score(known, fingerprint, seenWeight)
+            // Better coverage wins; an exact tie is broken by the weight of
+            // corroborating evidence, never by insertion order. The cap in
+            // `score` makes ties at 1.00 common once two places cover one room,
+            // and taking the first-inserted made the reported id flip between
+            // them with the phone lying still.
+            if (s.coverage > best.coverage ||
+                (s.coverage == best.coverage && s.achieved > best.achieved)
+            ) {
+                best = s
                 bestId = id
             }
         }
+        val bestCoverage = best.coverage
 
         if (bestId != null && bestCoverage >= places.getValue(bestId).recogniseAt()) {
             val k = places.getValue(bestId)
@@ -180,6 +221,29 @@ class PlaceMemory(private val file: File) {
             if (bestCoverage >= MERGE || k.isLearning()) observe(k, fingerprint)
             else k.visits += 1
             save()
+            return Match(k.id, k.name, bestCoverage, isNew = false)
+        }
+
+        // A scan can be too thin to judge. If most of what is visible belongs
+        // to a place already known, we are standing in that place under a
+        // degraded scan rather than standing somewhere new -- and minting here
+        // leaves a permanent duplicate of the room we are already in. Measured
+        // on hardware: one sample that saw 10 of its usual 18 access points
+        // dropped the room to 0.49 and minted a second id for it, after which
+        // both covered the same room and the reported place flapped.
+        //
+        // Coverage cannot see this on its own. It asks how much of the place is
+        // visible; this asks how much of what is visible is the place. A single
+        // stray device shares nothing with the room and still mints, as it must.
+        if (bestId != null && best.containment >= CONTAINED && best.shared >= MIN_SHARED) {
+            val k = places.getValue(bestId)
+            k.lastMs = now
+            // Neither observed nor counted as a visit, deliberately. A scan we
+            // do not trust enough to act on must not teach, and bumping visits
+            // on its own would dilute every anchor's persistence.
+            save()
+            Log.i(TAG, "thin scan over ${k.id} (coverage ${"%.2f".format(bestCoverage)}," +
+                " contained ${"%.2f".format(best.containment)}) - not a new place")
             return Match(k.id, k.name, bestCoverage, isNew = false)
         }
 
@@ -202,14 +266,28 @@ class PlaceMemory(private val file: File) {
     }
 
     /**
-     * achieved / expected, capped at 1. See the class comment for why it's this
-     * shape rather than a symmetric similarity.
+     * How one place scores against one scan, in both directions.
+     *
+     * `coverage` is achieved / expected, capped at 1 -- see the class comment
+     * for why it is this shape rather than a symmetric similarity. `achieved`
+     * is kept unrounded so an exact tie at the cap can be broken on evidence.
+     * `containment` is the other direction: the share of what is visible that
+     * this place accounts for.
      */
-    private fun coverage(k: Known, fingerprint: Map<String, Int>): Float {
-        if (k.anchors.isEmpty()) return 0f
+    private data class Score(
+        val coverage: Float,
+        val shared: Int,
+        val achieved: Float,
+        val containment: Float
+    )
+
+    private fun score(k: Known, fingerprint: Map<String, Int>, seenWeight: Float): Score {
+        val none = Score(0f, 0, 0f, 0f)
+        if (k.anchors.isEmpty()) return none
 
         var expected = 0f
         var achieved = 0f
+        var seenHere = 0f
         var shared = 0
 
         // A learning place is scored on everything it has ever seen, weighted by
@@ -223,14 +301,24 @@ class PlaceMemory(private val file: File) {
 
             val w = signalWeight(anchor.rssi)
             expected += w * p
-            if (fingerprint.containsKey(id)) {
+            val rssiNow = fingerprint[id]
+            if (rssiNow != null) {
                 achieved += w
                 shared += 1
+                // Weighted as heard now, matching the denominator: an anchor
+                // heard faintly through a wall must not count as strongly as
+                // the same anchor heard in the room.
+                seenHere += signalWeight(rssiNow)
             }
         }
 
-        if (expected <= 0f || shared < MIN_SHARED) return 0f
-        return min(1f, achieved / expected)
+        if (expected <= 0f || shared < MIN_SHARED) return none
+        return Score(
+            coverage = min(1f, achieved / expected),
+            shared = shared,
+            achieved = achieved,
+            containment = if (seenWeight <= 0f) 0f else min(1f, seenHere / seenWeight)
+        )
     }
 
     /** -100 dBm -> ~0, -30 dBm -> 1. */

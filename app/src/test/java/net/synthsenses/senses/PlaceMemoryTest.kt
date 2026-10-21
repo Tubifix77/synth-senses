@@ -130,6 +130,82 @@ class PlaceMemoryTest {
     }
 
     @Test
+    fun `a degraded scan of a known room does not mint a duplicate of it`() {
+        val pm = fresh()
+        val desk = room(18)
+        repeat(10) { pm.recognise(revisit(desk, 0.1, 6, 2)) }
+        assertEquals("the room settled as a single place", 1, pm.count())
+
+        // The hardware case, 2026-10-21: one sample saw 10 of the 18 access
+        // points it usually sees, coverage fell to 0.49 against a RECOGNISE of
+        // 0.50, and a second id was minted for the room the phone was already
+        // lying still in. Both then covered the same room and the reported
+        // place flapped between them for the rest of the evening.
+        //
+        // Six of eighteen is further under the threshold than the real sample
+        // was, so this fails loudly if the guard goes away.
+        val thin = desk.entries.take(6).associate { it.key to it.value }
+        val m = pm.recognise(thin)!!
+
+        assertTrue("a thin scan is not somewhere new", !m.isNew)
+        assertEquals("the room keeps its own id", "p1", m.id)
+        assertEquals("and no duplicate is left behind", 1, pm.count())
+        assertTrue(
+            "the real coverage is reported, not a fabricated certainty",
+            m.similarity < 0.5f
+        )
+    }
+
+    @Test
+    fun `a thin scan teaches the place nothing`() {
+        val pm = fresh()
+        val desk = room(18)
+        repeat(10) { pm.recognise(revisit(desk, 0.1, 6, 2)) }
+        val before = pm.listJson().getJSONObject(0)
+
+        val thin = desk.entries.take(6).associate { it.key to it.value }
+        repeat(5) { pm.recognise(thin) }
+        val after = pm.listJson().getJSONObject(0)
+
+        // Counting a scan we would not act on as a visit divides every anchor's
+        // persistence by a larger number, so a run of bad scans would slowly
+        // dissolve the very room it had failed to recognise.
+        assertEquals(
+            "a scan too thin to judge is not a visit",
+            before.getInt("visits"), after.getInt("visits")
+        )
+        assertEquals(
+            "and teaches it no anchors",
+            before.getInt("anchors"), after.getInt("anchors")
+        )
+        assertEquals(
+            "so the stable set is untouched",
+            before.getInt("stable_anchors"), after.getInt("stable_anchors")
+        )
+    }
+
+    @Test
+    fun `a tie at the cap is broken by evidence, not by which was learned first`() {
+        val pm = fresh()
+        val cupboard = room(3)
+        repeat(8) { pm.recognise(cupboard) }
+        val hall = room(20, shift = 500)
+        repeat(8) { pm.recognise(hall) }
+        assertEquals("two genuinely separate places", 2, pm.count())
+
+        // Both score exactly 1.00 here: every anchor either place knows is
+        // visible, and `min(1f, ...)` hides the difference between three
+        // anchors and twenty. The cupboard was learned first, so a strict `>`
+        // over insertion order returns it -- which is how one still phone
+        // reported two different rooms in alternation.
+        val both = HashMap<String, Int>(cupboard).apply { putAll(hall) }
+        val m = pm.recognise(both)!!
+
+        assertEquals("the better-corroborated place wins the tie", "p2", m.id)
+        assertEquals("and the answer does not oscillate", "p2", pm.recognise(both)!!.id)
+    }
+
+    @Test
     fun `naming persists and survives a reload`() {
         val file = File(tmp.newFolder(), "places.json")
         val pm = PlaceMemory(file)

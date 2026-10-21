@@ -491,7 +491,12 @@ for _status, _result, _keep, _why in (
         (504, "the owning board did not answer", True, "transient, so keep"),
         (404, "no such resource in this cell", True,
          "not provisioned yet, so keep: it will exist later"),
-        (403, "not writable by this program", False, "refused, drop")):
+        (403, "not writable by this program", False, "refused, drop"),
+        # Seen during a live re-apply: the hub answers 403 with a body of
+        # "not_found" while the resource is between packages. Forbidden and
+        # absent are not the same thing, and only one of them is permanent.
+        (403, "not_found", True, "403 not_found is absence, so keep"),
+        (403, "not found", True, "and the spaced spelling too")):
     _ok, _hold, _note, _kept = pb.write_value(
         _Answer(_status, _result), "lab", "sound", 5)
     check(f"{_status}: {_why}", _kept == _keep,

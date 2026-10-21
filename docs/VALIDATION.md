@@ -449,6 +449,80 @@ Two things follow, and neither is a flaw in the maths:
   visit are permanent debris. A phone left in BLE-only mode for months would
   accumulate thousands, and nothing reclaims them or the id space.
 
+### One thin scan mints a duplicate of the room you are in
+
+Found later the same evening, with WiFi on and the starvation gone. The phone
+held exactly two places and alternated between them while lying still on a
+charger: **114 switches across 531 samples**, GPS identical to seven decimal
+places throughout, and both places reporting a similarity of exactly 1.00.
+
+The place table said how the second one was born:
+
+| place | created | visits | anchors | stable |
+|---|---|---|---|---|
+| p1 | 17:30 | 870 | 80 | 20 |
+| p2 | **18:43** | 63 | 41 | 18 |
+
+p2 was minted an hour after p1, in the same room, while p1 already had
+hundreds of visits and twenty stable anchors. The percept log has the exact
+sample: coverage fell from 0.76 to **0.49** against a `RECOGNISE` of 0.50 on a
+scan that saw **10 access points where the previous one saw 14 and the usual
+count is 18**. One momentarily thin scan, one permanent duplicate.
+
+**Coverage cannot detect this, because it only measures recall.** It asks how
+much of the place is visible. It never asks the complementary question — how
+much of what is visible is the place — so a scan showing a *subset* of the
+current room is indistinguishable from a scan showing a different room. The
+fix adds that second direction as `containment`, the share of the visible
+weight that a candidate place accounts for, and refuses to mint when it is
+high: most of what I can see belongs to a place I know, so I am standing in
+it under a degraded scan rather than standing somewhere new.
+
+The threshold was measured rather than chosen, over 400 seeds, against the
+three cases that have to stay apart:
+
+| case | containment (min / mean / max) | required |
+|---|---|---|
+| degraded scan of the current room | 1.000 / 1.000 / 1.000 | suppress |
+| adjacent room, 4 shared APs at −18 dB | 0.069 / 0.196 / 0.307 | mint |
+| one stray passing device | 0.000 | mint |
+| an unrelated 25-AP environment | 0.000 | mint |
+
+`CONTAINED = 0.5` sits in the gap between 0.307 and 1.000. The separation is
+not marginal, and it does not depend on the seed.
+
+Two details that matter more than they look:
+
+- **A suppressed scan must not count as a visit.** Persistence is
+  `seen / visits`, so bumping `visits` without observing divides every
+  anchor's persistence by a larger number. A run of bad scans would slowly
+  dissolve the very room it had just failed to recognise. A scan too thin to
+  act on changes nothing at all.
+- **A single stray device must still mint**, and does — it shares nothing
+  with the room, so containment is 0. That case is already pinned by
+  `a single stray device cannot match a known place`, and it is the reason
+  the guard could not simply be "the fingerprint is small".
+
+### The cap hid a tie, and insertion order broke it
+
+The same log exposed a second, independent defect. `coverage` is
+`min(1, achieved / expected)` where `expected = Σ w·p` and persistence
+`p ≤ 1`, so **any place whose visible fraction exceeds its own mean
+persistence scores above 1 and is capped to exactly 1.00.** In a room with
+twenty stable anchors that happens constantly, and once two places covered one
+room, both read 1.00 on nearly every sample.
+
+The selection loop was `if (c > bestCoverage)`. A strict `>` over an exact tie
+keeps whichever place the `LinkedHashMap` happened to hold first, so the
+reported id was decided by **which place was learned first**, and flipped
+between p1 and p2 as the filtered anchor sets shifted. A consumer watching the
+`place` dial saw the room change with the phone motionless.
+
+Ties are now broken on `achieved` — the absolute weight of corroborating
+evidence — so the better-established place wins and the answer does not
+oscillate. The cap stays: it is what keeps a place from being punished for
+having unusually persistent anchors. Only the tie-break was wrong.
+
 A place seen once has `stable_anchors: 0` by construction — `MIN_SEEN` is 2,
 so after one visit every anchor sits at `seen = 1` however many there are.
 One orphan held 20 anchors and 0 stable purely because it was new. That is

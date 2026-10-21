@@ -132,6 +132,26 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **A momentarily thin scan no longer mints a duplicate of the room you are
+  standing in.** Place recognition measured only how much of a place was
+  visible, never how much of what was visible belonged to the place, so a
+  subset of the current room looked exactly like a different room. On hardware
+  one sample that saw 10 of its usual 18 access points dropped coverage to
+  0.49 against a bar of 0.50 and minted a permanent second id for a room that
+  already had 870 visits recorded against it. Minting now also requires that
+  what is visible is *not* mostly accounted for by a place already known, and
+  a scan too thin to act on no longer counts as a visit — which previously
+  diluted every anchor's persistence and slowly dissolved the room it had just
+  failed to recognise. A single stray device shares nothing with the room and
+  is still correctly new.
+- **The reported place no longer flips between two ids while the phone lies
+  still.** Coverage is capped at 1, so every place whose visible fraction
+  exceeds its own mean persistence scores exactly 1.00, and the selection loop
+  broke that tie with a strict `>` — which meant by whichever place happened
+  to be learned first. Two places covering one room therefore alternated, 114
+  times across 531 samples, with GPS identical throughout. Ties are now broken
+  on the weight of corroborating evidence, so the better-established place
+  wins and the answer does not oscillate.
 - **`Link.lastDetail` was on screen and still invisible.** The panel has always
   shown it, as the fifth grey line in a stack of grey statistics, prefixed
   "uplink:" like one of them — and for the first few seconds it read "—",
