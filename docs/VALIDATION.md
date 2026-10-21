@@ -353,6 +353,32 @@ guess.
 
 ## The APK, opened
 
+## Battery, measured at last, 2026-10-21
+
+An hour of continuous sensing on a Xiaomi 14T Pro (Android 16), all six senses
+on, five-second interval, wifi connected:
+
+| | |
+|---|---|
+| drain | **15.4 points/hour**, 40% to 25% |
+| implied runtime | **~6.5 h from full** |
+| battery temperature | 30.6 °C to **37.9 °C** |
+| thermal status | `NONE` throughout — never throttled once |
+| thermal headroom | 0.14 to 0.36, mean 0.26 |
+
+The 4–8 hour figure this document carried was an estimate reasoned from what
+the camera and radios cost. It lands inside its own estimate, which is worth
+recording as much as the number is.
+
+Two caveats before anyone treats 6.5 h as the answer. This was an hour
+extrapolated, not a night observed. And it was a phone held, pocketed and
+carried around a room, so the camera had real scene changes to process —
+a phone lying still in one place will habituate and should cost less.
+
+The 7.3 °C rise matters more for the **P20 Lite**, which is permanently on a
+charger and cannot report thermal status at all below API 29. There,
+`battery_temp_c` is the only heat signal there is.
+
 ## Place learning on real radio, 2026-10-21
 
 The 96.5% room-separation figure below was measured against synthetic

@@ -313,6 +313,11 @@ respects that and reads cached results in between, which costs nothing.
 
 ## Battery
 
+Measured on 2026-10-21: **15.4 points/hour**, so roughly **6.5 hours from
+full**, with all six senses on at a five-second interval. Battery temperature
+rose 7.3 °C over the hour and thermal status never left `NONE`. See
+[docs/VALIDATION.md](docs/VALIDATION.md).
+
 Roughly 4-8 hours continuous with vision on; much longer without. Levers,
 cheapest first:
 
