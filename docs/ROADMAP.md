@@ -18,6 +18,44 @@ amount of further design work substitutes for thirty minutes with a device and
 - battery life, currently an estimate
 - whether the foreground service survives the night on an aggressive vendor ROM
 
+### What this list is for, and what it is not
+
+**The hardware test is a test of the app, not of the phone.** That sounds
+obvious and the list above does not read that way — "measure the thresholds"
+invites calibrating `BodySensor` to whatever IMU happens to be to hand, which
+is overfitting one device and calling it validation. A Xiaomi's `lsm6dsvq`
+and a six-year-old Huawei's sensor will not agree on what `0.55` means.
+
+The first evening made the distinction concrete. What it produced divides
+cleanly:
+
+**About that phone**, and worth nothing beyond it: no barometer, a gyroscope
+present, Android 16, 15.4 points of battery an hour, and whatever absolute
+numbers its accelerometer reports.
+
+**About the app**, and true on every device:
+
+- every unnamed place renamed itself `"null"` after a reload, an Android
+  `optString` quirk the JVM tests cannot see
+- every CI-built APK was deaf, with no fix available at all
+- every update wiped the settings, the places and the model
+- an empty sound-event list meant three different things, one of which made a
+  consumer publish a confident silence
+- `heading_deg` is not the camera direction and nothing said so
+- place learning is unusable on BLE alone — a **configuration** finding, since
+  `wifi` ships off and `ble` ships on
+- and four defects in the tooling: `Ctrl+C`, two hidden diagnostic fields, and
+  a shell pipe that did not stream
+
+Only the second list is worth anything, and almost everything landed there.
+
+So read the items above as questions about behaviour rather than requests for
+constants. For the thresholds that means: does `still` stay still, does
+walking separate from being handled, and **does it degrade sanely on a phone
+with no gyroscope at all** — which three of `classifyMotion`'s branches
+depend on, and which the P20 Lite may well be. That last question needs a
+second device, not more minutes on the first.
+
 You need **platform-tools**, roughly 15 MB, not the 2 GB SDK. `adb logcat` is
 the part you cannot do without, because the suspect code fails by logging
 warnings rather than by crashing. A phone that looks like it is working is not

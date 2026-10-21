@@ -384,6 +384,24 @@ Do not design the bridge against assumptions about the other project. The
 roadmap lists the questions that need answering first, and separates the half
 that is blocked on them from the half that is blocked on nothing.
 
+## The hardware test tests the app, not the phone
+
+Worth holding onto, because the unmeasured list reads the other way. "Measure
+the thresholds" invites calibrating `BodySensor` to whatever IMU is to hand,
+which is overfitting one device and calling it validation — a Xiaomi's
+`lsm6dsvq` and a six-year-old Huawei's sensor do not agree on what `0.55`
+means.
+
+The first evening on hardware bore it out. What it found about the phone —
+no barometer, a gyroscope, Android 16, 15.4 points of battery an hour — was
+worth nothing beyond that handset. What it found about the app was worth the
+evening: places renaming themselves `"null"`, every CI APK deaf, every update
+wiping the phone, three kinds of empty sound-event list, `heading_deg` not
+being the camera direction, and place learning being unusable on BLE alone.
+
+Read `docs/ROADMAP.md`'s list as questions about behaviour, not requests for
+constants.
+
 ## Still unmeasured
 
 Listed fully in `docs/VALIDATION.md`. The headline items: motion and posture
