@@ -328,7 +328,14 @@ def handle_reply(msg, node):
             say(f"       -- {total} places, {degenerate} with no stable "
                 f"anchors ({stuck} of them visited more than once)")
     elif kind == "status":
-        say("  <- status:\n" + json.dumps(msg, indent=6)[:2000])
+        # Not truncated and not deeply indented. It was capped at 2000
+        # characters with indent 6, which was fine until `status` grew a
+        # sensors block -- after which the cap fell in the middle of the
+        # senses, hiding sound_model and sound_model_from, the two fields
+        # someone types `status` to see. A diagnostic that elides the
+        # diagnosis is worse than no diagnostic.
+        say("  <- status:")
+        say(json.dumps(msg, indent=2, ensure_ascii=False))
     elif kind == "hello":
         say(f"  <- hello from node, schema {msg.get('schema')}, "
               f"commands: {', '.join(msg.get('commands', []))}")
