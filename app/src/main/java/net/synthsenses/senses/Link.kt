@@ -100,10 +100,22 @@ class Link(
         if (closing.get()) return
         state = State.CONNECTING
 
-        val request = Request.Builder()
-            .url(url)
-            .apply { if (!token.isNullOrBlank()) header("Authorization", "Bearer $token") }
-            .build()
+        // okhttp throws IllegalArgumentException on a URL it cannot parse, and
+        // this is called from the service's start path, so a half-typed
+        // address used to take the whole service down rather than show up as
+        // an offline link. The panel refuses to start on one now; this is the
+        // belt to that pair of braces.
+        val request = runCatching {
+            Request.Builder()
+                .url(url)
+                .apply { if (!token.isNullOrBlank()) header("Authorization", "Bearer $token") }
+                .build()
+        }.getOrElse {
+            state = State.OFFLINE
+            lastDetail = "not a usable address: $url"
+            Log.w(TAG, "bad endpoint", it)
+            return
+        }
 
         socket = client.newWebSocket(request, object : WebSocketListener() {
 
@@ -215,13 +227,15 @@ class Link(
             put(payload)
         }.toString()
 
-        val request = Request.Builder()
-            .url(url)
-            .post(body.toByteArray().toRequestBody(JSON_MEDIA))
-            .apply { if (!token.isNullOrBlank()) header("Authorization", "Bearer $token") }
-            .build()
-
         return try {
+            // Inside the try: building the request parses the URL, and okhttp
+            // throws rather than returning null on one it cannot parse.
+            val request = Request.Builder()
+                .url(url)
+                .post(body.toByteArray().toRequestBody(JSON_MEDIA))
+                .apply { if (!token.isNullOrBlank()) header("Authorization", "Bearer $token") }
+                .build()
+
             client.newCall(request).execute().use { resp ->
                 if (resp.isSuccessful) {
                     spool.clear()

@@ -5,7 +5,10 @@ Two-way percept receiver for Synth Senses v0.2 — stdlib only, no pip install.
     python3 receiver.py                      # ws + http on :8077
     python3 receiver.py --port 9000 --token s3cret
 
-Then in the app set the endpoint to  ws://<this-machine-ip>:8077/link
+Then press Find receiver in the app: this broadcasts where it is on UDP 8078
+every couple of seconds, and the app fills its Endpoint field in from that.
+Failing that, set the endpoint to  ws://<this-machine-ip>:8077/link
+by hand, or pass --no-beacon if you would rather it kept quiet.
 
 Percepts stream in. Type commands at the prompt to steer the phone's attention:
 
@@ -45,9 +48,14 @@ import socket
 import struct
 import sys
 import threading
+import time
 from datetime import datetime
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+BEACON_PORT = 8078      # UDP. Discovery only; no percept ever travels on it.
+BEACON_EVERY_S = 2.0
+BEACON_MAGIC = "synth_senses"
+BEACON_VERSION = 1
 TOKEN = None
 LOG = None
 STREAM = False          # percepts as JSON lines on stdout
@@ -87,6 +95,79 @@ def lan_addresses():
             continue
         out.append(a)
     return out
+
+
+def beacon_payload(port, addrs=None):
+    """The announcement, as bytes.
+
+    Small on purpose: a magic key with a version, the address to dial, and the
+    hostname so a person watching `tcpdump` can tell whose laptop it is. The
+    phone puts the `ws` value back through its own URL rules before offering
+    it to anyone, so this is a suggestion rather than something trusted.
+    """
+    if addrs is None:
+        addrs = lan_addresses()
+    msg = {BEACON_MAGIC: BEACON_VERSION, "port": port}
+    # The first address came from the routing table, so it is the one a phone
+    # on the same network would actually reach.
+    if addrs:
+        msg["ws"] = f"ws://{addrs[0]}:{port}/link"
+    try:
+        msg["host"] = socket.gethostname()
+    except OSError:
+        pass
+    return json.dumps(msg).encode("utf-8")
+
+
+def broadcast_targets(addrs):
+    """Where to send it.
+
+    255.255.255.255 is the limited broadcast and never leaves the link, which
+    is what we want -- but Android's WiFi driver is more reliable about
+    delivering a subnet-directed broadcast, so send both. The /24 is an
+    assumption: it is right on a home network, and on anything else the
+    limited broadcast still carries, so a wrong guess here costs nothing.
+    """
+    targets = ["255.255.255.255"]
+    for a in addrs:
+        parts = a.split(".")
+        if len(parts) == 4:
+            directed = ".".join(parts[:3]) + ".255"
+            if directed not in targets:
+                targets.append(directed)
+    return targets
+
+
+def beacon(port, beacon_port=BEACON_PORT):
+    """Say where we are, every couple of seconds, forever.
+
+    This is the other half of the app's Find button. Typing
+    `ws://192.168.0.7:8077/link` on a phone keyboard, from an example on a
+    different subnet, is the worst part of setting this up.
+
+    Never touches stdout: the contract is that stdout carries percepts and
+    replies and nothing else.
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    except OSError as e:
+        say(f"no beacon: {e}")
+        return
+
+    addrs, refreshed = lan_addresses(), time.monotonic()
+    while True:
+        # Cheap, but it can hit a name server on a badly configured machine,
+        # so it is not something to do every two seconds.
+        if time.monotonic() - refreshed > 30:
+            addrs, refreshed = lan_addresses(), time.monotonic()
+        payload = beacon_payload(port, addrs)
+        for target in broadcast_targets(addrs):
+            try:
+                sock.sendto(payload, (target, beacon_port))
+            except OSError:
+                pass        # a down interface, a firewall: try again in 2 s
+        time.sleep(BEACON_EVERY_S)
 
 
 def say(*args, **kwargs):
@@ -634,6 +715,10 @@ def main():
                          "(default: on when stdout is not a terminal)")
     ap.add_argument("--no-jsonl", dest="jsonl", action="store_false",
                     help="never write JSON lines to stdout")
+    ap.add_argument("--no-beacon", dest="beacon", action="store_false",
+                    help="do not broadcast this machine's address on the LAN")
+    ap.add_argument("--beacon-port", type=int, default=BEACON_PORT,
+                    help=f"UDP port to announce on (default {BEACON_PORT})")
     ap.add_argument("--quiet", action="store_true",
                     help="no per-percept human rendering")
     ap.add_argument("--pretty", action="store_true",
@@ -660,6 +745,11 @@ def main():
     srv.bind((args.host, args.port))
     srv.listen(8)
 
+    if args.beacon:
+        threading.Thread(
+            target=beacon, args=(args.port, args.beacon_port), daemon=True
+        ).start()
+
     if args.host in ("0.0.0.0", "::"):
         addrs = lan_addresses()
         if addrs:
@@ -669,6 +759,9 @@ def main():
                 # virtual adapters for Docker, WSL, Hyper-V or a VPN
                 note = "   <-- try this one" if i == 0 and len(addrs) > 1 else ""
                 say(f"    ws://{a}:{args.port}/link{note}")
+            if args.beacon:
+                say("    ...or press Find receiver in the app, which listens "
+                    f"for the beacon on UDP {args.beacon_port}")
         else:
             say("could not work out this machine's LAN address; find it with "
                 "`ipconfig` on Windows or `ip addr` elsewhere")

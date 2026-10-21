@@ -423,6 +423,24 @@ Everything that needs real hardware:
 - **Vendor quirks.** MIUI/HyperOS is aggressive about background services. The
   foreground service should survive, but battery-optimisation exemption may be
   needed for long runs.
+- **The discovery beacon reaching a phone.** Both halves are tested — the
+  packet's shape, the broadcast targets, and that none of it reaches stdout, in
+  `test_receiver_ws.py`; the parsing and the URL rules in `EndpointTest`. What
+  nothing here can test is the one hop between them. A phone's WiFi driver
+  filters broadcast traffic in power save, which is what the `MulticastLock` in
+  `Discovery.listen` is for, and plenty of home routers and almost every guest
+  network drop subnet broadcasts outright. So **Find receiver is an
+  optimisation, never the only way in**: the Endpoint field is prefilled with
+  the phone's own `/24` and can still be typed into, and the receiver still
+  prints the address on startup. If Find comes back with "nothing answered" on
+  a network where the receiver is plainly running, that is the hop to suspect,
+  not the protocol.
+- **`Discovery.localIPv4` on anything but WiFi.** It reads `LinkProperties` off
+  whatever `ConnectivityManager` calls the active network, so USB tethering,
+  ethernet over a dongle and a VPN should all work and none has been tried.
+  A phone on mobile data will prefill a carrier-side `/24` that no receiver is
+  on, which is harmless — it is a prefill, not a connection — but it will look
+  odd.
 
 ## Reproducing
 

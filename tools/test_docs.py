@@ -225,6 +225,33 @@ forwarded = set(re.findall(r'"([a-z_]+)"', " ".join(known)))
 check("the receiver's whitelist matches the app's command constants",
       forwarded == declared, f"receiver={sorted(forwarded)} app={sorted(declared)}")
 
+print("\ndiscovery, which has three places to go stale")
+# The beacon is the one number living in a Kotlin file, a Python file and a
+# document at once, and two of the three fail silently: a wrong port in the
+# app means Find never finds anything, and a wrong port in PROTOCOL.md means
+# whoever writes the next receiver is told to shout down an empty street.
+endpoint_kt = read("app", "src", "main", "java", "net", "synthsenses",
+                   "senses", "Endpoint.kt")
+
+
+def kt_const(name):
+    m = re.search(rf'const val {name}\s*=\s*"?([^"\s]+)"?', endpoint_kt)
+    return m.group(1) if m else None
+
+
+beacon_port = kt_const("BEACON_PORT")
+check("Endpoint.kt names a beacon port", beacon_port is not None)
+check("receiver.py announces on the same port",
+      f"BEACON_PORT = {beacon_port}" in receiver_py, f"Endpoint.kt={beacon_port}")
+check("PROTOCOL.md documents that port",
+      beacon_port is not None and beacon_port in protocol, f"expected {beacon_port}")
+check("and the magic key the app checks for",
+      kt_const("BEACON_MAGIC") in protocol, str(kt_const("BEACON_MAGIC")))
+check("the beacon is documented as carrying no percepts",
+      "no percept, command or reply ever travels on it" in protocol)
+check("the receiver can be told not to broadcast",
+      '"--no-beacon"' in receiver_py and "--no-beacon" in protocol)
+
 print(f"\n{len(failures)} failure(s)")
 for f in failures:
     print("  -", f)

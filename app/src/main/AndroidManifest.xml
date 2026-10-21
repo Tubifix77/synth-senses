@@ -10,6 +10,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Finding the receiver instead of typing its address. The WiFi driver
+         filters broadcast traffic in power save, so a MulticastLock is the
+         difference between the receiver's beacon arriving and never arriving.
+         A normal permission: granted at install, no runtime prompt, and
+         nothing holds the lock unless Find is pressed. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
     <!-- radio sense. neverForLocation means BLE scanning works with NO location
          permission at all, which is what we want: we count and fingerprint, we
          don't geolocate. -->

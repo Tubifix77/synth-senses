@@ -67,8 +67,37 @@ receiver parses these percepts unchanged.
   transport and the stdout contract, `test_digest.py` for the digest and its
   redaction, and `test_docs.py`, which checks the facts in `INTEGRATION.md`
   against the source so a spec someone codes against cannot quietly rot.
+- **The receiver announces itself.** A small UDP datagram every 2 s on port
+  8078, to the limited broadcast and to each of its own `/24`s, saying where it
+  is. The app listens for it behind a **Find receiver** button — only when
+  pressed, because a socket open at launch is a thing running that nobody
+  asked for — and fills the Endpoint field in. The packet carries no percept,
+  command or reply, and never touches stdout, which `test_receiver_ws.py`
+  pins alongside the payload's shape. Whatever it claims goes through the same
+  URL rules as hand-typed input, so a stranger on the LAN cannot put an
+  arbitrary string in front of the user. `--no-beacon` turns it off.
+  Documented in `docs/PROTOCOL.md`, with the port checked against `Endpoint.kt`
+  and `receiver.py` on every push.
 
 ### Changed
+
+- **The Endpoint field fills itself in as far as the phone can.** From the
+  first setup on a real phone: the field was empty under a grey
+  `ws://192.168.1.20:8077/link` — an example, on a different subnet from the
+  phone's. It reads as a value that is already there, so Start was pressed
+  with nothing in the field; and because it could not be accepted or edited,
+  all thirty characters then had to be typed by thumb. Now the field opens
+  holding the phone's own `/24` (read from `ConnectivityManager`'s
+  `LinkProperties`, not the deprecated `WifiManager.getConnectionInfo`), the
+  scheme, port and `/link` path are filled in around whatever is typed, and a
+  bare `7` becomes `ws://192.168.0.7:8077/link`. The supporting line says what
+  will actually be dialled before Start is pressed. The rules are a pure object,
+  `senses/Endpoint.kt`, unit tested on the JVM for the same reason
+  `Habituation` takes a `File`.
+- **Start is disabled until there is somewhere to start.** Pressing it with an
+  empty field made `Link.connect` return at once with `OFFLINE` and
+  "no endpoint set", which from the panel is indistinguishable from an
+  ordinary offline link.
 
 - **The receiver is composable.** Percepts leave on stdout as one JSON object
   per line and everything written for a person leaves on stderr, so downstream
@@ -103,6 +132,16 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **`Link.lastDetail` was on screen and still invisible.** The panel has always
+  shown it, as the fifth grey line in a stack of grey statistics, prefixed
+  "uplink:" like one of them — and for the first few seconds it read "—",
+  because nothing published it until the first sample five seconds later. It
+  now goes out the moment `connect()` returns, and is coloured as an error
+  whenever the service is running and the link is neither `OPEN` nor `HTTP`.
+- **A malformed endpoint could take the service down.** okhttp throws rather
+  than returning null on a URL it cannot parse, and that call sat outside the
+  try in both `openSocket` and `sendHttp` — in the first case on the service's
+  start path. A half-typed address now reports itself as one.
 - **A BLE scan below API 31 never asked for the permission it needs.**
   `BLUETOOTH_SCAN` does not exist before 31, where a scan instead requires
   `ACCESS_FINE_LOCATION` — and that was only requested when wifi, cell or GPS

@@ -3,6 +3,7 @@
 Everything on the wire, in one place. Current percept schema: **2**.
 
 - [Transport](#transport)
+- [Discovery](#discovery)
 - [Frames from the phone](#frames-from-the-phone)
 - [The percept](#the-percept)
 - [Commands to the phone](#commands-to-the-phone)
@@ -37,6 +38,35 @@ Body: one percept object, or a JSON array of them (backlog flush)
 
 Return any 2xx. Anything else, or a timeout, and the percept goes to the disk
 spool and is retried with the next successful POST.
+
+## Discovery
+
+Optional, and separate from everything else on this page:
+no percept, command or reply ever travels on it. It exists so that nobody has
+to type `ws://192.168.0.7:8077/link` on a phone keyboard.
+
+The receiver broadcasts a UDP datagram every **2 s** on port **8078**, to
+`255.255.255.255` and to each of its own addresses' `/24` directed broadcast.
+`tools/receiver.py` does this by default; `--no-beacon` turns it off and
+`--beacon-port` moves it.
+
+```json
+{"synth_senses": 1, "port": 8077, "ws": "ws://192.168.0.7:8077/link",
+ "host": "boas-laptop"}
+```
+
+| Field | Meaning |
+|---|---|
+| `synth_senses` | Beacon format version. Must be `1`, or the packet is ignored. |
+| `port` | The TCP port the receiver is serving on. |
+| `ws` | The address to dial. Absent if the sender could not work out its own LAN address. |
+| `host` | Hostname, for a person reading a packet capture. Never used to connect. |
+
+Anything on the LAN can send to that port, so the phone treats the contents as
+a suggestion: `ws` goes through the same URL rules as hand-typed input, and a
+packet that fails them falls back to the address the datagram actually came
+from. A beacon never changes a running link — it only fills the Endpoint field,
+and only when the user presses **Find receiver**. Nothing listens otherwise.
 
 ## Frames from the phone
 

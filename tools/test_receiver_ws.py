@@ -28,6 +28,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import socket
 import struct
 import subprocess
@@ -326,6 +327,148 @@ def steering():
             proc.kill()
 
 
+def discovery():
+    """The beacon: does the receiver say where it is, without saying it on stdout?
+
+    This is the other half of the app's Find button, and it exists because of
+    what the first setup on a real phone cost: the Endpoint field held a grey
+    example from a different subnet, so the whole address had to be typed by
+    thumb.
+
+    Two things are worth pinning. The packet has to be well formed, because
+    `Endpoint.parseBeacon` on the phone will reject anything that is not --
+    including anything from a stranger on the LAN, which is why that side
+    re-validates rather than trusting this one. And the beacon must stay off
+    stdout: percepts and replies are all that goes there, and a UDP discovery
+    packet appearing in a consumer's `jq` would be a protocol break.
+    """
+    # Bind first, so the listener cannot miss an early beacon, and let the OS
+    # pick the port so two test runs can overlap.
+    listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("", 0))
+    beacon_port = listener.getsockname()[1]
+    listener.settimeout(1.0)
+
+    port = free_port()
+    proc = subprocess.Popen(
+        [sys.executable, RECEIVER, "--host", "127.0.0.1", "--port", str(port),
+         "--log", "", "--no-console", "--jsonl",
+         "--beacon-port", str(beacon_port)],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", errors="replace",
+    )
+    out, err = [], []
+    threading.Thread(target=drain, args=(proc.stdout, out), daemon=True).start()
+    threading.Thread(target=drain, args=(proc.stderr, err), daemon=True).start()
+
+    try:
+        packet, sender = None, None
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            try:
+                data, sender = listener.recvfrom(4096)
+            except socket.timeout:
+                continue
+            packet = data
+            break
+
+        check("the receiver announces itself on the LAN", packet is not None,
+              "" if packet else "no beacon in 15s; " + "".join(err)[-300:])
+        if packet is None:
+            return
+
+        try:
+            msg = json.loads(packet.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            check("the beacon is JSON", False, f"{e}: {packet[:80]!r}")
+            return
+        check("the beacon is JSON", True)
+
+        check("it is marked as ours, with a version",
+              msg.get("synth_senses") == 1, json.dumps(msg))
+        check("it carries the port the receiver is actually serving",
+              msg.get("port") == port, json.dumps(msg))
+
+        ws = msg.get("ws", "")
+        check("it carries a ws:// address", ws.startswith("ws://"), repr(ws))
+        check("that address names the serving port and the link path",
+              ws.endswith(f":{port}/link"), repr(ws))
+        # 0.0.0.0 is a bind address; the banner already refuses to print it as
+        # somewhere to dial, and the beacon must not offer it either.
+        host = ws[len("ws://"):].rsplit(":", 1)[0] if ws.startswith("ws://") else ""
+        check("and a host a phone could dial",
+              bool(host) and not host.startswith(("0.", "127.", "169.254.")),
+              repr(host))
+
+        # Let a few more go out, then prove none of it reached stdout.
+        time.sleep(3.0)
+        stdout_text = "".join(out)
+        check("the beacon never touches stdout",
+              "synth_senses" not in stdout_text and not stdout_text.strip(),
+              repr(stdout_text[:200]))
+        check("the receiver is still serving after beaconing",
+              proc.poll() is None and wait_for_port(port, timeout=5))
+    finally:
+        listener.close()
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def beacon_payload_rules():
+    """The payload itself, without a socket in the way.
+
+    `broadcast_targets` is the part that would fail silently: get it wrong and
+    the beacon still goes out, just never to where the phone is listening.
+    """
+    sys.path.insert(0, HERE)
+    import receiver
+
+    msg = json.loads(receiver.beacon_payload(8077, ["192.168.0.7"]))
+    check("the payload names ours and its version", msg.get("synth_senses") == 1,
+          json.dumps(msg))
+    check("and builds the address from the first LAN address",
+          msg.get("ws") == "ws://192.168.0.7:8077/link", json.dumps(msg))
+
+    # With no usable address there is nothing to claim. The phone falls back to
+    # where the packet came from, which it trusts more anyway.
+    bare = json.loads(receiver.beacon_payload(8077, []))
+    check("with no LAN address it claims none", "ws" not in bare, json.dumps(bare))
+    check("but still says which port to use", bare.get("port") == 8077, json.dumps(bare))
+
+    targets = receiver.broadcast_targets(["192.168.0.7", "10.1.2.3"])
+    check("the limited broadcast is always a target",
+          "255.255.255.255" in targets, str(targets))
+    check("and each address's own subnet as well",
+          "192.168.0.255" in targets and "10.1.2.255" in targets, str(targets))
+    check("no duplicates when two addresses share a subnet",
+          len(receiver.broadcast_targets(["192.168.0.7", "192.168.0.9"])) == 2,
+          str(receiver.broadcast_targets(["192.168.0.7", "192.168.0.9"])))
+
+    kt_port = endpoint_kt_constant("BEACON_PORT")
+    check("the app and the receiver agree on the beacon port",
+          str(receiver.BEACON_PORT) == kt_port,
+          f"receiver={receiver.BEACON_PORT} Endpoint.kt={kt_port}")
+    check("and on the magic key and version",
+          receiver.BEACON_MAGIC == endpoint_kt_constant("BEACON_MAGIC")
+          and str(receiver.BEACON_VERSION) == endpoint_kt_constant("BEACON_VERSION"),
+          f"receiver={receiver.BEACON_MAGIC}/{receiver.BEACON_VERSION}")
+
+
+def endpoint_kt_constant(name):
+    """Read a constant out of Endpoint.kt, so the two sides cannot drift."""
+    path = os.path.join(
+        os.path.dirname(HERE), "app", "src", "main", "java", "net",
+        "synthsenses", "senses", "Endpoint.kt")
+    with open(path, encoding="utf-8") as f:
+        source = f.read()
+    m = re.search(rf'const val {name}\s*=\s*"?([^"\s]+)"?', source)
+    return m.group(1) if m else None
+
+
 def main():
     utf8_streams()
     port = free_port()
@@ -484,6 +627,8 @@ def main():
         check("and all three still reached stdout", delivered == [91, 92, 93], str(delivered))
 
         steering()
+        discovery()
+        beacon_payload_rules()
 
         print(f"\n{len(failures)} failure(s)")
         for f in failures:

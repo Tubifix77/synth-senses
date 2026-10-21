@@ -22,6 +22,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -33,12 +34,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import net.synthsenses.senses.Discovery
+import net.synthsenses.senses.Endpoint
 import net.synthsenses.senses.Live
 import net.synthsenses.senses.Prefs
 import net.synthsenses.senses.SenseService
@@ -90,8 +99,22 @@ private fun ControlPanel(
     onPermissions: () -> Unit
 ) {
     val s by Live.status.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
-    var endpoint by remember { mutableStateOf(prefs.endpoint) }
+    // The phone's own /24. The receiver is almost always on it, so this is the
+    // part of the address the phone can supply for itself — what it cannot
+    // know is which machine on the subnet is running the receiver.
+    val subnet = remember { Endpoint.subnetPrefix(Discovery.localIPv4(context)) }
+
+    // On a first run the field used to be empty under a grey example from
+    // someone else's subnet, which reads as a value that is already there.
+    // Start it containing what is actually true instead.
+    var endpoint by remember {
+        mutableStateOf(prefs.endpoint.ifBlank { subnet?.let { "ws://$it" }.orEmpty() })
+    }
+    var finding by remember { mutableStateOf(false) }
+    var findNote by remember { mutableStateOf("") }
     var token by remember { mutableStateOf(prefs.token) }
     var interval by remember { mutableFloatStateOf(prefs.intervalMs / 1000f) }
     var heartbeat by remember { mutableFloatStateOf(prefs.heartbeatMs / 1000f) }
@@ -106,6 +129,14 @@ private fun ControlPanel(
     var location by remember { mutableStateOf(prefs.location) }
     var voice by remember { mutableStateOf(prefs.voice) }
     var lens by remember { mutableStateOf(prefs.lens) }
+
+    // What Start would actually dial, or "" if the field is not an address
+    // yet. Showing it is the point: the gap between what was typed and what
+    // gets connected to should never be a surprise.
+    val dialled = Endpoint.normalize(endpoint, subnet)
+
+    /** Running, but nothing is getting out. OPEN and HTTP are the working states. */
+    val linkTrouble = s.running && s.linkState != "OPEN" && s.linkState != "HTTP"
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -129,7 +160,12 @@ private fun ControlPanel(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Text(s.linkState, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        s.linkState,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (linkTrouble) MaterialTheme.colorScheme.error
+                        else Color.Unspecified
+                    )
                 }
 
                 Text("salience ${(s.salience * 100).roundToInt()}% → ${s.lastTrigger}",
@@ -153,7 +189,19 @@ private fun ControlPanel(
                         (s.placeId?.let { " · here: ${s.placeName ?: it}" } ?: ""),
                     style = MaterialTheme.typography.bodySmall
                 )
-                Text("uplink: ${s.lastUplink}", style = MaterialTheme.typography.bodySmall)
+                // This line has always carried Link.lastDetail, and on the
+                // first setup it said "no endpoint set" while nobody saw it.
+                // It was the fifth grey line in a stack of grey statistics,
+                // prefixed like one, and for the first few seconds it read
+                // "—" because nothing published it until the first sample.
+                // So: the service publishes it the moment it connects, and
+                // when the link is carrying nothing it is coloured like the
+                // problem it is.
+                Text(
+                    "uplink: ${s.lastUplink}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (linkTrouble) MaterialTheme.colorScheme.error else Color.Unspecified
+                )
 
                 if (s.running && hearing && !s.soundModelLoaded) {
                     Text(
@@ -182,8 +230,20 @@ private fun ControlPanel(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = { prefs.endpoint = endpoint; prefs.token = token; onStart() },
-                enabled = !s.running
+                // Snap the field to the address that is about to be dialled,
+                // so what was typed and what was connected to are the same
+                // string from here on.
+                onClick = {
+                    endpoint = dialled
+                    prefs.endpoint = dialled
+                    prefs.token = token
+                    onStart()
+                },
+                // Pressing Start with nothing in the field was the original
+                // bug: Link returns immediately with "no endpoint set" and the
+                // panel just looks offline. There is nothing to start without
+                // an address, so there is nothing to press.
+                enabled = !s.running && dialled.isNotEmpty()
             ) { Text("Start") }
             Button(onClick = onStop, enabled = s.running) { Text("Stop") }
             Button(onClick = onPermissions) { Text("Perms") }
@@ -194,13 +254,61 @@ private fun ControlPanel(
         Text("Link", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = endpoint,
-            onValueChange = { endpoint = it; prefs.endpoint = it },
+            onValueChange = { endpoint = it; prefs.endpoint = it; findNote = "" },
             label = { Text("Endpoint") },
-            placeholder = { Text("ws://192.168.1.20:8077/link") },
-            supportingText = { Text("ws:// for two-way, http:// for POST only") },
+            // No grey example any more. An example in an empty field reads as
+            // a value that is already there — which is how Start came to be
+            // pressed with nothing in it — and this one was on a different
+            // subnet from the phone's, so copying it by thumb was wrong twice.
+            isError = dialled.isEmpty(),
+            supportingText = {
+                Text(
+                    when {
+                        findNote.isNotEmpty() -> findNote
+                        dialled.isEmpty() && subnet != null && endpoint.trim().endsWith(".") ->
+                            "add the last number of the machine running the receiver"
+                        dialled.isEmpty() ->
+                            "not an address yet — the receiver prints one when it starts"
+                        dialled != endpoint.trim() -> "connects to $dialled"
+                        else -> "ws:// for two-way, http:// for POST only"
+                    }
+                )
+            },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Discovery is a button rather than something that happens at
+            // launch: a socket listening for broadcasts is a thing running,
+            // and nothing here runs unless it was asked for.
+            OutlinedButton(
+                onClick = {
+                    findNote = "listening for a receiver…"
+                    finding = true
+                    scope.launch {
+                        val found = withContext(Dispatchers.IO) { Discovery.listen(context) }
+                        finding = false
+                        if (found != null) {
+                            endpoint = found
+                            prefs.endpoint = found
+                            findNote = "found it"
+                        } else {
+                            findNote = "nothing answered — is tools/receiver.py " +
+                                "running on this network?"
+                        }
+                    }
+                },
+                enabled = !finding && !s.running
+            ) { Text(if (finding) "Finding…" else "Find receiver") }
+
+            Text(
+                "the receiver announces itself on UDP ${Endpoint.BEACON_PORT}",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         OutlinedTextField(
             value = token,
             onValueChange = { token = it; prefs.token = it },

@@ -119,8 +119,17 @@ class SenseService : LifecycleService() {
 
         link.connect(prefs.endpoint, prefs.token.ifBlank { null })
 
+        // Publish the link's verdict now rather than at the first sample. It
+        // used to be a sample away — five seconds of the panel reading
+        // "uplink: —" — and "no endpoint set" is decided inside connect(),
+        // which is exactly the case someone needs to see immediately.
         Live.update {
-            it.copy(running = true, places = radio?.places?.count() ?: 0)
+            it.copy(
+                running = true,
+                places = radio?.places?.count() ?: 0,
+                lastUplink = link.lastDetail,
+                linkState = link.state.name
+            )
         }
 
         loop = lifecycleScope.launch {

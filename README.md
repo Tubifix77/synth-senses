@@ -117,8 +117,12 @@ Then start the test receiver — stdlib only, no `pip install`:
 python3 tools/receiver.py
 ```
 
-Set the app's endpoint to `ws://<your-machine-ip>:8077/link`, press **Start**, and
-type commands at the receiver prompt:
+The receiver prints the address to use and broadcasts it on the LAN, so in the
+app press **Find receiver** and the Endpoint field fills itself in. Failing
+that, the field is prefilled with the phone's own `/24` and only wants the last
+number of the machine running the receiver — type `7` and it becomes
+`ws://192.168.0.7:8077/link`. The full address still works if you would rather
+type it. Then press **Start** and type commands at the receiver prompt:
 
 ```
 sample              look front         places
