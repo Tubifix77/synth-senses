@@ -572,10 +572,19 @@ def write_value(hub, system, name, value, dry_run=False):
     if status == 200:
         return True, 0, str(result)
     if status == 404:
-        # Not an error. The inbox does not exist until the cell's owner adds
-        # it to the package and approves it, and this program is designed to
-        # be run and watched long before that happens.
-        return False, 60, "not provisioned yet (404)"
+        # Not an error: back off and keep going. The usual cause is that the
+        # cell's owner has not provisioned the inbox yet, and this program is
+        # meant to be run and watched long before that happens.
+        #
+        # But "usual" is not "only", and printing the inference rather than
+        # the hub's own words has already been wrong once: a hub can answer
+        # 404 for a resource that IS provisioned, if it predates the fix that
+        # taught it to read inbox values. Someone reading "not provisioned
+        # yet" would then go looking in the wrong place entirely. So say what
+        # the hub said, the same as for a 403, and label the inference as an
+        # inference.
+        return False, 60, (f"404: {result}" if result
+                           else "404, probably not provisioned yet")
     if status == 429:
         try:
             wait = int(headers.get("Retry-After", "2"))

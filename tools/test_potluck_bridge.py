@@ -247,6 +247,61 @@ _neg = pb.values_from(percept(body={"steps": -5}))
 check("a negative count is dropped rather than published as unsigned",
       "steps" not in _neg, str(_neg.get("steps")))
 
+print("\nwhat the hub says is reported, not what we assume it means")
+
+
+class _Answer:
+    """A hub that answers however the test says, without a socket."""
+
+    base = "https://hub.invalid:8443"
+
+    def __init__(self, status, result=None, headers=None):
+        self.status, self.result, self.headers = status, result, headers or {}
+
+    def post(self, path, body):
+        return (self.status,
+                ({"result": self.result} if self.result else {}),
+                self.headers)
+
+
+# A 404 usually means not provisioned. It does not always: a hub predating
+# the fix that taught it to read inbox values answers 404 for a resource that
+# IS provisioned, and anyone reading our inference rather than the hub's
+# words would go looking in the wrong place. That happened on the evening
+# this was provisioned, which is why the wording is quoted now.
+_ok, _hold, _note = pb.write_value(
+    _Answer(404, "no such resource in this cell (not in its package)"),
+    "lab", "battery", 0.5)
+check("a 404 repeats the hub's own wording", "no such resource" in _note, _note)
+check("and is still a back-off rather than a failure", not _ok and _hold > 0)
+check("a 404 with no wording still says something useful",
+      "not provisioned" in pb.write_value(_Answer(404), "lab", "x", 1)[2])
+
+_ok, _hold, _note = pb.write_value(
+    _Answer(403, "not writable by this program: it is paired as "
+                 "'Synth Senses 2' and the writers list names 'Synth Senses'"),
+    "lab", "battery", 0.5)
+check("a 403 is passed through verbatim, re-pairing hint and all",
+      "Synth Senses 2" in _note, _note)
+
+_ok, _hold, _note = pb.write_value(
+    _Answer(429, "slow down: ...", {"Retry-After": "7"}), "lab", "battery", 0.5)
+check("a 429 honours Retry-After rather than guessing", _hold == 7, str(_hold))
+
+_ok, _hold, _note = pb.write_value(
+    _Answer(429, "slow down: ...", {"Retry-After": "nonsense"}),
+    "lab", "battery", 0.5)
+check("and an unparseable Retry-After does not crash the writer", _hold > 0,
+      str(_hold))
+
+_ok, _hold, _note = pb.write_value(
+    _Answer(504, "the owning board did not answer"), "lab", "battery", 0.5)
+check("a 504 from the owning board is reported and retried later",
+      not _ok and _hold > 0 and "did not answer" in _note, _note)
+
+_ok, _hold, _note = pb.write_value(_Answer(200, "applied"), "lab", "battery", 0.5)
+check("and a 200 is simply applied", _ok and _note == "applied", _note)
+
 print("\nthe sound curation")
 for label, want in (("Speech", "speech"), ("Conversation", "speech"),
                     ("Child speech, kid speaking", "speech"),
@@ -378,7 +433,7 @@ pending = pb.Pending(300000, now=clock)
 budget = pb.Budget(per_second=1000.0, burst=10000, now=clock)
 pb.run(iter([json.dumps(percept())]), pending, budget, hub, tick=0,
        sleep=lambda s: clock.advance(s))
-check("a 404 stops the flood after one attempt rather than trying all ten",
+check("a 404 stops the flood after one attempt rather than trying them all",
       len(hub.writes) == 1, f"{len(hub.writes)} writes")
 check("and holds off before trying again",
       budget.blocked_until > clock(), str(budget.blocked_until - clock()))
