@@ -379,6 +379,36 @@ The 7.3 °C rise matters more for the **P20 Lite**, which is permanently on a
 charger and cannot report thermal status at all below API 29. There,
 `battery_temp_c` is the only heat signal there is.
 
+## The same algorithm, properly fed, 2026-10-21
+
+Later the same evening, on a clean place store with wifi contributing from the
+first sample:
+
+| | BLE only, earlier | BLE + WiFi |
+|---|---|---|
+| samples | 168 | 38 |
+| new places minted | **32** | **0** |
+| recognised | 92 | **38 of 38** |
+| no place at all | 44 | 0 |
+| similarity when recognised | bimodal at 0.0 and 1.0 | **graded, 0.57 to 1.00** |
+
+**`PlaceMemory` was never broken.** It was starved, which is what the first
+table measured and the opposite of what an hour of reading the coverage metric
+suggested. Thirty-eight consecutive recognitions of one place, with a spread
+of similarities rather than a switch between none and perfect.
+
+Hearing worked in the same run, for the first time on any hardware:
+`classifier` reported `ok` on all 38 percepts, no failures, and the vocabulary
+discriminated rather than emitting one label — Speech 13, Silence 12, Typing 4,
+Computer keyboard 4, and one each of child speech, a cough, a throat clear and
+crumpling paper.
+
+Habituation was gating as designed: **2.4 percepts a minute** against a
+five-second interval that could produce twelve, so roughly 80% of what the
+phone saw was suppressed as unremarkable.
+
+Sixteen minutes, one room, one phone. Not a night, and not a second device.
+
 ## Place learning on real radio, 2026-10-21
 
 The 96.5% room-separation figure below was measured against synthetic
