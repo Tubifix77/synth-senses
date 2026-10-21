@@ -449,6 +449,24 @@ reading `NO_DATA`, which is the correct state for an inbox nothing has
 written to yet. That is `--manifest` validated end to end, by a third party,
 before a single percept existed.
 
+**Discovery and the subnet prefill both assume the phone and the receiver
+share a /24, and a very ordinary home setup breaks that.** A mesh router —
+Google Nest Wifi hands out `192.168.86.x` — routes its wifi clients behind
+the wired LAN, so a cabled PC on `192.168.0.7` and a phone on
+`192.168.86.x` are on different broadcast domains. Then:
+
+- **Find receiver cannot work.** Broadcasts do not cross a router. The
+  beacon is on the wire and simply never reaches the phone.
+- **The prefill fills in the phone's own /24**, which is correct and still
+  wrong for dialling, because the receiver is not on it.
+- **It still works** — type the receiver's full address. The phone opens the
+  connection outbound, which NAT passes happily; nothing needs to reach the
+  phone.
+
+Confirmed on this setup: the file server's log showed the *router's* address
+on the wired LAN, not the phone's, which is what made the two look like one
+network for most of an evening.
+
 Two things that will waste ten minutes otherwise. **On Windows the command is
 `python`, not `python3`** — the examples below and elsewhere in this repo say
 `python3` because that is what a Linux or macOS reader needs, and the launcher
