@@ -353,6 +353,52 @@ guess.
 
 ## The APK, opened
 
+## Place learning on real radio, 2026-10-21
+
+The 96.5% room-separation figure below was measured against synthetic
+fingerprints. The first evening on a real phone measured it against real
+radio, and the difference is the whole finding.
+
+A phone sitting still on one desk for about twenty minutes produced **38
+places**. Split by whether WiFi was contributing to the fingerprint:
+
+| fingerprint | samples | new places | recognised | no place at all |
+|---|---|---|---|---|
+| BLE only | 168 | **32** | 92 | 44 |
+| BLE + WiFi | 44 | **1** | 43 | 0 |
+
+With WiFi contributing roughly 21 hashed BSSIDs, similarity when recognised
+was 0.91, 0.95, 0.96 and 1.00 — a graded spread. With BLE alone it was
+bimodal at exactly 0.0 and exactly 1.0, and 44 samples had an entirely empty
+fingerprint.
+
+**The algorithm was not wrong, it was starved.** BLE in a home oscillates
+between 0 and 9 visible devices between consecutive five-second samples, and
+randomised MACs mean few of them persist. There is not enough evidence there
+to recognise anything, so a new place is minted whenever anything at all is
+seen. The bimodality was a symptom of that, not of the coverage metric: a
+place holding one anchor scores a perfect 1.00 the moment that anchor
+reappears.
+
+An hour was spent diagnosing the metric before measuring its input. The
+lesson generalises: **when a validated algorithm misbehaves on real data,
+measure what it is being fed before touching what it does.**
+
+Two things follow, and neither is a flaw in the maths:
+
+- **The defaults produce the starved case.** `ble` ships on and `wifi` ships
+  off, so a fresh install learns places from the one radio that cannot
+  sustain it. See `docs/ROADMAP.md`.
+- **Orphaned places are never pruned.** The 23 places left with a single
+  visit are permanent debris. A phone left in BLE-only mode for months would
+  accumulate thousands, and nothing reclaims them or the id space.
+
+A place seen once has `stable_anchors: 0` by construction — `MIN_SEEN` is 2,
+so after one visit every anchor sits at `seen = 1` however many there are.
+One orphan held 20 anchors and 0 stable purely because it was new. That is
+what the `isLearning()` window exists for, and reading `stable 0` as a defect
+is a mistake the receiver briefly encouraged.
+
 CI had been producing a debug APK for a while before anyone looked inside one.
 Doing so confirmed the things that are easy to assume and cheap to check:
 

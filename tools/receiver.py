@@ -310,12 +310,23 @@ def handle_reply(msg, node):
             mark = ""
             if isinstance(stable, int) and stable == 0:
                 degenerate += 1
-                mark = "   <-- nothing stable: cannot recognise on evidence"
+                # A place seen once has stable 0 by construction: MIN_SEEN is
+                # 2, so after one visit every anchor is at seen=1 however many
+                # there are -- p38 had 20 anchors and 0 stable purely because
+                # it was new. `isLearning()` exists so such a place can still
+                # be recognised while it matures. So this is only a complaint
+                # about places that had their chances and never took them.
+                mark = ("   <-- new, not matured yet" if pl.get("visits", 0) <= 1
+                        else "   <-- visited repeatedly and still nothing "
+                             "stable: it will recognise unreliably")
             say(f"       {pl['id']:>4}  {pl.get('name') or '(unnamed)':<16} "
                 f"visits {pl['visits']:<5} anchors {pl['anchors']:<5} "
                 f"stable {stable if stable is not None else '?'}{mark}")
         if total:
-            say(f"       -- {total} places, {degenerate} with no stable anchors")
+            stuck = sum(1 for pl in msg.get("places", [])
+                        if pl.get("stable_anchors") == 0 and pl.get("visits", 0) > 1)
+            say(f"       -- {total} places, {degenerate} with no stable "
+                f"anchors ({stuck} of them visited more than once)")
     elif kind == "status":
         say("  <- status:\n" + json.dumps(msg, indent=6)[:2000])
     elif kind == "hello":
