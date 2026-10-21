@@ -75,12 +75,33 @@ transcripts**, every one returning null, with the error code discarded until
 `6e6e695` added `speech_last_error`. Whether the system recogniser can work at
 all on an unpatched Android 9 Huawei in Danish is still unknown.
 
+**And the beep is the lesser problem.** The design cannot work, for a reason
+that has nothing to do with sound. Per sample the app opens the mic, records
+**975 ms** (YAMNet's native window), closes it, classifies the buffer, and
+*then* -- having detected speech -- opens a **new** recogniser session and
+listens live for up to 8 s.
+
+So the recogniser starts listening after the audio that triggered it has been
+recorded, classified and discarded. It is not transcribing the speech that was
+heard; it is betting the speaker carries on. One sentence and a pause, which
+is how people talk, opens the recogniser onto silence and returns `no speech
+input` or `no match`. The sense can only ever catch speech that *continues*
+past the moment of detection, and the one buffer guaranteed to contain speech
+is the one thrown away.
+
+That is the real explanation for ten detections and zero transcripts, and it
+was spotted by the user asking whether it had to "listen at the exact moment I
+speak". It does, and it cannot.
+
 The fix is to transcribe on-device, with a model in the APK, which is what the
 code map has always *claimed* this sensor does -- `SpeechSensor.kt` is
 described as "offline transcription" while its own doc comment admits
 `EXTRA_PREFER_OFFLINE` is "a request, not a guarantee". The mic buffer is
 already in hand for the YAMNet classifier, so the audio does not need
-capturing twice. Open questions: which model, Danish support, its size on top
+capturing twice -- which removes the race, the second mic session, the earcon
+and the second mic-open for EMUI to announce, all at once. A rolling buffer of
+a few seconds would do better still, since a sentence usually starts before
+the classifier notices it. Open questions: which model, Danish support, its size on top
 of an APK already at 182 MiB, and its licence.
 
 Until then `speech` stays off on any phone that is not muted.
