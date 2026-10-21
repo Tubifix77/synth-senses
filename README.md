@@ -325,6 +325,12 @@ Frames and audio buffers are never written to disk and never leave the device â€
 only derived labels, transcripts, hashed radio IDs and numbers. MACs and BSSIDs
 are hashed before they go anywhere.
 
+One thing the word "hashed" does not cover: a BLE device's broadcast **name**
+is passed through as-is beside its hashed id. Usually that is a product
+("Ultra Slim Soundbar"), sometimes a person ("Anna's AirPods"). The id cannot
+be reversed; the name was never secret to begin with, since anything nearby
+can hear it. Switch the BLE sense off if that matters to you.
+
 Two things to know:
 
 - The spool at `/data/data/net.synthsenses/files/spool.jsonl` holds undelivered

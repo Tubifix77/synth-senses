@@ -130,9 +130,30 @@ Full field-by-field definitions are in [PROTOCOL.md](PROTOCOL.md). The shape:
   phone learned by itself. Ids like `p3` are local to that device, meaningless
   across devices, and not stable if someone issues `forget`. A place only has
   a `place_name` if something named it.
-- **Identifiers are already hashed.** MAC addresses and BSSIDs are FNV-1a
-  hashed to 10 hex characters before they enter a percept. You cannot recover
-  the address, and you should not try.
+- **`heading_deg` is not where the camera is looking.** It is the azimuth of
+  the phone's **top edge** — its +Y axis, projected onto the horizontal. The
+  back camera looks out along **−Z**, which is orthogonal to that, so the two
+  never describe the same direction. Lying face up on a desk, the heading is
+  meaningful while the camera points straight down at the surface; held
+  upright so the camera sees the horizon, the azimuth becomes unreliable
+  because `getOrientation()` degrades as pitch approaches vertical. **Do not
+  infer that a seen label lies in the heading's direction.** Use
+  `vision.lens`, which says which camera produced the labels, and `look front`
+  / `look back` to choose.
+- **Vision labels are posture-dependent and can be confidently wrong.**
+  Observed on real hardware: a phone face up on a desk reported *"sky,
+  underwater"* with the labeller's confidence threshold at 0.55, because the
+  back camera was looking at a dark featureless surface and a generic labeller
+  reads that as open water. The light sensor is on the front, so `lux` can
+  read as a normally lit room while the camera sees nothing meaningful at all.
+  Habituation absorbs the repetition within minutes, so these stop being
+  reported as novel — but do not read a single narration literally.
+- **Identifiers are already hashed, but device *names* are not.** MAC
+  addresses and BSSIDs are FNV-1a hashed to 10 hex characters before they
+  enter a percept, and you cannot recover the address. `ble_named[].name` is
+  the name the device broadcasts, passed through as-is — usually a product
+  ("Ultra Slim Soundbar"), sometimes a person ("Anna's AirPods"). Treat that
+  field as personal data even though the id beside it is not.
 - **`seq` restarts.** It counts posted percepts within one run of the sensing
   service and resets when that service restarts. It is not a durable unique
   id. Use `ts` for ordering and `(device_id, ts)` for identity.
