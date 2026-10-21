@@ -132,6 +132,18 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **The app no longer chimes and banners on every sample.** The foreground
+  notification was rebuilt with the latest narration on every sample — and the
+  call sat *above* the habituation return, so it fired even for samples that
+  were never sent. `setOnlyAlertOnce` covers this on stock Android, but EMUI
+  applies its own policy over the channel and re-banners any notification
+  whose text changed, with sound. The notification now carries only the
+  enabled senses and the link state, is marked `setSilent(true)`, and is
+  re-posted only when that text actually differs — so in a steady state it is
+  posted once and never again. Found on the Huawei P20 Lite, which is the
+  household emergency line and therefore the one phone that cannot simply be
+  muted; the other test device is always muted, which is why this survived a
+  full evening of use.
 - **One unprovisioned value no longer starves every other value.** A 404
   returns a 60-second hold, and that hold was applied to the shared rate
   budget rather than to the path that failed, while the drain loop ended the

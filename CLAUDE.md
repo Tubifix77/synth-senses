@@ -250,6 +250,22 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
   from the answer — and nothing here may hold the mic, change a volume, or pin
   the CPU in a way that could cost a call. Losing a sound label is always the
   right trade.
+- **The app makes no sound and shows no banner, ever.** It is an appliance on
+  a phone that is meant to sit untouched for months. The foreground
+  notification is required by Android and is the only thing it may put on
+  screen; it is `IMPORTANCE_LOW`, `setSilent(true)`, and **re-posted only when
+  its text actually changes**, which is why that text is built from enabled
+  senses and link state rather than from anything per-sample.
+
+  The narration used to go there, refreshed on every sample — above the
+  habituation return, so even the samples deemed not worth sending re-posted
+  it. On EMUI a notification whose text changed is re-bannered with a chime.
+
+  The reason this is an invariant and not a preference: the test phone is
+  always muted, so it was invisible there, while the P20 is the household
+  emergency line and **has its ringer on precisely because it must**. Telling
+  the user to mute the phone is telling them to break the phone's actual job,
+  so "the user can silence it" is not an available answer here.
 - **`Habituation` and `PlaceMemory` take a `File`**, with a `Context`
   convenience constructor. That is deliberate — it is the only reason the maths
   is unit-testable without Robolectric. Do not collapse it back.

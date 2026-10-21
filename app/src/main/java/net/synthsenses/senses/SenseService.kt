@@ -106,7 +106,7 @@ class SenseService : LifecycleService() {
             stopSelf()
             return START_NOT_STICKY
         }
-        goForeground("waking up")
+        goForeground(statusText())
         startSensing()
         return START_STICKY
     }
@@ -249,7 +249,7 @@ class SenseService : LifecycleService() {
             )
         }
 
-        updateNotification(candidate.narration)
+        updateNotification()
         if (trigger == null) return
 
         seq += 1
@@ -499,10 +499,17 @@ class SenseService : LifecycleService() {
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            // Belt and braces for vendor ROMs. The channel is IMPORTANCE_LOW,
+            // which on AOSP is already silent, but EMUI applies its own
+            // per-app notification policy over the channel and will happily
+            // banner and chime an ongoing notification anyway.
+            .setSilent(true)
             .setContentIntent(tap)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stop)
             .build()
     }
+
+    private var shownNote: String? = null
 
     private fun goForeground(text: String) {
         var type = 0
@@ -518,9 +525,47 @@ class SenseService : LifecycleService() {
         } else {
             startForeground(NOTIF_ID, buildNotification(text))
         }
+        shownNote = noteKey(text)
     }
 
-    private fun updateNotification(text: String) {
+    /**
+     * What the notification says, and deliberately dull.
+     *
+     * The narration used to go here, rebuilt on **every sample** -- and the
+     * call sat above the `trigger == null` return, so it fired even for the
+     * samples habituation had just decided were not worth sending. The one
+     * mechanism built to keep the phone quiet did not quiet this.
+     *
+     * A foreground notification exists to say "this is running, here is how to
+     * stop it". Streaming prose through it turns the shade into a feed, and a
+     * notification whose text changed is re-bannered with a sound on EMUI --
+     * on the one phone in this house that is the family emergency line and is
+     * meant to sit untouched for months. The narration is still in the percept
+     * stream, which is where someone asked for it.
+     *
+     * So this is built only from things that change when something actually
+     * changes: which senses are on, and the state of the link.
+     */
+    private fun statusText(): String {
+        val on = mutableListOf<String>()
+        if (prefs.vision) on += "vision"
+        if (prefs.hearing) on += "hearing"
+        if (prefs.speech) on += "speech"
+        if (prefs.ble) on += "ble"
+        if (prefs.wifi) on += "wifi"
+        if (prefs.cell) on += "cell"
+        if (prefs.location) on += "gps"
+        return if (on.isEmpty()) "no senses on" else on.joinToString(" \u00b7 ")
+    }
+
+    /** Title and body together: re-post only when this differs. */
+    private fun noteKey(text: String) = "${link.state.name}|$text"
+
+    private fun updateNotification() {
+        val text = statusText()
+        val key = noteKey(text)
+        if (key == shownNote) return
+        shownNote = key
         getSystemService(NotificationManager::class.java)
             .notify(NOTIF_ID, buildNotification(text))
     }
