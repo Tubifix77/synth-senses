@@ -422,6 +422,52 @@ Writing this table is what caught the first instance: `motion` was specified
 here as a five-value enum ending in `unclear`, and `PROTOCOL.md` listed an
 `unknown` that `classifyMotion` cannot return. Four values, and now tested.
 
+### Running it, in order
+
+The cell is provisioned as of **2026-10-21**: Potluck package 105 is live on
+all three boards, with `phone` pinned to A, the eleven values exactly as
+`--manifest` printed them, `stale_ms` 300000 and `writers ["Synth Senses"]`.
+The desk has confirmed it read-only — a Phone desktop held by A, all eleven
+reading `NO_DATA`, which is the correct state for an inbox nothing has
+written to yet. That is `--manifest` validated end to end, by a third party,
+before a single percept existed.
+
+The steps have to happen in this order, and the first is not optional:
+
+1. **Install the current Potluck package** (`packaging\install.ps1` in that
+   repo). The previously installed hub never read `act/phone/*` and answers
+   every write `404`, *even though the inbox exists*. Fixed in Potluck
+   `7cda8c9`. **Until this step, a 404 is expected and is not this bridge's
+   fault** — it will say so in the hub's own words rather than claiming the
+   inbox is missing.
+2. **Pair, with someone at the keyboard.** This puts a request on the hub for
+   the owner to approve; it cannot be done unattended, by design.
+
+   ```bash
+   python3 tools/potluck_bridge.py --hub https://<hub>:8443 --pair
+   ```
+
+   It records the certificate fingerprint alongside the token, and every
+   authenticated request afterwards checks it. Keep `.potluck-token.json`:
+   re-pairing under a name already taken becomes `Synth Senses 2` while the
+   cluster file still says `Synth Senses`, and then every write is refused by
+   a program that looks perfectly paired.
+3. **Run it against live percepts.**
+
+   ```bash
+   python3 tools/receiver.py | python3 tools/potluck_bridge.py --hub https://<hub>:8443
+   ```
+
+   Values fill in as they are written. Anything the phone cannot sense stays
+   `NO_DATA`, which is the point rather than a defect.
+
+**Do step 3 on a quiet morning before doing it on the evening that matters.**
+This bridge has been exercised almost entirely in `--dry-run`, and every bug
+in it that counted was invisible in that mode: a drain loop that stalled on
+silence, a certificate pin that was never checked, a pairing that could not
+pair, an `f32` that went out as an integer. The next one will be invisible
+there too.
+
 They live at `potluck://lab/act/phone/<name>`, written by a **PC-side bridge**
 reading `receiver.py`'s stdout — not by the phone, which would need TLS, cert
 pinning and pairing implemented in Kotlin for no gain. The bridge pairs as
