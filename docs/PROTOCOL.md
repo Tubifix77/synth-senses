@@ -129,6 +129,7 @@ substantially older than the frame.
     "level_db": -38.2,
     "peak_db": -14.9,
     "events": [{"name": "Speech", "conf": 0.79}, {"name": "Typing", "conf": 0.41}],
+    "classifier": "ok",
     "transcript": "are you still recording"
   },
 
@@ -221,6 +222,7 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `body.pressure_delta_per_min` | hPa/min. Catches lifts, stairs, doors in sealed rooms. |
 | `self.current_ma` | negative while discharging |
 | `self.thermal` | `NONE` \| `LIGHT` \| `MODERATE` \| `SEVERE` \| `CRITICAL` \| `EMERGENCY` \| `SHUTDOWN` \| `UNKNOWN` |
+| `hearing.classifier` | `ok` \| `absent` \| `failed` \| `null` — why `events` is empty, when it is. `ok` means it ran and heard nothing above threshold, so the silence is real; `absent` means no model is loaded; `failed` means it threw. `null` only on percepts from before this field existed. |
 | `self.thermal_headroom` | 0 fine → 1 about to throttle. `null` below Android 11, or if polled under 10 s apart. |
 | `tempo.solar_elevation_deg` | `null` without a location fix |
 | `narration` | deterministic prose built on-device. Safe to feed straight to an LLM. |

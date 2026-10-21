@@ -56,6 +56,10 @@ class AudioSensor(private val context: Context) {
     var modelSource: String? = null
         private set
 
+    /** The last classification failure, for `status`. logcat is not reachable. */
+    var lastClassifyError: String? = null
+        private set
+
     /**
      * The model, from the APK if it is there and from a file if it is not.
      *
@@ -244,7 +248,9 @@ class AudioSensor(private val context: Context) {
         val levelDb = dbfs(rms)
         val peakDb = dbfs(peak)
 
-        val events = ensureClassifier()?.let { c ->
+        val cls = ensureClassifier()
+        var state = if (cls == null) "absent" else "ok"
+        val events = cls?.let { c ->
             runCatching {
                 val fmt = AudioData.AudioDataFormat.builder()
                     .setNumOfChannels(1)
@@ -263,7 +269,15 @@ class AudioSensor(private val context: Context) {
                     ?.take(4)
                     ?: emptyList()
             }.getOrElse {
-                Log.w(TAG, "classification failed", it); emptyList()
+                // Recorded as well as logged. This failure was invisible from
+                // the percept stream for an entire evening: the mic reported
+                // healthy levels, the model had loaded, and events simply
+                // stopped arriving with the reason going only to logcat --
+                // which this project has no adb to read.
+                Log.w(TAG, "classification failed", it)
+                state = "failed"
+                lastClassifyError = "${it.javaClass.simpleName}: ${it.message}"
+                emptyList()
             }
         } ?: emptyList()
 
@@ -271,7 +285,8 @@ class AudioSensor(private val context: Context) {
             levelDb = levelDb,
             peakDb = peakDb,
             events = events,
-            transcript = null // filled in later by SpeechSensor if it fires
+            transcript = null, // filled in later by SpeechSensor if it fires
+            classifier = state
         )
     }
 

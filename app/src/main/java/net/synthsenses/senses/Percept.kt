@@ -26,7 +26,18 @@ data class Hearing(
     val levelDb: Float,
     val peakDb: Float,
     val events: List<Scored>,
-    val transcript: String?
+    val transcript: String?,
+    /**
+     * Why `events` is empty, when it is: `"ok"` means the classifier ran and
+     * genuinely heard nothing above threshold, `"absent"` means there is no
+     * model, `"failed"` means it threw.
+     *
+     * An empty list used to mean all three, and the difference was logged
+     * only to logcat. A consumer mapping empty events to "quiet" was
+     * therefore publishing a confident lie whenever the model was missing --
+     * the same mistake as reporting zero for a radio that never scanned.
+     */
+    val classifier: String? = null
 )
 
 // ---- radio: the sense of place ----
@@ -225,6 +236,7 @@ data class Percept(
                 put("level_db", r2(h.levelDb))
                 put("peak_db", r2(h.peakDb))
                 put("events", scoredArray(h.events))
+                put("classifier", h.classifier ?: JSONObject.NULL)
                 put("transcript", h.transcript ?: JSONObject.NULL)
             }
         } ?: JSONObject.NULL)

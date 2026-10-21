@@ -202,7 +202,10 @@ class PerceptTest {
             keysOf(o.getJSONObject("vision").getJSONArray("objects").getJSONObject(0))
         )
         assertEquals(
-            setOf("level_db", "peak_db", "events", "transcript"),
+            // `classifier` was added as a nullable field, which by the rule in
+            // CLAUDE.md needs no schema bump -- but this set is the pinning,
+            // so it changes deliberately and in one place.
+            setOf("level_db", "peak_db", "events", "classifier", "transcript"),
             keysOf(o.getJSONObject("hearing"))
         )
         assertEquals(

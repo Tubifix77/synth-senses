@@ -318,6 +318,25 @@ check("ears that heard nothing report quiet, which is a real reading",
       pb.sound_class(percept(hearing={"events": []})) == pb.SOUND.index("quiet"))
 check("but no ears at all report nothing",
       pb.sound_class(percept(hearing=None)) is None)
+
+# The three kinds of nothing. An empty event list used to mean all of them,
+# and the bridge mapped all of them to `quiet` -- a confident lie whenever
+# there was no model, which is the state every CI-built APK ships in.
+check("classifier ok with no events really is quiet",
+      pb.sound_class(percept(hearing={"events": [], "classifier": "ok"}))
+      == pb.SOUND.index("quiet"))
+check("classifier absent publishes nothing, not quiet",
+      pb.sound_class(percept(hearing={"events": [], "classifier": "absent"}))
+      is None)
+check("a classifier that threw publishes nothing either",
+      pb.sound_class(percept(hearing={"events": [], "classifier": "failed"}))
+      is None)
+check("and a percept from before the field existed gets the benefit of the doubt",
+      pb.sound_class(percept(hearing={"events": []})) == pb.SOUND.index("quiet"))
+check("a failed classifier that somehow still named a sound is not published",
+      "sound" not in pb.values_from(
+          percept(hearing={"events": [{"name": "Speech", "conf": 0.9}],
+                           "classifier": "failed"})))
 check("the loudest event wins, not the first",
       pb.sound_class(percept(hearing={"events": [
           {"name": "Typing", "conf": 0.3},

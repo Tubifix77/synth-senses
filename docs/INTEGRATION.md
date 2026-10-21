@@ -130,6 +130,14 @@ Full field-by-field definitions are in [PROTOCOL.md](PROTOCOL.md). The shape:
   phone learned by itself. Ids like `p3` are local to that device, meaningless
   across devices, and not stable if someone issues `forget`. A place only has
   a `place_name` if something named it.
+- **An empty `hearing.events` is three different things, and `classifier`
+  says which.** `"ok"` means it ran and heard nothing above threshold, so the
+  silence is a real reading. `"absent"` means no sound model is loaded —
+  which is the state every CI-built APK ships in, since the model is 4 MB and
+  not in the repo. `"failed"` means it threw. **Do not map an empty list to
+  "quiet" without checking**, or you publish a confident silence for a phone
+  that cannot hear at all. `null` appears only on percepts predating the
+  field.
 - **`heading_deg` is not where the camera is looking.** It is the azimuth of
   the phone's **top edge** — its +Y axis, projected onto the horizontal. The
   back camera looks out along **−Z**, which is orthogonal to that, so the two

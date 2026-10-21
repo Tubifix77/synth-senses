@@ -142,6 +142,16 @@ def sound_class(percept):
     hearing = percept.get("hearing")
     if not isinstance(hearing, dict):
         return None
+    # "ok" means the classifier ran and genuinely heard nothing above
+    # threshold, so an empty list really does mean quiet. "absent" means
+    # there is no model and "failed" means it threw -- in both of those an
+    # empty list means we cannot hear classes at all, and publishing `quiet`
+    # would be the same confident lie as a radio that never scanned
+    # reporting zero devices. A percept from before this field existed says
+    # nothing, and is given the benefit of the doubt.
+    state = hearing.get("classifier")
+    if state is not None and state != "ok":
+        return None
     events = hearing.get("events")
     if not isinstance(events, list) or not events:
         return SOUND.index("quiet")

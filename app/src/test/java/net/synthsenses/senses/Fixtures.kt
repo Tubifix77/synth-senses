@@ -21,8 +21,9 @@ internal object Fixtures {
         levelDb: Float = -40f,
         peakDb: Float = -30f,
         events: List<Scored> = listOf(Scored("Speech", 0.8f)),
-        transcript: String? = null
-    ) = Hearing(levelDb, peakDb, events, transcript)
+        transcript: String? = null,
+        classifier: String? = "ok"
+    ) = Hearing(levelDb, peakDb, events, transcript, classifier)
 
     fun radio(
         bleCount: Int = 5,
