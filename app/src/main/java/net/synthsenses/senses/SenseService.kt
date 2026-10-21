@@ -403,6 +403,7 @@ class SenseService : LifecycleService() {
                         put("ocr", prefs.ocr)
                         put("hearing", prefs.hearing)
                         put("sound_model", audio.modelAvailable)
+                        put("sound_model_from", audio.modelSource ?: JSONObject.NULL)
                         put("speech", prefs.speech)
                         put("ble", prefs.ble)
                         put("wifi", prefs.wifi)

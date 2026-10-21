@@ -13,6 +13,9 @@ import com.google.mediapipe.tasks.components.containers.AudioData
 import com.google.mediapipe.tasks.core.BaseOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -49,11 +52,61 @@ class AudioSensor(private val context: Context) {
     var modelAvailable: Boolean = false
         private set
 
+    /** Where the model came from: "asset", "file", or null if there is none. */
+    var modelSource: String? = null
+        private set
+
+    /**
+     * The model, from the APK if it is there and from a file if it is not.
+     *
+     * `yamnet.tflite` is 4 MB and gitignored, so **CI can never put it in
+     * assets** — which made every APK this project has ever built permanently
+     * deaf, with no way to fix it short of a local Android toolchain that this
+     * machine does not have. Confirmed against tasks-core 1.0.0's own bytecode
+     * rather than assumed: `BaseOptions` exposes `setModelAssetPath`,
+     * `setModelAssetBuffer` and `setModelAssetFileDescriptor`.
+     *
+     * So: the asset first, for a build that shipped with one, then a file
+     * dropped into the app's own external files directory, which needs no
+     * permission and no rebuild. `adb push`, a USB cable or any file manager
+     * will do it; the control panel shows which source was used.
+     */
+    private fun baseOptions(): BaseOptions? {
+        val asset = runCatching {
+            context.assets.open(MODEL_ASSET).close()
+            BaseOptions.builder().setModelAssetPath(MODEL_ASSET).build()
+        }.getOrNull()
+        if (asset != null) {
+            modelSource = "asset"
+            return asset
+        }
+
+        val file = File(context.getExternalFilesDir(null), MODEL_ASSET)
+        if (!file.isFile) {
+            Log.i(TAG, "no $MODEL_ASSET in assets and none at ${file.absolutePath}")
+            return null
+        }
+        return runCatching {
+            // MediaPipe wants a direct buffer in native order; a heap buffer
+            // is rejected at the JNI boundary rather than at build time.
+            val bytes = file.readBytes()
+            val buf = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder())
+            buf.put(bytes)
+            buf.rewind()
+            BaseOptions.builder().setModelAssetBuffer(buf).build()
+        }.onSuccess {
+            modelSource = "file"
+            Log.i(TAG, "sound model loaded from ${file.absolutePath}")
+        }.onFailure {
+            Log.w(TAG, "could not read $MODEL_ASSET from ${file.absolutePath}", it)
+        }.getOrNull()
+    }
+
     private fun ensureClassifier(): AudioClassifier? {
         if (classifierTried) return classifier
         classifierTried = true
-        classifier = runCatching {
-            val base = BaseOptions.builder().setModelAssetPath(MODEL_ASSET).build()
+        val base = baseOptions()
+        classifier = if (base == null) null else runCatching {
             val opts = AudioClassifier.AudioClassifierOptions.builder()
                 .setBaseOptions(base)
                 .setRunningMode(RunningMode.AUDIO_CLIPS)
@@ -65,6 +118,7 @@ class AudioSensor(private val context: Context) {
             Log.i(TAG, "no sound classifier (${it.message}) — running loudness-only")
         }.getOrNull()
         modelAvailable = classifier != null
+        if (!modelAvailable) modelSource = null
         return classifier
     }
 
