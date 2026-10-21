@@ -398,6 +398,18 @@ than silently relabel a dial — but it means **telling them before a change
 lands, not after**. Renaming a value, reordering a list or adding a word to
 one are all breaking for them; adding a whole new value at the end is not.
 
+**Removing one is worse than breaking a label.** The desk's view declares all
+eleven and matches only an inbox that has them all, so the phone's desktop
+appears or does not appear as a unit — drop a value and the whole thing
+vanishes rather than one dial going blank. The same coupling means Potluck's
+Apply has to use the **eleven**-value `--manifest`, not an earlier printout.
+So: append freely, rename with notice, and treat removing as a change that
+needs both projects in the room.
+
+They draw a value never written as a NO DATA chip with no number, distinct
+from a zero. That is what keeps `ble_count` and `thermal` honest on the two
+phones where each is genuinely absent.
+
 Where a number stands for a label, it is the index into the matching list in
 [`Vocabulary.kt`](../app/src/main/java/net/synthsenses/senses/Vocabulary.kt).
 That order is now a wire contract that no percept ever shows: insert a state in

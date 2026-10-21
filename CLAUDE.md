@@ -253,7 +253,9 @@ These are load-bearing. Breaking them is a behaviour change, not a refactor.
   its labels against it, so a rename here breaks a build over there. That is
   the point — better a red build than a silently relabelled dial — but say so
   before it lands. Renaming, reordering or inserting a word is breaking;
-  appending a whole new value is not.
+  appending a whole new value is not. **Removing one is worse than either**:
+  their view matches only an inbox carrying the whole set, so the phone's
+  desktop disappears entirely rather than losing a dial.
 - **The lists in `Vocabulary.kt` are append-only.** A consumer that cannot
   carry strings carries the index instead, which makes their order part of the
   wire format even though no percept ever shows it. Inserting a value silently
