@@ -136,6 +136,21 @@ place, battery, battery temperature and thermal state.
 python3 tools/receiver.py | python3 tools/potluck_bridge.py --dry-run
 ```
 
+**On Windows, prefer `--follow` over a pipe.** PowerShell did not stream
+between two native commands here: the bridge sat silent for two hours beside a
+working receiver, with the cell still showing an earlier one-shot write. The
+receiver already appends every percept to `percepts.jsonl`, so tailing that
+carries the same stream with no pipe at all — and it decouples the two, so
+restarting the receiver no longer takes the bridge down with it.
+
+```bash
+python tools/potluck_bridge.py --hub https://10.0.0.5:8443 --follow percepts.jsonl
+```
+
+It starts at the end of the file, because Potluck holds a current value rather
+than a series; `--from-start` replays the whole log if you actually want that.
+
+
 A Potluck inbox value is at most **eight bytes**, a bool or a number, so
 labels, transcripts and the narration have no representation there and stay on
 this side. Ordinals carry the labels instead, which makes the order of the

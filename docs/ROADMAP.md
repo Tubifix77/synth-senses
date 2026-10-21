@@ -595,6 +595,28 @@ phone does not have: a value that is simply never written says "absent" rather
 than "zero", which is this project's first invariant expressed in someone
 else's type system.
 
+**It ran, on 2026-10-21.** All eleven values reached the cell from a real
+phone, and the desk rendered them: `Sound: Speech`, `Motion: Still`,
+`Posture: Face up`, `Learned place: 1`, `Battery temp: 38.8 C`,
+`Thermal: Normal` — ordinals crossing an eight-byte boundary and coming back
+as the right words, which is what the pinned vocabularies and the published
+`--vocabulary` contract were for.
+
+Two things were observed for the first time rather than tested with a fake
+clock. Values sat at 107–113 s of age and stayed `GOOD`, so the refresh at
+half of `stale_ms` is holding. And the sparklines showed loudness moving
+−63 to −26 dBFS over two minutes while `ble_count` moved 7 to 9 — the first
+check on epsilons that were picked by reasoning about what a home looks like.
+The 1.5 dB epsilon is not flattening a 37 dB spread, and the ±2 on a BLE count
+is absorbing exactly the dither it was chosen for.
+
+Getting there needed one unplanned fix: **a PowerShell pipeline between two
+native commands did not stream.** `receiver | bridge` left the bridge silent
+for two hours beside a working receiver, with the cell still showing a
+one-shot test write from earlier. `--follow` tails the percept log instead,
+which carries the same stream with no pipe, and decouples the two so
+restarting the receiver no longer takes the bridge with it.
+
 **The bridge exists.** [`tools/potluck_bridge.py`](../tools/potluck_bridge.py),
 stdlib only like the rest of the tooling:
 

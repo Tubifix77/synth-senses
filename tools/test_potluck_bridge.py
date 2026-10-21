@@ -19,10 +19,12 @@ Three things here are worth more than the rest:
 Run: python3 tools/test_potluck_bridge.py
 """
 import io
+import itertools
 import json
 import os
 import re
 import subprocess
+import tempfile
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -464,6 +466,47 @@ drive([json.dumps({"type": "ack", "cmd": "look", "ok": True}),
        json.dumps(percept())], hub)
 check("a reply on the stream is ignored, a percept is not",
       len(hub.writes) == len(pb.VALUES), f"{len(hub.writes)} writes")
+
+print("\nfollowing a log instead of a pipe")
+# A PowerShell pipeline between two native commands did not stream: the bridge
+# sat silent for two hours beside a working receiver, with the desk still
+# showing a one-shot test write from earlier. The receiver already appends
+# every percept to its log, so tailing that carries the same stream without a
+# pipe -- and it decouples the two, so restarting the receiver no longer takes
+# the bridge down with it.
+_log = os.path.join(tempfile.mkdtemp(), "follow.jsonl")
+with io.open(_log, "w", encoding="utf-8") as f:
+    for i in range(3):
+        f.write(json.dumps(percept(seq=i)) + "\n")
+
+_lines = list(itertools.islice(pb.tail(_log, from_start=True, poll_s=0), 3))
+check("following from the start yields what is already there",
+      len(_lines) == 3, str(len(_lines)))
+check("and each line is a whole percept",
+      all(json.loads(l).get("schema") == 2 for l in _lines))
+
+# From the end, the existing lines are skipped. History is not replayed,
+# because Potluck holds a current value and its age, not a series.
+_gen = pb.tail(_log, from_start=False, poll_s=0)
+with io.open(_log, "a", encoding="utf-8") as f:
+    f.write(json.dumps(percept(seq=99)) + "\n")
+_fresh = next(_gen)
+check("following from the end skips history and yields only what is new",
+      json.loads(_fresh).get("seq") == 99, _fresh[:60])
+
+# A line written in two pieces, which is what a reader can see mid-append.
+_part = os.path.join(tempfile.mkdtemp(), "partial.jsonl")
+io.open(_part, "w", encoding="utf-8").write("")
+_gen2 = pb.tail(_part, from_start=True, poll_s=0)
+_whole = json.dumps(percept(seq=7))
+with io.open(_part, "a", encoding="utf-8") as f:
+    f.write(_whole[:20])
+    f.flush()
+with io.open(_part, "a", encoding="utf-8") as f:
+    f.write(_whole[20:] + "\n")
+    f.flush()
+check("a half-written line is not yielded until its newline arrives",
+      json.loads(next(_gen2)).get("seq") == 7)
 
 print("\nrubbish on the stream")
 hub = Hub()

@@ -32,6 +32,7 @@ now and never history -- are enforced here rather than hoped for.
 """
 import argparse
 import hashlib
+import io
 import json
 import os
 import socket
@@ -725,6 +726,46 @@ def _drain(pending, budget, send, patient=False, sleep=time.sleep,
                 return
 
 
+def tail(path, from_start=False, poll_s=0.5):
+    """Yield lines from a growing file, forever.
+
+    The receiver already appends every percept to its log, so tailing that is
+    the same stream a pipe would carry -- without a pipe. PowerShell does not
+    reliably stream between two native commands, which is how this bridge sat
+    silent for two hours beside a working receiver, and a file also decouples
+    the two: the receiver can be restarted without taking the bridge with it.
+
+    Opens in UTF-8 because a narration or transcript can hold anything, and on
+    Windows the default is cp1252.
+    """
+    # Opened and positioned here rather than inside the generator body, so
+    # "from the end" means the end as of this call. A generator defers its
+    # body until the first next(), which would leave anything written in
+    # between either missed or replayed depending on timing -- and timing is
+    # exactly what a tail cannot control.
+    handle = io.open(path, "r", encoding="utf-8", errors="replace")
+    if not from_start:
+        handle.seek(0, os.SEEK_END)
+
+    def lines():
+        with handle as f:
+            buffered = ""
+            while True:
+                chunk = f.readline()
+                if not chunk:
+                    time.sleep(poll_s)
+                    continue
+                buffered += chunk
+                # A reader can catch a line mid-append, so hold a partial one
+                # until its newline arrives rather than handing out half a
+                # percept for json.loads to choke on.
+                if buffered.endswith(chr(10)):
+                    whole, buffered = buffered, ""
+                    yield whole
+
+    return lines()
+
+
 def main():
     utf8_streams()
     ap = argparse.ArgumentParser(
@@ -742,6 +783,17 @@ def main():
                          "of it (default 300000, about 2.5x the heartbeat)")
     ap.add_argument("--rate", type=float, default=1.2,
                     help="writes per second, under Potluck's ceiling of 2")
+    ap.add_argument("--follow", metavar="FILE",
+                    help="tail a percept log instead of reading stdin, e.g. "
+                         "percepts.jsonl. Avoids a shell pipe entirely, which "
+                         "PowerShell does not reliably stream between two "
+                         "native commands, and survives the receiver being "
+                         "restarted.")
+    ap.add_argument("--from-start", action="store_true",
+                    help="with --follow, read the file from the beginning "
+                         "rather than from its end. Replays history, so it is "
+                         "off by default: Potluck holds a current value, not a "
+                         "series.")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the writes instead of sending them")
     ap.add_argument("--insecure", action="store_true",
@@ -876,7 +928,13 @@ def main():
         return ok, hold, note
 
     try:
-        run(sys.stdin, pending, budget, send)
+        if args.follow:
+            say(f"following {args.follow}"
+                + ("" if args.from_start else " from the end"))
+            run(tail(args.follow, from_start=args.from_start),
+                pending, budget, send)
+        else:
+            run(sys.stdin, pending, budget, send)
     except KeyboardInterrupt:
         pass
     say(f"\n{counts['written']} written, {counts['refused']} refused")
