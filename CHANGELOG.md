@@ -134,6 +134,13 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Fixed
 
+- **Location is sensed rather than borrowed, and says how old it is.** The
+  app never requested a fix: it read `getLastKnownLocation`, whatever another
+  app had last asked for, and threw the timestamp away. The P20 published one
+  fix unchanged for 20.75 hours across 895 percepts, Potluck included. It now
+  requests updates from the network provider and GPS about once a minute while
+  `location` is on, and adds `gps.age_s` — a nullable field, so no schema
+  change. The gps block is documented in `PROTOCOL.md` for the first time.
 - **No compass bearing is published when the field is not Earth's.** The
   P20's resting spot by its charger sits in a 351 µT field — Earth's is 22–67
   anywhere on the surface — so for 802 of its 901 samples `heading_deg` pointed

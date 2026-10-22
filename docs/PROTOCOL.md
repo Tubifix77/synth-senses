@@ -221,6 +221,10 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `body.posture` | `face_up` \| `face_down` \| `upright` \| `tilted` \| `pocket` \| `unknown` |
 | `body.magnetic_anomaly` | µT deviation from a slow baseline. Above ~15 means something metal or electrical is close. |
 | `body.pressure_delta_per_min` | hPa/min. Catches lifts, stairs, doors in sealed rooms. |
+| `gps` | null while `location` is off. When on, the phone asks for its own fixes about once a minute, from the network provider (Wi-Fi and cell, works indoors) and GPS. |
+| `gps.lat`, `gps.lon` | degrees, WGS 84. Read them with `acc_m`: indoors a fix is typically tens of metres wide, however many decimals it prints. |
+| `gps.acc_m` | 68% confidence radius in metres, as Android reports it. |
+| `gps.age_s` | seconds since the fix was taken. A still phone may keep one fix for a long time, and that is fine; a large age on a phone that has moved means a stale position. Null if unknown. |
 | `body.heading_deg` | compass bearing from the rotation vector. **Null when the magnetic field is outside 20–75 µT**, Earth's range anywhere on the surface: a field that far off means something local dominates, and the bearing points at it. `body.magnetic_ut` is still published and says why. |
 | `radio.ble_count` | devices heard in the scan window. **Null when the scan did not happen or cannot be trusted** — BLE off, permission denied, the platform refusing a scan started too soon after the last five, or, above Android 12, the screen off with nothing heard. Null is not zero: zero means it looked and the room was empty. |
 | `radio.ble_named` | named devices from the same scan, strongest first, at most 8. Null exactly when `ble_count` is. |

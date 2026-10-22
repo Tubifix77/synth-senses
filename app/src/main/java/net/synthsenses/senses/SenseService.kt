@@ -61,6 +61,7 @@ class SenseService : LifecycleService() {
     private lateinit var link: Link
     private lateinit var body: BodySensor
     private lateinit var selfSensor: SelfSensor
+    private lateinit var locationFeed: LocationFeed
     private lateinit var audio: AudioSensor
     private lateinit var speech: SpeechSensor
     private lateinit var habituation: Habituation
@@ -85,6 +86,7 @@ class SenseService : LifecycleService() {
         spool = Spool(this)
         body = BodySensor(this)
         selfSensor = SelfSensor(this)
+        locationFeed = LocationFeed(this)
         audio = AudioSensor(this)
         // Make the drop folder exist, so there is somewhere visible to put
         // the sound model. Android/data is restricted on modern phones and
@@ -166,6 +168,7 @@ class SenseService : LifecycleService() {
         loop?.cancel()
         loop = null
         body.stop()
+        locationFeed.stop()
         vision?.close(); vision = null
         radio = null
         audio.close()
@@ -207,7 +210,17 @@ class SenseService : LifecycleService() {
         val r = radio?.sample(prefs.ble, prefs.wifi, prefs.cell)
         val b = body.sample()
         val s = selfSensor.sample()
-        val gps = if (prefs.location) lastKnownPlace() else null
+        // Asked for while location is on and released while it is off, driven
+        // from here so that a tap in the panel, a remote `set`, and permission
+        // granted after the start all take effect without anything else having
+        // to notice.
+        val gps = if (prefs.location) {
+            locationFeed.start()
+            locationFeed.latest()
+        } else {
+            locationFeed.stop()
+            null
+        }
         val tempo = TempoSensor.sample(now, gps)
 
         val candidate = Percept(
@@ -511,20 +524,6 @@ class SenseService : LifecycleService() {
             put("detail", detail)
         })
     }
-
-    private fun lastKnownPlace(): Place? = runCatching {
-        val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
-        listOf(
-            android.location.LocationManager.NETWORK_PROVIDER,
-            android.location.LocationManager.GPS_PROVIDER
-        ).asSequence()
-            .mapNotNull { p ->
-                @Suppress("MissingPermission")
-                runCatching { lm.getLastKnownLocation(p) }.getOrNull()
-            }
-            .maxByOrNull { it.time }
-            ?.let { Place(it.latitude, it.longitude, it.accuracy) }
-    }.getOrNull()
 
     // ---- notification ----
 

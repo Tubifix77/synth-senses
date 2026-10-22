@@ -112,7 +112,17 @@ data class Tempo(
     val dayLengthMin: Int?
 )
 
-data class Place(val lat: Double, val lon: Double, val accM: Float)
+data class Place(
+    val lat: Double,
+    val lon: Double,
+    val accM: Float,
+    /**
+     * Seconds since the fix was taken. Null where nothing says. One fix was
+     * once republished unchanged for 20.75 hours with nothing on the wire to
+     * show it; see LocationFeed.
+     */
+    val ageS: Long? = null
+)
 
 data class Attention(
     val salience: Float,
@@ -328,6 +338,7 @@ data class Percept(
         put("gps", gps?.let {
             JSONObject().apply {
                 put("lat", it.lat); put("lon", it.lon); put("acc_m", r2(it.accM))
+                put("age_s", it.ageS ?: JSONObject.NULL)
             }
         } ?: JSONObject.NULL)
 

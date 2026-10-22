@@ -85,7 +85,7 @@ internal object Fixtures {
         body: Body = body(),
         self: SelfState = self(),
         tempo: Tempo = tempo(),
-        gps: Place? = Place(55.68, 12.57, 12f),
+        gps: Place? = Place(55.68, 12.57, 12f, 30L),
         attention: Attention? = Attention(0.7f, listOf("v:Room"), 12, false, null),
         trigger: String = "salient"
     ) = Percept(

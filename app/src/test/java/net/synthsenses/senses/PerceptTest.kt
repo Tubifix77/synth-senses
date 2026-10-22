@@ -169,6 +169,18 @@ class PerceptTest {
     }
 
     @Test
+    fun `a fix says how old it is`() {
+        // The P20 published one borrowed fix, unchanged, for 20.75 hours, with
+        // nothing on the wire to say so.
+        val aged = Fixtures.full(gps = Place(56.09, 10.12, 28f, 74_700L))
+            .toJson().getJSONObject("gps")
+        assertEquals(74_700L, aged.getLong("age_s"))
+        val unknown = Fixtures.full(gps = Place(56.09, 10.12, 28f))
+            .toJson().getJSONObject("gps")
+        assertTrue("an unknown age is null, not zero", unknown.isNull("age_s"))
+    }
+
+    @Test
     fun `a BLE scan that could not look is null on the wire, not zero`() {
         // Android pauses unfiltered BLE scans while the screen is off, and
         // refuses a sixth scan start inside thirty seconds. Both reached the
@@ -259,7 +271,7 @@ class PerceptTest {
             keysOf(o.getJSONObject("tempo"))
         )
         assertEquals(
-            setOf("lat", "lon", "acc_m"),
+            setOf("lat", "lon", "acc_m", "age_s"),
             keysOf(o.getJSONObject("gps"))
         )
     }

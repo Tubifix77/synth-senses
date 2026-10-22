@@ -621,6 +621,24 @@ transcribe speech ofcourse it says handled"* — and is only now supportable
 from eight hours of a phone on a table. **The retraction was correct when it
 was made.** Being right later does not make contaminated evidence good.
 
+#### One fix, replayed for twenty hours
+
+Every one of the P20's 895 percepts carrying a position, from 22:06 one evening
+to 18:51 the next, held **the same fix** — identical latitude, longitude and
+accuracy, **20.75 hours** unchanged. A live fix indoors moves by metres between
+readings; this one never moved at all.
+
+The app never asked for a location. It read `getLastKnownLocation`, which is
+whatever another app last requested, and discarded the fix's timestamp. On a
+phone nobody uses, nothing else asks, so the one fix obtained while the phone
+was being set up was republished as current all night and all day — to Potluck
+as well. It was only still right because the phone had not been moved.
+
+Location is now requested while `location` is on, from the network provider
+and GPS about once a minute, and every published fix carries `gps.age_s`. The
+gps block had also never been documented in `PROTOCOL.md` — its sample percept
+had `"gps": null` — and now is.
+
 #### Seven times Earth's field, and a precise compass bearing
 
 `body.magnetic_ut` on the P20 overnight was **347–352 µT**. Earth's field is
