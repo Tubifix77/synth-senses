@@ -322,25 +322,55 @@ class SenseService : LifecycleService() {
             }
 
             Commands.SET -> {
+                // What actually happened, rather than what was asked for. The
+                // reply used to be an unconditional "settings applied", so
+                // `set {"nonsense": true}` was acknowledged as a success
+                // having done nothing at all -- and `location` and `voice`
+                // were not handled here, so switching the GPS on over the link
+                // was accepted and silently discarded.
+                val applied = mutableListOf<String>()
+                val ignored = mutableListOf<String>()
+
+                fun took(name: String, value: Any?) {
+                    applied += "$name=$value"
+                }
+
                 cmd.args.keys().forEach { key ->
                     when (key) {
-                        "interval_ms" -> prefs.intervalMs =
-                            cmd.long("interval_ms", prefs.intervalMs).coerceIn(1_000, 600_000)
+                        "interval_ms" -> {
+                            prefs.intervalMs = cmd.long("interval_ms", prefs.intervalMs)
+                                .coerceIn(1_000, 600_000)
+                            took(key, prefs.intervalMs)
+                        }
 
-                        "heartbeat_ms" -> prefs.heartbeatMs =
-                            cmd.long("heartbeat_ms", prefs.heartbeatMs).coerceIn(5_000, 3_600_000)
+                        "heartbeat_ms" -> {
+                            prefs.heartbeatMs = cmd.long("heartbeat_ms", prefs.heartbeatMs)
+                                .coerceIn(5_000, 3_600_000)
+                            took(key, prefs.heartbeatMs)
+                        }
 
-                        "threshold" -> prefs.threshold =
-                            cmd.float("threshold", prefs.threshold).coerceIn(0f, 1f)
+                        "threshold" -> {
+                            prefs.threshold = cmd.float("threshold", prefs.threshold)
+                                .coerceIn(0f, 1f)
+                            took(key, prefs.threshold)
+                        }
 
-                        "vision" -> prefs.vision = cmd.bool("vision", prefs.vision)
-                        "hearing" -> prefs.hearing = cmd.bool("hearing", prefs.hearing)
-                        "speech" -> prefs.speech = cmd.bool("speech", prefs.speech)
-                        "ocr" -> prefs.ocr = cmd.bool("ocr", prefs.ocr)
-                        "ble" -> prefs.ble = cmd.bool("ble", prefs.ble)
-                        "wifi" -> prefs.wifi = cmd.bool("wifi", prefs.wifi)
-                        "cell" -> prefs.cell = cmd.bool("cell", prefs.cell)
-                        "lens" -> cmd.str("lens")?.let { prefs.lens = it }
+                        "vision" -> { prefs.vision = cmd.bool(key, prefs.vision); took(key, prefs.vision) }
+                        "hearing" -> { prefs.hearing = cmd.bool(key, prefs.hearing); took(key, prefs.hearing) }
+                        "speech" -> { prefs.speech = cmd.bool(key, prefs.speech); took(key, prefs.speech) }
+                        "ocr" -> { prefs.ocr = cmd.bool(key, prefs.ocr); took(key, prefs.ocr) }
+                        "ble" -> { prefs.ble = cmd.bool(key, prefs.ble); took(key, prefs.ble) }
+                        "wifi" -> { prefs.wifi = cmd.bool(key, prefs.wifi); took(key, prefs.wifi) }
+                        "cell" -> { prefs.cell = cmd.bool(key, prefs.cell); took(key, prefs.cell) }
+                        "location" -> { prefs.location = cmd.bool(key, prefs.location); took(key, prefs.location) }
+                        "voice" -> { prefs.voice = cmd.bool(key, prefs.voice); took(key, prefs.voice) }
+
+                        "lens" -> {
+                            val v = cmd.str("lens")
+                            if (v != null) { prefs.lens = v; took(key, v) } else ignored += key
+                        }
+
+                        else -> ignored += key
                     }
                 }
                 // senses may have been switched on or off underneath us
@@ -349,7 +379,27 @@ class SenseService : LifecycleService() {
                 if ((prefs.ble || prefs.wifi || prefs.cell) && radio == null) {
                     radio = RadioSensor(this)
                 }
-                ack(cmd, true, "settings applied")
+                if (applied.isNotEmpty()) {
+                    // Tell the panel to re-read. Without this its switches keep
+                    // drawing the snapshot taken when the screen opened, so a
+                    // phone whose microphone had been switched on from off-device
+                    // could still show it off. A control that can misreport a
+                    // privacy-relevant state is not a control.
+                    Live.update { it.copy(settingsRevision = it.settingsRevision + 1) }
+                }
+                ack(
+                    cmd,
+                    ignored.isEmpty(),
+                    buildString {
+                        append(
+                            if (applied.isEmpty()) "nothing applied"
+                            else "applied " + applied.joinToString(", ")
+                        )
+                        if (ignored.isNotEmpty()) {
+                            append("; not a setting: " + ignored.joinToString(", "))
+                        }
+                    }
+                )
             }
 
             Commands.PLACES -> link.sendReply(

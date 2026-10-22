@@ -324,8 +324,26 @@ runtime; the service constructs or releases the relevant sensor.
 | `interval_ms` | 1 000 – 600 000 |
 | `heartbeat_ms` | 5 000 – 3 600 000 |
 | `threshold` | 0.0 – 1.0 |
-| `vision`, `hearing`, `speech`, `ocr`, `ble`, `wifi`, `cell` | boolean |
+| `vision`, `hearing`, `speech`, `ocr`, `ble`, `wifi`, `cell`, `location`, `voice` | boolean |
 | `lens` | `"front"` \| `"back"` |
+
+**The reply names what was applied**, key by key, and lists anything it did not
+recognise — `ok` is false when any key was unrecognised:
+
+```json
+{"type": "ack", "cmd": "set", "ok": true, "detail": "applied speech=false, wifi=true"}
+{"type": "ack", "cmd": "set", "ok": false, "detail": "nothing applied; not a setting: nonsense"}
+```
+
+Two things that used to be silently wrong here, because both are the kind of
+thing a consumer would never discover: `location` and `voice` were **not
+handled at all**, so switching the GPS on over the link was accepted and
+discarded; and the reply was an unconditional `"settings applied"`, so a call
+containing nothing but a typo reported success.
+
+A `set` that changes anything also makes the on-device control panel re-read
+its switches. The panel keeps a snapshot, so without that a phone whose
+microphone had been switched on from off-device went on showing it off.
 
 ### `places`
 

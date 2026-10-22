@@ -132,6 +132,22 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **The control panel can no longer misreport what the phone is doing.** Every
+  sense switch was `remember { mutableStateOf(prefs.X) }` — read once when the
+  screen composed and never again — while only the link status was reactive. A
+  sense changed over the link was obeyed by the service and invisible to the
+  panel, which kept drawing the value it had captured. Observed: speech
+  switched off remotely, the beeping stopped, and the toggle still read ON.
+  That direction is benign; the other is not, since the panel is the only
+  on-device way to see whether the microphone is in use. The service now
+  announces a remote change and the panel re-reads. Only remote writes count,
+  so dragging a slider is not re-initialised under the finger.
+- **`set` says what it actually did.** The reply was an unconditional
+  `"settings applied"`, so a call containing nothing but a typo was
+  acknowledged as a success — and `location` and `voice` had no branch at all,
+  so switching the GPS on over the link was accepted and discarded. The reply
+  now names each key applied, lists anything unrecognised, and reports `ok:
+  false` when a key was not a setting.
 - **`still` is decided per device instead of by a constant that fitted one
   phone.** A Huawei P20 Lite resting untouched on a charger reports
   `accel_rms` 0.17–0.18; a Xiaomi 14T Pro idles at 0.04–0.05. The threshold

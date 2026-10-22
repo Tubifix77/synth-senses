@@ -106,7 +106,18 @@ object Live {
         val places: Int = 0,
         val placeId: String? = null,
         val placeName: String? = null,
-        val novel: List<String> = emptyList()
+        val novel: List<String> = emptyList(),
+        /**
+         * Bumped whenever the service changes a setting on someone else's
+         * behalf — a `set` arriving over the link. The control panel keeps a
+         * snapshot of the switches, so without this it goes on drawing the
+         * value it captured when the screen opened.
+         *
+         * Only *remote* changes bump it, deliberately. Keying the panel off
+         * every preference write would re-initialise a slider under the user's
+         * finger mid-drag.
+         */
+        val settingsRevision: Int = 0
     )
 
     val status = MutableStateFlow(Status())

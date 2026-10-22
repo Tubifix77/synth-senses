@@ -117,19 +117,22 @@ private fun ControlPanel(
     var finding by remember { mutableStateOf(false) }
     var findNote by remember { mutableStateOf("") }
     var token by remember { mutableStateOf(prefs.token) }
-    var interval by remember { mutableFloatStateOf(prefs.intervalMs / 1000f) }
-    var heartbeat by remember { mutableFloatStateOf(prefs.heartbeatMs / 1000f) }
-    var threshold by remember { mutableFloatStateOf(prefs.threshold) }
-    var vision by remember { mutableStateOf(prefs.vision) }
-    var ocr by remember { mutableStateOf(prefs.ocr) }
-    var hearing by remember { mutableStateOf(prefs.hearing) }
-    var speech by remember { mutableStateOf(prefs.speech) }
-    var ble by remember { mutableStateOf(prefs.ble) }
-    var wifi by remember { mutableStateOf(prefs.wifi) }
-    var cell by remember { mutableStateOf(prefs.cell) }
-    var location by remember { mutableStateOf(prefs.location) }
-    var voice by remember { mutableStateOf(prefs.voice) }
-    var lens by remember { mutableStateOf(prefs.lens) }
+    // Keyed on the revision so a `set` arriving over the link is reflected
+    // here. It only changes for remote writes, so dragging a slider does not
+    // re-initialise it under the finger.
+    var interval by remember(s.settingsRevision) { mutableFloatStateOf(prefs.intervalMs / 1000f) }
+    var heartbeat by remember(s.settingsRevision) { mutableFloatStateOf(prefs.heartbeatMs / 1000f) }
+    var threshold by remember(s.settingsRevision) { mutableFloatStateOf(prefs.threshold) }
+    var vision by remember(s.settingsRevision) { mutableStateOf(prefs.vision) }
+    var ocr by remember(s.settingsRevision) { mutableStateOf(prefs.ocr) }
+    var hearing by remember(s.settingsRevision) { mutableStateOf(prefs.hearing) }
+    var speech by remember(s.settingsRevision) { mutableStateOf(prefs.speech) }
+    var ble by remember(s.settingsRevision) { mutableStateOf(prefs.ble) }
+    var wifi by remember(s.settingsRevision) { mutableStateOf(prefs.wifi) }
+    var cell by remember(s.settingsRevision) { mutableStateOf(prefs.cell) }
+    var location by remember(s.settingsRevision) { mutableStateOf(prefs.location) }
+    var voice by remember(s.settingsRevision) { mutableStateOf(prefs.voice) }
+    var lens by remember(s.settingsRevision) { mutableStateOf(prefs.lens) }
 
     // What Start would actually dial, or "" if the field is not an address
     // yet. Showing it is the point: the gap between what was typed and what
