@@ -132,6 +132,15 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **`current_ma` is no longer 1000x wrong on Huawei.** Android documents
+  `BATTERY_PROPERTY_CURRENT_NOW` as microamps and the code divided by 1000
+  accordingly; Huawei reports milliamps. Across a night on a wall charger the
+  P20 published a range of −0.64 to +1.01 mA — a phone drawing half a
+  milliamp while charging, which is impossible and looks entirely reasonable.
+  The real figures were about −640 and +1010 mA. `CurrentScale` now works the
+  unit out from the readings themselves, since the two scales are a hundredfold
+  apart for any real phone, and reports **null** until it knows rather than
+  publishing a number that might be out by three orders of magnitude.
 - **The control panel can no longer misreport what the phone is doing.** Every
   sense switch was `remember { mutableStateOf(prefs.X) }` — read once when the
   screen composed and never again — while only the link status was reactive. A

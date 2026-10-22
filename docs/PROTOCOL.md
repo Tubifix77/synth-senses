@@ -220,7 +220,7 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `body.posture` | `face_up` \| `face_down` \| `upright` \| `tilted` \| `pocket` \| `unknown` |
 | `body.magnetic_anomaly` | µT deviation from a slow baseline. Above ~15 means something metal or electrical is close. |
 | `body.pressure_delta_per_min` | hPa/min. Catches lifts, stairs, doors in sealed rooms. |
-| `self.current_ma` | negative while discharging |
+| `self.current_ma` | negative while discharging. **Null until the phone's unit is established** — Android documents the underlying property as microamps and some vendors report milliamps, so the reading is withheld rather than published 1000x wrong. `status` reports `current_unit` once it is known. |
 | `self.thermal` | `NONE` \| `LIGHT` \| `MODERATE` \| `SEVERE` \| `CRITICAL` \| `EMERGENCY` \| `SHUTDOWN` \| `UNKNOWN` |
 | `hearing.classifier` | `ok` \| `absent` \| `failed` \| `null` — why `events` is empty, when it is. `ok` means it ran and heard nothing above threshold, so the silence is real; `absent` means no model is loaded; `failed` means it threw. `null` only on percepts from before this field existed. |
 | `self.thermal_headroom` | 0 fine → 1 about to throttle. `null` below Android 11, or if polled under 10 s apart. |

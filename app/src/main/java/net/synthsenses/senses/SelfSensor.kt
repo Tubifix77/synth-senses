@@ -36,6 +36,12 @@ class SelfSensor(private val context: Context) {
     private val connectivity =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
+    /** Which unit this phone reports battery current in. See [CurrentScale]. */
+    private val currentScale = CurrentScale()
+
+    /** Exposed so `status` can say whether the unit has been established yet. */
+    val currentUnit: String? get() = currentScale.unit
+
     fun sample(): SelfState {
         val sticky: Intent? = runCatching {
             context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -51,11 +57,14 @@ class SelfSensor(private val context: Context) {
             ?.takeIf { it > 0 }
             ?.let { it / 1000f }          // reported in mV
 
+        // Not simply `/ 1000`. Android documents this as microamps and
+        // Huawei reports milliamps, which made the published figure 1000x wrong
+        // on the P20 -- and reasonable-looking, which is worse. CurrentScale
+        // works the unit out from the readings and reports null until it knows.
         val currentMa = runCatching {
-            batteryManager
-                .getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-                .takeIf { it != Int.MIN_VALUE && it != 0 }
-                ?.let { it / 1000f }      // µA -> mA; negative means discharging
+            currentScale.milliamps(
+                batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+            )
         }.getOrNull()
 
         val level = batteryManager
