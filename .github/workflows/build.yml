@@ -265,7 +265,7 @@ jobs:
           python-version: '3.12'
 
       - name: Syntax check
-        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py tools/digest.py tools/test_digest.py tools/test_docs.py tools/potluck_bridge.py tools/test_potluck_bridge.py tools/apk_facts.py
+        run: python3 -m py_compile tools/receiver.py tools/test_receiver_ws.py tools/transitive_sweep.py tools/digest.py tools/test_digest.py tools/test_docs.py tools/potluck_bridge.py tools/test_potluck_bridge.py tools/potluck_port.py tools/test_potluck_port.py tools/apk_facts.py
 
       # The WebSocket is the primary transport and was the one path nothing
       # exercised automatically. Speaks RFC 6455 at the receiver as a real
@@ -289,13 +289,19 @@ jobs:
       - name: Documentation matches the source
         run: python3 tools/test_docs.py
 
-      # The Potluck bridge turns percepts into ten numbers for another
+      # The Potluck bridge turns percepts into twelve numbers for another
       # project's cell. Its ordinals are that project's wire format, its
       # write budget is someone else's rate limit, and absence must stay
       # absence rather than becoming a confident zero -- none of which fails
       # loudly if it breaks.
       - name: Potluck bridge tests
         run: python3 tools/test_potluck_bridge.py
+
+      # The port serves those numbers to a companion's signed memory, where
+      # nothing can be taken back. What it must withhold -- location above
+      # all, and any reading it cannot date -- is the part worth testing.
+      - name: Potluck port tests
+        run: python3 tools/test_potluck_port.py
 
       - name: POST a percept and check it is accepted
         run: |

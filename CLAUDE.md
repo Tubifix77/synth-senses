@@ -223,11 +223,14 @@ tools/test_transitive_sweep.py  the sweep's version ordering and ceiling detecti
 tools/test_digest.py       the digest, and above all that redaction holds
 tools/test_docs.py         docs/INTEGRATION.md's facts against the source
 tools/apk_facts.py         reads a built APK's binary manifest; CI gates on it
-tools/potluck_bridge.py    percepts -> eleven numbers in a Potluck cell
+tools/potluck_bridge.py    percepts -> twelve numbers in a Potluck cell
 tools/test_potluck_bridge.py  its ordinals, budget, and that absence stays absent
+tools/potluck_port.py      those numbers, read back off Potluck, served on loopback
+                           to a companion in ai-consciousness. No location path.
+tools/test_potluck_port.py what it answers, what it withholds, 502 vs 503
 ```
 
-All five tool suites are stdlib-only and run in CI on every push, as does
+All six tool suites are stdlib-only and run in CI on every push, as does
 `apk_facts.py` against the APK that job just built. `python3
 tools/<name>.py` runs any of them locally, which is faster than a CI cycle and
 needs no toolchain.

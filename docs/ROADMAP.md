@@ -267,13 +267,22 @@ What that means here:
 - **This side's job is to keep its senses in Potluck honest and rich.** That is
   built: the bridge writes twelve values, paired and pinned, and the fixes of
   2026-10-22 are what make those values true.
-- **The port is not this repo's code.** It is what Potluck's `INTEGRATIONS.md`
-  calls a program on the hub's API — HTTP and JSON, its preferred kind because
-  it costs the boards nothing — reading `/api/model`, `/api/events` or
-  `/api/stream`. On the mind's side it lands naturally as a `Sensor` in
-  ai-consciousness's `templates/daemon-core.py`, whose `poll()` writes into
-  world state; that project's rule that the companion "reads the world, it
-  never changes it" fits a read-only port exactly.
+- **The port is `tools/potluck_port.py`, built 2026-10-22 with the
+  ai-consciousness session.** It is what Potluck's `INTEGRATIONS.md` calls a
+  program on the hub's API, its preferred kind. It reads `/api/model` with the
+  pairing the bridge already holds and serves five paths on loopback —
+  `/phone/body`, `hearing`, `place`, `self`, `attention` — each a JSON object
+  carrying `age_s`. It lives here rather than in Potluck because the
+  companion's contract is plain GET JSON, and this repo already has a pinned
+  hub client. On the mind's side it is one `phone` sensor in that project's
+  `templates/daemon-core.py`. **503** means nothing sensed on that path right
+  now, an honest absence. **502** means the hub is unreachable, which the
+  companion counts as blindness. That project's rule that the companion "reads
+  the world, it never changes it" is why the port refuses everything but GET.
+- **No location, by construction.** Coordinates in a signed memory are
+  permanent. So there is no location path and no flag to add one — that
+  project's rule is that a switched-off capability is still a built one.
+  `place`, an opaque room id, carries "which room am I in".
 - **One open question, and it is real.** Through Potluck the phone is twelve
   8-byte numbers. The richest parts of a percept — the narration, what the
   camera sees, transcripts, named devices — do not fit a value. A mind fed only

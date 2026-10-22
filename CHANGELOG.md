@@ -17,6 +17,13 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **`tools/potluck_port.py`: the phone's senses, read back off Potluck and
+  served to a companion.** Built with the ai-consciousness session to fit its
+  read-only sensor contract: five loopback GET paths, each a JSON object with
+  `age_s`, ordinals turned back into words, 32-bit float noise trimmed before
+  it can reach a signed memory. **503** is an honest absence; **502** is the
+  hub being unreachable, which the companion counts as blindness. There is no
+  location path at all, so coordinates cannot enter that memory.
 - **The phone can be steered from code.** Commands go into the receiver as
   JSON lines on stdin, the mirror of percepts leaving on stdout, so the
   sensing side is an ordinary bidirectional filter — no socket, no port, no
