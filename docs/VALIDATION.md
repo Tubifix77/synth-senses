@@ -449,6 +449,73 @@ Two things follow, and neither is a flaw in the maths:
   visit are permanent debris. A phone left in BLE-only mode for months would
   accumulate thousands, and nothing reclaims them or the id space.
 
+### Deciding `still` without a per-device constant
+
+The overnight run showed the problem; this is how it was fixed. Four candidate
+detectors were replayed against the recorded `accel_rms` series of both phones
+before any Kotlin was written, the way the place metric was prototyped.
+
+Ground truth was chosen to be defensible rather than plentiful. **Still**: the
+299 P20 samples from 23:02 to 07:27, on a charger, `face_up` throughout, with
+nobody awake. **Moving**: any sample above `accel_rms` 0.6 on either phone,
+which needs no hand labelling because a phone on a table does not reach it.
+
+| detector | called still while untouched | correctly not-still while moving |
+|---|---|---|
+| `accel < 0.08` (what shipped) | **4.3%** | 100% |
+| minimum-floor tracker | 3.3% | 100% |
+| **median-floor × 1.4 + 0.02** | **100%** | 100% |
+| recent-spread stability | 59.9% | 100% |
+
+Three things that table settled:
+
+- **The shipping constant fails on one of the two target devices**, at 4.3%.
+- **The minimum is the wrong statistic.** It is the obvious way to track a
+  noise floor and it is worse than doing nothing: the P20 dips to 0.01 now and
+  then while its typical resting value is 0.17, so a minimum-tracker latches
+  onto the outlier and calls the resting state `handled` permanently.
+- **A stability test looked right and was not.** Since the resting band is
+  extremely tight — 220 of 305 samples in just the two buckets 0.17 and 0.18 —
+  judging by the spread of recent readings seemed the obviously
+  device-independent answer. It scored 60%, because habituation makes the
+  samples irregularly spaced and a fixed-length window spans a variable amount
+  of time. It was proposed confidently and measured anyway.
+
+Parameters are not finely tuned: window lengths of 60, 120 and 240 score
+identically, and the cap does not bind on either device. The learned ceiling
+settles at **0.224 on the P20 and 0.104 on the Xiaomi** — adapting by the
+ratio their resting levels differ by.
+
+**Rotation is still judged absolutely, deliberately.** A gyroscope measures
+rotation rather than the noise of a spring, so it reads near zero at rest on
+every device: across the 299 untouched P20 samples `gyro_rms` had median, 90th
+percentile and maximum **all equal to 0.010**, while the same phone in a hand
+reached 2.1. Adding `gyro < 0.04` to the median-floor lifted not-still
+detection on the ambiguous setup window from 25.4% to 44.8% with still-recall
+unchanged at 100%.
+
+That 44.8% looks poor and is not. Of the 74 setup-window samples the detector
+calls still, **zero** had `gyro_rms` at or above 0.04 — median 0.000, maximum
+0.030. The detector never once disagrees with the rotation sensor. The
+"handled" label on that window was wrong: the phone was on a desk for most of
+it while its owner read messages. The same contamination, in the same window,
+that had already produced one retracted finding.
+
+Two guards, both for failure modes the data cannot show:
+
+- **The ceiling never falls below the old 0.08.** A device quieter than the
+  old constant keeps the old behaviour, so the change can only widen `still`,
+  never narrow it. Nothing correctly still before becomes `handled` now.
+- **The learned floor is capped at 0.25.** A phone carried in a pocket all day
+  would otherwise raise its own median until walking read as resting.
+
+`MotionFloorTest` encodes both phones' measured bands. `classifyMotion` was
+pulled out as a pure function to make this testable at all — it was private
+inside a class needing a `SensorManager`, so the single most device-dependent
+decision in the app had never been unit-tested. The thresholds *above* `still`
+are untouched and still unmeasured; the test pins them so a later measurement
+is a deliberate change rather than a side effect.
+
 ### The first overnight run, 2026-10-21 23:02 to 07:27
 
 A Huawei P20 Lite (ANE-LX1, Android 9, EMUI), on a charger, untouched, six

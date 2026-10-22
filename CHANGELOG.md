@@ -132,6 +132,24 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **`still` is decided per device instead of by a constant that fitted one
+  phone.** A Huawei P20 Lite resting untouched on a charger reports
+  `accel_rms` 0.17–0.18; a Xiaomi 14T Pro idles at 0.04–0.05. The threshold
+  was an absolute 0.08, so the Huawei reported `handled` for 290 of 303
+  samples across a night in which nobody touched it — and `motion` is a
+  published value, so Potluck showed the phone being handled until morning.
+  `MotionFloor` now learns the resting floor from the median of recent
+  readings, capped so a phone that is never put down cannot learn that motion
+  is rest, and floored at the old 0.08 so the change can only widen `still`
+  and never narrow it. Rotation stays absolute, because a gyroscope reads near
+  zero at rest on every device. Measured against the recorded logs of both
+  phones: 100% on known-still samples where the old constant scored 4.3%, with
+  every known-moving sample still rejected.
+- **`classifyMotion` is unit-testable for the first time.** It was private
+  inside a class that needs a `SensorManager`, which is why the most
+  device-dependent decision in the app shipped unverified. It is now a pure
+  function in `MotionFloor.kt` with `MotionFloorTest` pinning both phones'
+  measured resting bands.
 - **The foreground notification is no longer rebuilt on every sample.** It
   was re-posted with the latest narration each cycle, and the call sat *above*
   the habituation return, so it fired even for samples that were never sent.

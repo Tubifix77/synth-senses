@@ -56,6 +56,7 @@ class BodySensor(private val context: Context) : SensorEventListener {
     private var pressureDelta: Float? = null
 
     // motion
+    private val motionFloor = MotionFloor()
     private val accelWindow = ArrayDeque<Float>()
     private val gyroWindow = ArrayDeque<Float>()
     private var gravity = FloatArray(3)
@@ -159,9 +160,19 @@ class BodySensor(private val context: Context) : SensorEventListener {
 
     override fun onAccuracyChanged(s: Sensor?, accuracy: Int) = Unit
 
+    /**
+     * What this phone currently counts as resting, and how many readings that
+     * is based on. Exposed so `status` can report it: a learned threshold that
+     * cannot be inspected from off-device is a threshold nobody can check, and
+     * this one exists precisely because an unverifiable constant was wrong.
+     */
+    val stillCeiling: Float get() = motionFloor.stillCeiling()
+    val stillCeilingSamples: Int get() = motionFloor.samples()
+
     fun sample(): Body {
         val accelRms = rms(accelWindow)
         val gyroRms = rms(gyroWindow)
+        motionFloor.observe(accelRms)
 
         val covered = proximityCm?.let { it < proximityMax * 0.5f }
         val posture = posture(covered)
@@ -178,7 +189,7 @@ class BodySensor(private val context: Context) : SensorEventListener {
         }
 
         return Body(
-            motion = classifyMotion(accelRms, gyroRms),
+            motion = classifyMotion(accelRms, gyroRms, motionFloor.stillCeiling()),
             posture = posture,
             accelRms = accelRms,
             gyroRms = gyroRms,
@@ -194,26 +205,10 @@ class BodySensor(private val context: Context) : SensorEventListener {
         )
     }
 
-    /**
-     * Thresholds are empirical and phone-dependent. Watch accel_rms and gyro_rms
-     * in the percept stream while you actually do each activity and retune — these
-     * came from reasoning about magnitudes, not from your phone in your pocket.
-     *
-     * Every value this returns is a member of `Vocabulary.MOTION`, and a new
-     * one has to be appended there before it can be returned here. Consumers
-     * that cannot carry strings send the index into that list instead.
-     */
-    private fun classifyMotion(accelRms: Float, gyroRms: Float): String = when {
-        accelRms < 0.08f && gyroRms < 0.04f -> Vocabulary.STILL
-        // rotation without much translation is a hand turning the phone over
-        gyroRms > 0.5f && accelRms < 0.9f -> Vocabulary.HANDLED
-        accelRms < 0.55f -> Vocabulary.HANDLED
-        accelRms < 3.0f -> Vocabulary.WALKING
-        // a vehicle is sustained acceleration with little rotation: a walk
-        // swings the phone, a car does not
-        gyroRms < 0.35f -> Vocabulary.VEHICLE
-        else -> Vocabulary.WALKING
-    }
+    // classifyMotion and the resting floor live in MotionFloor.kt, pure and
+    // unit-tested. The thresholds above `still` are still reasoned from
+    // magnitudes rather than measured; only the `still` boundary has been
+    // measured on hardware so far.
 
     /** Likewise, always a member of `Vocabulary.POSTURE`. */
     private fun posture(covered: Boolean?): String {

@@ -411,6 +411,8 @@ class SenseService : LifecycleService() {
                         put("sound_last_error",
                             audio.lastClassifyError ?: JSONObject.NULL)
                         put("speech_last_error", speech.lastError ?: JSONObject.NULL)
+                        put("still_ceiling", body.stillCeiling)
+                        put("still_ceiling_samples", body.stillCeilingSamples)
                         put("speech", prefs.speech)
                         put("ble", prefs.ble)
                         put("wifi", prefs.wifi)

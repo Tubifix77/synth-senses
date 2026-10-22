@@ -198,6 +198,7 @@ app/src/main/java/net/synthsenses/
     SenseService.kt        the loop; foreground service; command dispatch
     Percept.kt             wire schema + tokens() — the stimulus vocabulary
     Vocabulary.kt          closed label lists, in ordinal order  <- order is wire
+    MotionFloor.kt         learned resting floor + classifyMotion <- measured, tested
     Permissions.kt         which runtime permissions, per API    <- tested
     Narrator.kt            deterministic on-device prose
     Habituation.kt         attention model          <- validated, tested
@@ -437,11 +438,25 @@ constants.
 
 ## Still unmeasured
 
-Listed fully in `docs/VALIDATION.md`. The headline items: motion and posture
-thresholds in `BodySensor` are reasoned from magnitudes rather than measured,
-the magnetic baseline time constant is a guess, and the `ImageProxy` lifetime
-hack in `VisionSensor.onFrame` holds the proxy open for a fixed 1.5 s — the most
-suspect code in the repo.
+Listed fully in `docs/VALIDATION.md`. Two of the headline items have moved.
+
+**The `still` boundary is now measured**, and it is the one threshold that
+was. An overnight run showed a Huawei P20 Lite resting at `accel_rms`
+0.17–0.18 while a Xiaomi idles at 0.04–0.05, so the old absolute 0.08 called
+the Huawei `handled` for 290 of 303 untouched samples. `MotionFloor` learns
+the floor per device from the **median** of recent readings — not the minimum,
+which latches onto the P20's occasional 0.01 and scored 3.3% against the real
+logs where the median scored 100%. Rotation stays absolute on purpose: across
+299 untouched samples `gyro_rms` had median, p90 and max all equal to 0.010,
+so it needs no calibration.
+
+**The `ImageProxy` lifetime hack survived its first long run** — 304 of 304
+samples carried vision labels across 8.4 hours without stalling. Not proof it
+is correct, but it is no longer the leading suspect.
+
+Still genuinely unmeasured: the thresholds *above* `still` in
+`classifyMotion` (walking, vehicle, and the handled bands), posture, and the
+magnetic baseline time constant, which still needs logcat.
 
 Fixing those needs a physical device. It needs `adb logcat` less than it did:
 `tools/digest.py` now reads both halves of the motion evidence — `accel_rms`
