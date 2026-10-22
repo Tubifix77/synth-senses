@@ -221,6 +221,7 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `body.posture` | `face_up` \| `face_down` \| `upright` \| `tilted` \| `pocket` \| `unknown` |
 | `body.magnetic_anomaly` | µT deviation from a slow baseline. Above ~15 means something metal or electrical is close. |
 | `body.pressure_delta_per_min` | hPa/min. Catches lifts, stairs, doors in sealed rooms. |
+| `body.heading_deg` | compass bearing from the rotation vector. **Null when the magnetic field is outside 20–75 µT**, Earth's range anywhere on the surface: a field that far off means something local dominates, and the bearing points at it. `body.magnetic_ut` is still published and says why. |
 | `radio.ble_count` | devices heard in the scan window. **Null when the scan did not happen or cannot be trusted** — BLE off, permission denied, the platform refusing a scan started too soon after the last five, or, above Android 12, the screen off with nothing heard. Null is not zero: zero means it looked and the room was empty. |
 | `radio.ble_named` | named devices from the same scan, strongest first, at most 8. Null exactly when `ble_count` is. |
 | `self.charging` | connected to external power, whether or not current is flowing in at this moment. A phone holding its charge at 80% on a charger still reads `true`; the sign of `current_ma` says which way the current is going. |

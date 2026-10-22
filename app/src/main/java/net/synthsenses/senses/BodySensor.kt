@@ -193,7 +193,10 @@ class BodySensor(private val context: Context) : SensorEventListener {
             posture = posture,
             accelRms = accelRms,
             gyroRms = gyroRms,
-            headingDeg = heading,
+            // A heading derived in a field far outside Earth's points at
+            // whatever local magnet dominates, not at anything -- see
+            // compassUsable. Null rather than a precise-looking wrong bearing.
+            headingDeg = heading.takeIf { compassUsable(magneticUt) },
             steps = steps,
             stepsDelta = delta,
             lux = lux,
@@ -239,3 +242,23 @@ class BodySensor(private val context: Context) : SensorEventListener {
     private fun magnitude(v: FloatArray): Float =
         sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
 }
+
+/**
+ * Earth's field is 22-67 uT anywhere on its surface; 20-75 leaves room for an
+ * honest sensor's error. Outside that, something local dominates.
+ */
+internal const val EARTH_FIELD_MIN_UT = 20f
+internal const val EARTH_FIELD_MAX_UT = 75f
+
+/**
+ * Whether a heading taken now is a compass bearing at all.
+ *
+ * The P20 rests by its charger in a 351 uT field, about seven times Earth's, and
+ * for 802 of its 901 samples the rotation vector's yaw -- which comes from the
+ * magnetometer -- pointed at that local source. It was published as a precise
+ * bearing and narrated as "facing south-west" 579 times. This is a physical
+ * bound rather than a per-device constant, so it ports. With no magnetometer
+ * reading there is nothing to check against, and the heading is left alone.
+ */
+internal fun compassUsable(magneticUt: Float?): Boolean =
+    magneticUt == null || magneticUt in EARTH_FIELD_MIN_UT..EARTH_FIELD_MAX_UT

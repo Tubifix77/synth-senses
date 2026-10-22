@@ -134,6 +134,11 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Fixed
 
+- **No compass bearing is published when the field is not Earth's.** The
+  P20's resting spot by its charger sits in a 351 µT field — Earth's is 22–67
+  anywhere on the surface — so for 802 of its 901 samples `heading_deg` pointed
+  at a local magnet, and the narration said "facing south-west" 579 times. It
+  is now null outside 20–75 µT; `magnetic_ut` still says why.
 - **The phone no longer describes what it "sees" in the dark.** On a frame
   with brightness 0.00 the image labeller returned Sky, Monochrome and Space
   for all 749 such frames, and the narration repeated them — "I can see sky,

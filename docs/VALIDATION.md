@@ -621,6 +621,29 @@ transcribe speech ofcourse it says handled"* — and is only now supportable
 from eight hours of a phone on a table. **The retraction was correct when it
 was made.** Being right later does not make contaminated evidence good.
 
+#### Seven times Earth's field, and a precise compass bearing
+
+`body.magnetic_ut` on the P20 overnight was **347–352 µT**. Earth's field is
+22–67 µT anywhere on its surface. Across everything recorded:
+
+| | samples | median magnitude | outside 20–75 µT |
+|---|---|---|---|
+| Xiaomi | 323 | 48 µT | 1 |
+| P20 | 901 | **351 µT** | **802** |
+
+The sensor is not the problem: in the 99 P20 samples that *were* in Earth's
+range — in the user's hand, elsewhere in the house — it read a normal 43 µT.
+Its resting spot by the charger has a strong local magnetic source, a speaker
+or a mount, and it spends most of its life there.
+
+`heading_deg` comes from the rotation vector, which takes its yaw from the
+magnetometer. In a field that dominated by something local the bearing points
+at the magnet, and it was published as a precise number anyway: the narration
+said "facing south-west" 579 times, in a direction that meant nothing. It is
+now null when the field magnitude is outside 20–75 µT — a physical bound, not
+a device constant, which is why it can be fixed without a per-phone
+calibration. `magnetic_ut` stays on the wire and says why.
+
 #### On a black frame, the labeller still answers
 
 All night `vision.brightness` was 0.00 — the camera faced a dark ceiling — and
