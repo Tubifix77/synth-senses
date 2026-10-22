@@ -621,6 +621,23 @@ transcribe speech ofcourse it says handled"* — and is only now supportable
 from eight hours of a phone on a table. **The retraction was correct when it
 was made.** Being right later does not make contaminated evidence good.
 
+#### −44 dBm is the top of the scale, not a signal
+
+124 of the Xiaomi's 323 cell readings were **exactly −44 dBm**, on the same two
+cells that otherwise read −102 to −112. A phone lying still does not swing 60 dB
+— a millionfold in power — between samples. −44 is the ceiling of the LTE RSRP
+range, and that modem returns it when it has no measurement. The P20's modem
+never did: none of its 896 readings were −44, and every one sat in a
+consistent −97 to −109.
+
+So the fault is one vendor's modem, but the rule is not: a value pinned at the
+top of its reporting range carries no information beyond "at least this", and a
+phone indoors is never there. LTE and NR readings of −44 now publish null. The
+same code also passed Android's documented `UNAVAILABLE` sentinel straight
+through, which would have reached the wire as 2147483647 dBm; that is null
+too. GSM and WCDMA have different ranges and no observed placeholder, so
+nothing is assumed about them.
+
 #### One fix, replayed for twenty hours
 
 Every one of the P20's 895 percepts carrying a position, from 22:06 one evening

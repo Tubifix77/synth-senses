@@ -221,6 +221,7 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `body.posture` | `face_up` \| `face_down` \| `upright` \| `tilted` \| `pocket` \| `unknown` |
 | `body.magnetic_anomaly` | µT deviation from a slow baseline. Above ~15 means something metal or electrical is close. |
 | `body.pressure_delta_per_min` | hPa/min. Catches lifts, stairs, doors in sealed rooms. |
+| `radio.cell.dbm` | signal strength of the registered cell. **Null when the modem gave no measurement**: Android's `UNAVAILABLE` sentinel, or, for LTE and NR, exactly −44 dBm — the top of the RSRP range, which at least one modem returns as a placeholder. |
 | `gps` | null while `location` is off. When on, the phone asks for its own fixes about once a minute, from the network provider (Wi-Fi and cell, works indoors) and GPS. |
 | `gps.lat`, `gps.lon` | degrees, WGS 84. Read them with `acc_m`: indoors a fix is typically tens of metres wide, however many decimals it prints. |
 | `gps.acc_m` | 68% confidence radius in metres, as Android reports it. |

@@ -134,6 +134,12 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Fixed
 
+- **A cell signal of −44 dBm is no longer published as a reading.** 124 of
+  the Xiaomi's 323 readings were exactly −44 — the top of the LTE RSRP range —
+  on cells that otherwise read −102 to −112; it is that modem's placeholder for
+  "no measurement". LTE and NR at −44 now publish null, and so does Android's
+  `UNAVAILABLE` sentinel, which had no filter and would have gone out as
+  2147483647 dBm.
 - **Location is sensed rather than borrowed, and says how old it is.** The
   app never requested a fix: it read `getLastKnownLocation`, whatever another
   app had last asked for, and threw the timestamp away. The P20 published one

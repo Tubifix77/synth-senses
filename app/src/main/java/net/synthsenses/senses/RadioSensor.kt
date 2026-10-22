@@ -264,7 +264,7 @@ class RadioSensor(private val context: Context) {
                 return@runCatching Cell(
                     "nr",
                     (best.cellIdentity as? CellIdentityNr)?.nci?.toString(),
-                    best.cellSignalStrength.dbm
+                    cellDbm("nr", best.cellSignalStrength.dbm)
                 )
             }
 
@@ -272,19 +272,19 @@ class RadioSensor(private val context: Context) {
                 is CellInfoLte -> Cell(
                     "lte",
                     (best.cellIdentity as? CellIdentityLte)?.ci?.toString(),
-                    best.cellSignalStrength.dbm
+                    cellDbm("lte", best.cellSignalStrength.dbm)
                 )
 
                 is CellInfoWcdma -> Cell(
                     "wcdma",
                     (best.cellIdentity as? CellIdentityWcdma)?.cid?.toString(),
-                    best.cellSignalStrength.dbm
+                    cellDbm("wcdma", best.cellSignalStrength.dbm)
                 )
 
                 is CellInfoGsm -> Cell(
                     "gsm",
                     (best.cellIdentity as? CellIdentityGsm)?.cid?.toString(),
-                    best.cellSignalStrength.dbm
+                    cellDbm("gsm", best.cellSignalStrength.dbm)
                 )
 
                 else -> Cell("other", null, null)
@@ -315,4 +315,20 @@ internal fun shortHash(s: String): String {
         h *= 0x100000001b3uL
     }
     return h.toString(16).padStart(16, '0').take(10)
+}
+
+/**
+ * A cell signal in dBm, or null where the modem gave no measurement.
+ *
+ * Two things are not readings. Android's `CellInfo.UNAVAILABLE`, which is
+ * `Int.MAX_VALUE` and used to pass straight through. And, for LTE and NR,
+ * exactly -44 dBm: the top of the RSRP range, which a Xiaomi 14T Pro returned
+ * for 124 of 323 readings on cells that otherwise read -102 to -112 -- its
+ * placeholder for "nothing measured". GSM and WCDMA have other ranges and no
+ * observed placeholder, so only the sentinel is removed for them.
+ */
+internal fun cellDbm(kind: String, raw: Int): Int? = when {
+    raw == Int.MAX_VALUE -> null
+    (kind == "lte" || kind == "nr") && raw >= -44 -> null
+    else -> raw
 }
