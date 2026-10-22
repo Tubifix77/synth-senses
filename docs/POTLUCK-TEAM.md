@@ -141,6 +141,39 @@ property of the platform they both sit inside.**
 
 ---
 
+## Who deploys what
+
+Settled by Tue, 2026-10-22.
+
+| Target | Owner | Independent of the others? |
+|---|---|---|
+| Board firmware | `potluck` | yes — `potluck apply`, via the cluster file |
+| The mobile app | `synth-senses` | yes — a debug APK from CI, served over the LAN and installed by hand |
+| PC software | `potluck-desk` | yes |
+
+**First to finish deploys**, to get tests moving. Deliberately *not* a
+release-style combined deployment: the three artifacts share no version and no
+install step, so coupling them would make a board test wait on unrelated phone
+work. What needs coordinating is contract changes, not deployments, and rule 2
+below is cheaper than a release train.
+
+### The deploy capability must not live in a session
+
+"First to finish deploys" assumes the owner is *available*. PS-1 is currently
+blocked because it is not: every board deploy so far has gone through the
+`potluck` session, and that session is on hiatus, so a test that needs nothing
+from Potluck's code still cannot start.
+
+That is the same shape this project has hit before — a dependency that is
+itself a single point of failure. The durable fix is for the board deploy to be
+a **documented command anyone can run**, Tue included, rather than a thing a
+particular session knows how to do. `passive-sensor` reports it as `potluck
+apply` against the cluster file; if that is the whole of it, writing it down
+where Tue can reach it removes the blocker permanently rather than once.
+
+Until then, PS-1 needs either the `potluck` session woken for a single deploy,
+or Tue running the apply himself.
+
 ## The working rules
 
 Proposed by Tue, agreed by `synth-senses` and `passive-sensor`:
