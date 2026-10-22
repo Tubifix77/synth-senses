@@ -98,6 +98,11 @@ SOUND = ["quiet", "speech", "music", "people", "machine", "other"]
 # whole label first, then as a substring, so "Conversation" and "Child speech,
 # kid speaking" both reach `speech` without listing every variant.
 SOUND_MAP = (
+    # The classifier's own "Silence" class matched nothing below and went out
+    # as `other` -- 7 of 60 samples on an evening with the TV on, so a mind
+    # reading this cell was told an unidentified sound was there exactly when
+    # the classifier had said there was none.
+    ("quiet", ("silence",)),
     ("speech", ("speech", "conversation", "narration", "whispering", "shout",
                 "singing", "speech synthesizer")),
     ("music", ("music", "musical instrument", "guitar", "piano", "drum",

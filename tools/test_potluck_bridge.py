@@ -319,6 +319,9 @@ for label, want in (("Speech", "speech"), ("Conversation", "speech"),
                     ("Laughter", "people"), ("Footsteps", "people"),
                     ("Vehicle", "machine"), ("Typing", "machine"),
                     ("Smoke detector, smoke alarm", "machine"),
+                    # Went out as `other` until the companion asked why a
+                    # quiet moment read as an unidentified sound.
+                    ("Silence", "quiet"),
                     ("Rustling leaves", "other")):
     got = pb.sound_class(percept(hearing={"events": [{"name": label,
                                                       "conf": 0.8}]}))
