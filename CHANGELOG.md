@@ -10,8 +10,10 @@ the app version whenever the shape changes in a way that breaks receivers.
 ## [Unreleased]
 
 The app changes here, so the APK is no longer the 0.3.0 one. **`minSdk` drops
-to 28** and the wire format is untouched: `schema` stays at 2 and a v0.2
-receiver parses these percepts unchanged.
+to 28**, and **the percept schema goes to 3**: `radio.ble_count` and
+`radio.ble_named` can now be null, meaning the phone could not look. A v2
+receiver that tolerates a null there parses these percepts unchanged; one that
+assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
@@ -132,6 +134,18 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **BLE was blind whenever the screen was off, and reported that as an empty
+  room.** Since Android 8.1 an unfiltered BLE scan returns nothing with the
+  screen off, and the scanner passed no filter. With the screen off the P20
+  heard BLE in 3 of 784 samples and the Xiaomi in 6 of 115, against 72% and
+  77% with it on — and a phone left to run untouched is screen-off nearly all
+  the time. Every one of those blind samples went out as `ble_count: 0`,
+  including to Potluck. The scan now passes one empty `ScanFilter`, which
+  Android 9 through 14 treat as filtered (read from AOSP's `ScanManager` for
+  each release; 15 closed it). Separately, Android refuses a sixth scan start
+  inside 30 s, roughly one sample in six at the 5 s default, and that refusal
+  was also published as zero. Both are now `null`, as is BLE switched off or
+  denied — hence schema 3.
 - **`charging` means plugged in, as documented.** It came from
   `BatteryManager.isCharging`, which follows vendor battery protection: the P20
   holds itself at 81–82% on a charger in a regular ~88-minute top-up cycle, and

@@ -8,7 +8,8 @@ import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.roundToInt
 
-const val SCHEMA_VERSION = 2
+// 3: radio.ble_count and radio.ble_named may be null -- "could not look".
+const val SCHEMA_VERSION = 3
 
 data class Scored(val name: String, val conf: Float)
 
@@ -47,8 +48,9 @@ data class Beacon(val id: String, val name: String?, val rssi: Int)
 data class Cell(val kind: String, val id: String?, val dbm: Int?)
 
 data class Radio(
-    val bleCount: Int,
-    val bleNamed: List<Beacon>,
+    /** Null when the scan did not happen or cannot be trusted -- not zero. */
+    val bleCount: Int?,
+    val bleNamed: List<Beacon>?,
     val bleStrongestRssi: Int?,
     val wifiCount: Int,
     val wifiConnected: String?,
@@ -160,8 +162,8 @@ data class Percept(
 
         radio?.let { r ->
             r.placeId?.let { t += "p:$it" }
-            t += "bc:${bucketCount(r.bleCount)}"
-            r.bleNamed.forEach { t += "bn:${it.name ?: it.id}" }
+            r.bleCount?.let { t += "bc:${bucketCount(it)}" }
+            r.bleNamed?.forEach { t += "bn:${it.name ?: it.id}" }
             r.wifiConnected?.let { t += "ap:$it" }
         }
 
@@ -243,16 +245,18 @@ data class Percept(
 
         put("radio", radio?.let { r ->
             JSONObject().apply {
-                put("ble_count", r.bleCount)
-                put("ble_named", JSONArray().apply {
-                    r.bleNamed.forEach { b ->
-                        put(JSONObject().apply {
-                            put("id", b.id)
-                            put("name", b.name ?: JSONObject.NULL)
-                            put("rssi", b.rssi)
-                        })
+                put("ble_count", r.bleCount ?: JSONObject.NULL)
+                put("ble_named", r.bleNamed?.let { named ->
+                    JSONArray().apply {
+                        named.forEach { b ->
+                            put(JSONObject().apply {
+                                put("id", b.id)
+                                put("name", b.name ?: JSONObject.NULL)
+                                put("rssi", b.rssi)
+                            })
+                        }
                     }
-                })
+                } ?: JSONObject.NULL)
                 put("ble_strongest_rssi", r.bleStrongestRssi ?: JSONObject.NULL)
                 put("wifi_count", r.wifiCount)
                 put("wifi_connected", r.wifiConnected ?: JSONObject.NULL)

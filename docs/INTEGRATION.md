@@ -26,7 +26,7 @@ staring at an unchanging room sends almost nothing, by design.
 | | |
 |---|---|
 | receiving percepts | **works, tested in CI** |
-| the percept schema | **stable at version 2**, tested against the code |
+| the percept schema | **stable at version 3**, tested against the code |
 | sending commands back | JSON lines in on the receiver's stdin. See below. |
 | curated "reports" rather than raw percepts | **does not exist yet** |
 
@@ -86,7 +86,7 @@ Full field-by-field definitions are in [PROTOCOL.md](PROTOCOL.md). The shape:
 
 ```json
 {
-  "schema": 2,
+  "schema": 3,
   "device_id": "a3f9c1e07b2d",
   "seq": 412,
   "ts": "2026-09-19T18:04:11.230Z",
@@ -169,8 +169,11 @@ Full field-by-field definitions are in [PROTOCOL.md](PROTOCOL.md). The shape:
   reconnection a backlog is flushed, so arrival order can lag `ts` order.
   Sort by `ts` if order matters.
 - **Multiple phones can connect at once.** Always key on `device_id`.
-- **`schema` is 2.** Adding a nullable field will not bump it; removing or
-  renaming one will. Ignore unknown fields rather than failing.
+- **`schema` is 3.** Adding a nullable field will not bump it; removing or
+  renaming one will, and so did making an existing field nullable — 3 is the
+  version where `radio.ble_count` and `radio.ble_named` became nullable, and
+  null there means the phone could not look, not that the room is empty.
+  Ignore unknown fields rather than failing.
 
 ## Volume
 

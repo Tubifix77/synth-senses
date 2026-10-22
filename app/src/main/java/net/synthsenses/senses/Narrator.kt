@@ -40,16 +40,19 @@ object Narrator {
             else -> return null
         }
 
+        // A null count is "could not look", so say nothing rather than claim
+        // the room is empty.
+        val n = r.bleCount ?: 0
         val crowd = when {
-            r.bleCount == 0 -> null
-            r.bleCount <= 2 -> "almost nothing else is broadcasting nearby"
-            r.bleCount <= 8 -> "a handful of devices are nearby"
-            r.bleCount <= 20 -> "many devices are nearby"
+            n == 0 -> null
+            n <= 2 -> "almost nothing else is broadcasting nearby"
+            n <= 8 -> "a handful of devices are nearby"
+            n <= 20 -> "many devices are nearby"
             else -> "this is a crowded radio environment"
         }
         crowd?.let { sb.append(" ${it.replaceFirstChar { c -> c.uppercase() }}.") }
 
-        val known = r.bleNamed.mapNotNull { it.name }.distinct().take(3)
+        val known = r.bleNamed.orEmpty().mapNotNull { it.name }.distinct().take(3)
         if (known.isNotEmpty()) {
             sb.append(" I can see ${known.joinToString(", ")}.")
         }

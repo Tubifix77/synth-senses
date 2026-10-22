@@ -1,6 +1,6 @@
 # Protocol
 
-Everything on the wire, in one place. Current percept schema: **2**.
+Everything on the wire, in one place. Current percept schema: **3** — v3 made `radio.ble_count` and `radio.ble_named` nullable, meaning "could not look".
 
 - [Transport](#transport)
 - [Discovery](#discovery)
@@ -79,7 +79,7 @@ Sent immediately on connect, so your box knows what it's talking to.
 ```json
 {
   "type": "hello",
-  "schema": 2,
+  "schema": 3,
   "commands": ["sample","look","read","listen","speak","attend",
                "set","places","name_place","forget","status"]
 }
@@ -103,7 +103,7 @@ substantially older than the frame.
 
 ```json
 {
-  "schema": 2,
+  "schema": 3,
   "device_id": "a3f9c1e07b2d",
   "seq": 412,
   "ts": "2026-09-18T14:03:11.220Z",
@@ -220,6 +220,8 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `body.posture` | `face_up` \| `face_down` \| `upright` \| `tilted` \| `pocket` \| `unknown` |
 | `body.magnetic_anomaly` | µT deviation from a slow baseline. Above ~15 means something metal or electrical is close. |
 | `body.pressure_delta_per_min` | hPa/min. Catches lifts, stairs, doors in sealed rooms. |
+| `radio.ble_count` | devices heard in the scan window. **Null when the scan did not happen or cannot be trusted** — BLE off, permission denied, the platform refusing a scan started too soon after the last five, or, above Android 12, the screen off with nothing heard. Null is not zero: zero means it looked and the room was empty. |
+| `radio.ble_named` | named devices from the same scan, strongest first, at most 8. Null exactly when `ble_count` is. |
 | `self.charging` | connected to external power, whether or not current is flowing in at this moment. A phone holding its charge at 80% on a charger still reads `true`; the sign of `current_ma` says which way the current is going. |
 | `self.current_ma` | negative while discharging. **Null until the phone's unit is established** — Android documents the underlying property as microamps and some vendors report milliamps, so the reading is withheld rather than published 1000x wrong. `status` reports `current_unit` once it is known. |
 | `self.thermal` | `NONE` \| `LIGHT` \| `MODERATE` \| `SEVERE` \| `CRITICAL` \| `EMERGENCY` \| `SHUTDOWN` \| `UNKNOWN` |
@@ -421,7 +423,7 @@ unreliably.
 ```json
 {
   "type": "status",
-  "device_id": "a3f9c1e07b2d", "schema": 2, "seq": 412,
+  "device_id": "a3f9c1e07b2d", "schema": 3, "seq": 412,
   "device": {"model": "23078PND5G", "manufacturer": "Xiaomi",
              "android": "14", "sdk_int": 34},
   "sensors": {

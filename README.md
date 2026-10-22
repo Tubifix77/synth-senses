@@ -9,7 +9,7 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-Android%2010%2B-3DDC84">
   <img alt="language" src="https://img.shields.io/badge/kotlin-2.4-7F52FF">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
-  <img alt="schema" src="https://img.shields.io/badge/percept%20schema-v2-orange">
+  <img alt="schema" src="https://img.shields.io/badge/percept%20schema-v3-orange">
   <img alt="status" src="https://img.shields.io/badge/status-builds%20%C2%B7%20untested%20on%20hardware-yellow">
 </p>
 

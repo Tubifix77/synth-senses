@@ -160,11 +160,29 @@ class PerceptTest {
     }
 
     @Test
-    fun `the schema version is 2 and changing it is a breaking change`() {
+    fun `the schema version is 3 and changing it is a breaking change`() {
         // If this fails, docs/PROTOCOL.md and CHANGELOG.md need updating too --
-        // that is the whole point of the assertion.
-        assertEquals(2, SCHEMA_VERSION)
-        assertEquals(2, JSONObject(Fixtures.full().toJson().toString()).getInt("schema"))
+        // that is the whole point of the assertion. 3 made radio.ble_count and
+        // radio.ble_named nullable.
+        assertEquals(3, SCHEMA_VERSION)
+        assertEquals(3, JSONObject(Fixtures.full().toJson().toString()).getInt("schema"))
+    }
+
+    @Test
+    fun `a BLE scan that could not look is null on the wire, not zero`() {
+        // Android pauses unfiltered BLE scans while the screen is off, and
+        // refuses a sixth scan start inside thirty seconds. Both reached the
+        // wire as ble_count 0 -- "nobody here" -- when the truth was "could
+        // not look". With the screen off the P20 reported BLE in 3 of 784
+        // samples and the Xiaomi in 6 of 115.
+        val p = Fixtures.full(radio = Fixtures.radio(bleCount = null, bleNamed = null))
+        val r = p.toJson().getJSONObject("radio")
+        assertTrue("ble_count must be null, not 0", r.isNull("ble_count"))
+        assertTrue("ble_named must be null, not []", r.isNull("ble_named"))
+        assertTrue(
+            "no crowd token for a count nobody took",
+            p.tokens().none { it.startsWith("bc:") }
+        )
     }
 
     @Test

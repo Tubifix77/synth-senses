@@ -5,12 +5,14 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.PowerManager
 import android.telephony.CellIdentityGsm
 import android.telephony.CellIdentityLte
 import android.telephony.CellIdentityNr
@@ -26,6 +28,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The radio sense. Two very different channels:
@@ -48,6 +51,21 @@ import kotlinx.coroutines.withContext
  *  - startScan() is throttled to 4 calls per 2 minutes. We respect that and read
  *    the cached results in between, which is free.
  *  - Cell info also needs ACCESS_FINE_LOCATION.
+ *  - **An unfiltered BLE scan returns nothing while the screen is off** (Android
+ *    8.1+). Measured: the P20 saw BLE in 3 of 784 screen-off samples and the
+ *    Xiaomi in 6 of 115, against 72% and 77% with the screen on -- and a
+ *    phone left to run untouched spends nearly all its time screen-off. Up to
+ *    Android 14, any non-empty filter list counts as filtered (ScanManager:
+ *    `filters != null && !filters.isEmpty()`), so one empty ScanFilter keeps
+ *    the scan running. Android 15 closed that (`isFilteredScan` wants a filter
+ *    with a field set), and from 13 Bluetooth is a Play-updatable module, so
+ *    above 12 the empty filter may or may not be honoured.
+ *  - **More than five scan starts in thirty seconds are refused** with
+ *    SCAN_FAILED_SCANNING_TOO_FREQUENTLY (AppScanStats: 5 per 30 000 ms). At
+ *    the 5 s default that is roughly one sample in six.
+ *
+ * Both used to be published as `ble_count: 0` -- "nobody here" -- when the
+ * truth was "could not look". Now they are null.
  */
 class RadioSensor(private val context: Context) {
 
@@ -69,12 +87,18 @@ class RadioSensor(private val context: Context) {
 
     private var lastWifiScanAt = 0L
 
+    private val power: PowerManager? by lazy {
+        context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+    }
+
     val places get() = placeMemory
 
     suspend fun sample(wantBle: Boolean, wantWifi: Boolean, wantCell: Boolean): Radio? {
         if (!wantBle && !wantWifi && !wantCell) return null
 
-        val ble = if (wantBle) scanBle() else emptyList()
+        // null means the scan did not happen or cannot be trusted, which is not
+        // the same as an empty room. See the class comment.
+        val ble = if (wantBle) scanBle() else null
         val aps = if (wantWifi) scanWifi() else emptyList()
         val cell = if (wantCell) readCell() else null
 
@@ -82,14 +106,14 @@ class RadioSensor(private val context: Context) {
         // devices that look fixed (strong and named).
         val fingerprint = HashMap<String, Int>()
         aps.forEach { fingerprint["w:${it.id}"] = it.rssi }
-        ble.filter { it.rssi > -75 }.forEach { fingerprint["b:${it.id}"] = it.rssi }
+        ble.orEmpty().filter { it.rssi > -75 }.forEach { fingerprint["b:${it.id}"] = it.rssi }
 
         val match = if (fingerprint.isEmpty()) null else placeMemory.recognise(fingerprint)
 
         return Radio(
-            bleCount = ble.size,
-            bleNamed = ble.filter { it.name != null }.sortedByDescending { it.rssi }.take(8),
-            bleStrongestRssi = ble.maxOfOrNull { it.rssi },
+            bleCount = ble?.size,
+            bleNamed = ble?.filter { it.name != null }?.sortedByDescending { it.rssi }?.take(8),
+            bleStrongestRssi = ble?.maxOfOrNull { it.rssi },
             wifiCount = aps.size,
             wifiConnected = connectedSsid(),
             wifiStrongestRssi = aps.maxOfOrNull { it.rssi },
@@ -104,13 +128,19 @@ class RadioSensor(private val context: Context) {
     // ---- BLE ----
 
     @SuppressLint("MissingPermission")
-    private suspend fun scanBle(): List<Beacon> = withContext(Dispatchers.IO) {
-        if (!hasPermission(bleScanPermission())) return@withContext emptyList()
-        val adapter = bluetooth ?: return@withContext emptyList()
-        if (!adapter.isEnabled) return@withContext emptyList()
-        val scanner = adapter.bluetoothLeScanner ?: return@withContext emptyList()
+    private suspend fun scanBle(): List<Beacon>? = withContext(Dispatchers.IO) {
+        // Every early return is "could not look", so null rather than empty: a
+        // denied permission or a switched-off radio is not an empty room.
+        if (!hasPermission(bleScanPermission())) return@withContext null
+        val adapter = bluetooth ?: return@withContext null
+        if (!adapter.isEnabled) return@withContext null
+        val scanner = adapter.bluetoothLeScanner ?: return@withContext null
 
+        val screenOn = power?.isInteractive ?: true
         val found = LinkedHashMap<String, Beacon>()
+        // Written from the scanner's callback thread, read after the window.
+        // 0 is "no failure"; the platform's error codes start at 1.
+        val failed = AtomicInteger(0)
 
         val callback = object : ScanCallback() {
             override fun onScanResult(type: Int, result: ScanResult) {
@@ -131,7 +161,10 @@ class RadioSensor(private val context: Context) {
             }
 
             override fun onScanFailed(errorCode: Int) {
+                // Including the platform refusing a sixth start inside 30 s,
+                // which used to reach the wire as zero devices.
                 Log.w(TAG, "BLE scan failed: $errorCode")
+                failed.set(errorCode)
             }
         }
 
@@ -141,16 +174,28 @@ class RadioSensor(private val context: Context) {
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
 
+        // One empty filter, so the scan counts as filtered and keeps running
+        // with the screen off. It matches everything, so nothing is excluded.
+        val filters = listOf(ScanFilter.Builder().build())
+
         try {
-            scanner.startScan(null, settings, callback)
+            scanner.startScan(filters, settings, callback)
             delay(BLE_WINDOW_MS)
         } catch (t: Throwable) {
             Log.w(TAG, "BLE scan start failed", t)
+            failed.set(-1)
         } finally {
             runCatching { scanner.stopScan(callback) }
         }
 
-        found.values.toList()
+        when {
+            failed.get() != 0 -> null
+            // Above Android 12 the empty filter may not be honoured with the
+            // screen off, and then a blind scan and an empty room look the
+            // same. Heard something: it ran. Heard nothing: cannot tell.
+            !screenOn && Build.VERSION.SDK_INT >= 33 && found.isEmpty() -> null
+            else -> found.values.toList()
+        }
     }
 
     private fun bleScanPermission() =

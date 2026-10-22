@@ -440,6 +440,15 @@ An hour was spent diagnosing the metric before measuring its input. The
 lesson generalises: **when a validated algorithm misbehaves on real data,
 measure what it is being fed before touching what it does.**
 
+That lesson applies to this section too, a day later. Its input was not only
+sparse, it was **blind half the time**: BLE returns nothing with the screen
+off, and the phone was being picked up and put down throughout. The "44
+samples with an entirely empty fingerprint" and the oscillation between 0 and
+9 devices on consecutive samples are at least partly the screen toggling and
+the platform refusing every sixth scan, not the radio environment. Randomised
+MACs are real too, so BLE-only place learning should be **re-measured** with
+the screen-off fix before this paragraph's conclusion is trusted.
+
 Two things follow, and neither is a flaw in the maths:
 
 - **The defaults produce the starved case.** `ble` ships on and `wifi` ships
@@ -545,11 +554,24 @@ elsewhere in this file as the most suspect code in the repo. It produced
 labels on every one of 304 samples over eight hours without stalling. Not
 proof it is correct, but it is no longer the leading suspect.
 
-The BLE zero is ambiguous and should not be read as a fault: the named devices
-seen earlier that evening were a soundbar and a robot lawnmower, both of which
-sleep at night. It is still worth noting that `ble_count: 0` cannot distinguish
-"scanned, found nothing" from "scan failed" — the same shape as the empty
-sound-event list that needed `classifier` to resolve.
+**Correction, the next day: the BLE zero was a fault.** This paragraph first
+said it was probably honest — that the soundbar and robot lawnmower seen that
+evening sleep at night. Counting `ble_count` against `screen_on` across every
+sample from both phones says otherwise:
+
+| | screen on | screen off |
+|---|---|---|
+| P20 (Android 9) | BLE heard in **72%** of 105 | **0.4%** of 784 |
+| Xiaomi (Android 16) | **77%** of 208 | **5%** of 115 |
+
+Since Android 8.1 an unfiltered BLE scan returns nothing while the screen is
+off, and `RadioSensor` passed no filter. The screen was off all night, so BLE
+was blind all night, and the guess about sleeping devices was a plausible story
+fitted to a wrong number. Reading AOSP's `ScanManager` for Android 9 through 15
+found the way round it — one empty `ScanFilter` counts as filtered up to 14 —
+and the same reading found a second source of fake zeros: more than five scan
+starts in thirty seconds are refused outright, about one sample in six at the
+5 s default. Both now publish `null`.
 
 **Place learning was perfect, which validates two fixes at once.** One place,
 `p2`, across all 303 samples. **Zero switches, zero new places, similarity

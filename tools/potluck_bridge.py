@@ -128,6 +128,10 @@ ABSENT_NOTES = {
              "and is never written.",
     "lat": "written only while the user has location switched on.",
     "lon": "written only while the user has location switched on.",
+    "ble_count": "absent when the phone could not look: BLE off or denied, a "
+                 "scan refused for starting too soon after the last five, or "
+                 "the screen off on Android 13+ with nothing heard. A written "
+                 "zero is always a real empty room.",
 }
 
 # ---------------------------------------------------------- the published values

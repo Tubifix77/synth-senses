@@ -26,8 +26,8 @@ internal object Fixtures {
     ) = Hearing(levelDb, peakDb, events, transcript, classifier)
 
     fun radio(
-        bleCount: Int = 5,
-        bleNamed: List<Beacon> = listOf(Beacon("abc1234567", "Headphones", -55)),
+        bleCount: Int? = 5,
+        bleNamed: List<Beacon>? = listOf(Beacon("abc1234567", "Headphones", -55)),
         wifiConnected: String? = "home-wifi",
         placeId: String? = "p1",
         placeName: String? = "desk",
