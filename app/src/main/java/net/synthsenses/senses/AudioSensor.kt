@@ -56,6 +56,14 @@ class AudioSensor(private val context: Context) {
     var modelSource: String? = null
         private set
 
+    /**
+     * Which microphone input the last sample used, for `status`:
+     * "unprocessed", "voice_recognition", or "mic" when only the ordinary
+     * input would open. See [micSourceFor].
+     */
+    var micSource: String? = null
+        private set
+
     /** The last classification failure, for `status`. logcat is not reachable. */
     var lastClassifyError: String? = null
         private set
@@ -167,9 +175,8 @@ class AudioSensor(private val context: Context) {
      */
     @SuppressLint("MissingPermission")
     suspend fun sample(): Hearing? = withContext(Dispatchers.IO) {
-        val mode = runCatching {
-            context.getSystemService(AudioManager::class.java)?.mode
-        }.getOrNull()
+        val am = runCatching { context.getSystemService(AudioManager::class.java) }.getOrNull()
+        val mode = runCatching { am?.mode }.getOrNull()
         if (micIsBusy(mode)) {
             Log.i(TAG, "phone is ringing or on a call — not touching the mic")
             return@withContext null
@@ -186,9 +193,12 @@ class AudioSensor(private val context: Context) {
             return@withContext null
         }
 
+        val source = micSourceFor(runCatching {
+            am?.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
+        }.getOrDefault(false))
         val record = try {
             AudioRecord.Builder()
-                .setAudioSource(MediaRecorder.AudioSource.UNPROCESSED)
+                .setAudioSource(source)
                 .setAudioFormat(
                     AudioFormat.Builder()
                         .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
@@ -199,7 +209,8 @@ class AudioSensor(private val context: Context) {
                 .setBufferSizeInBytes(max(minBuf, wanted * 4))
                 .build()
         } catch (t: Throwable) {
-            // UNPROCESSED isn't guaranteed; fall back to the ordinary mic
+            // Neither should throw, but an OEM build may; the ordinary mic is
+            // processed and still better than nothing.
             runCatching {
                 AudioRecord(
                     MediaRecorder.AudioSource.MIC,
@@ -217,6 +228,11 @@ class AudioSensor(private val context: Context) {
         if (record.state != AudioRecord.STATE_INITIALIZED) {
             record.release()
             return@withContext null
+        }
+        micSource = when (record.audioSource) {
+            MediaRecorder.AudioSource.UNPROCESSED -> "unprocessed"
+            MediaRecorder.AudioSource.VOICE_RECOGNITION -> "voice_recognition"
+            else -> "mic"
         }
 
         val samples = FloatArray(wanted)
@@ -330,5 +346,27 @@ class AudioSensor(private val context: Context) {
  * report its mode is not thereby on a call, and failing closed would silently
  * cost the sense entirely. `AudioRecord` still fails gracefully underneath.
  */
+/**
+ * The microphone input to record from: the rawest one this phone guarantees.
+ *
+ * Requested unconditionally, UNPROCESSED is documented to "behave like DEFAULT"
+ * on a phone that does not support it -- silently, with no error -- and DEFAULT
+ * is the phone's ordinary processed input, tuned for a mouth close to the mic.
+ * So the old fallback to MIC in a catch block never ran on exactly the phones
+ * it was for. Support is declared through
+ * PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED (CDD 5.11 C-1-1).
+ *
+ * Without it, VOICE_RECOGNITION: the CDD requires every phone with a mic to
+ * disable noise reduction and automatic gain control on it by default
+ * (5.4.2 C-1-2, C-1-3). Noise reduction is what removes a television from a
+ * room, and gain control is what makes a level reading meaningless.
+ *
+ * Never VOICE_COMMUNICATION -- the speakerphone input -- which applies echo
+ * cancellation and noise suppression on purpose, and belongs to a call.
+ */
+internal fun micSourceFor(unprocessedSupported: Boolean): Int =
+    if (unprocessedSupported) MediaRecorder.AudioSource.UNPROCESSED
+    else MediaRecorder.AudioSource.VOICE_RECOGNITION
+
 internal fun micIsBusy(mode: Int?): Boolean =
     mode != null && mode > AudioManager.MODE_NORMAL

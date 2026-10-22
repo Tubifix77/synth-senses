@@ -17,6 +17,19 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **The ears listen to the room, on every phone.** Hearing asked for the
+  `UNPROCESSED` microphone input unconditionally, and Android documents that a
+  phone without it "behaves like DEFAULT" — silently, with no error — so the
+  fallback to the plain mic in a `catch` never ran, and on such a phone the
+  ears were on the ordinary input, processed for a mouth close to the mic.
+  The input is now chosen from the phone's own declaration
+  (`PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED`, CDD 5.11): `UNPROCESSED` where
+  declared, otherwise `VOICE_RECOGNITION`, on which the CDD requires noise
+  reduction and automatic gain control off by default (5.4.2). Never the
+  speakerphone input, which suppresses background on purpose and belongs to a
+  call. `status` reports `mic_source`. On a phone that changes input,
+  `hearing.level_db` may shift, since the old input may have applied gain. Prompted by
+  Tue asking whether "speakerphone mode" would hear the TV better.
 - **A sense switched off is no longer replayed into Potluck as current.** The
   bridge refreshed every value it had ever written, from its last written
   value, so nothing went STALE once the phone stopped reporting it: a sense
