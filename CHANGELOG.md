@@ -17,6 +17,16 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **A sense switched off is no longer replayed into Potluck as current.** The
+  bridge refreshed every value it had ever written, from its last written
+  value, so nothing went STALE once the phone stopped reporting it: a sense
+  switched off kept its last reading as GOOD with a small age, and location
+  switched off would have refreshed its last fix indefinitely. Only values the
+  phone is still reporting are refreshed now — a healthy phone re-reports
+  every live value each heartbeat, inside the window — so a stopped sense ages
+  into STALE, and the port withholds STALE, answering 503 within minutes.
+  Found by checking a claim made to the AI-Consciousness session rather than
+  repeating it; the claim was wrong.
 - **Hearing reports the interval, not one second.** In a steady scene the
   phone habituates and sends a percept every two minutes, and each carried the
   sound class of its own 975 ms window; every other sample's classification was

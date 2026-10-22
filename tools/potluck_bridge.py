@@ -424,6 +424,7 @@ class Pending:
         self.pending = {}        # name -> value waiting to go
         self.written = {}        # name -> value the hub last accepted
         self.written_at = {}     # name -> when that happened
+        self.seen_at = {}        # name -> when the phone last reported it
         self.held = {}           # name -> don't try this one again before
         self.now = now or time.monotonic
         # The reader offers while the drainer takes. Reentrant because
@@ -433,8 +434,12 @@ class Pending:
     def offer(self, values):
         """Take a percept's worth of values; queue only what is worth sending."""
         eps_of = {n: e for n, _k, _u, _r, e in VALUES}
+        now = self.now()
         with self.lock:
             for name, value in values.items():
+                # Reported, whether or not it changed: that is what entitles a
+                # value to be refreshed. See refresh_due.
+                self.seen_at[name] = now
                 if changed(name, self.written.get(name), value,
                            eps_of.get(name, 0)):
                     self.pending[name] = value
@@ -444,13 +449,25 @@ class Pending:
 
         Half of stale_ms, so one missed write is not a false alarm on the
         board. A quiet room is the normal case here -- habituation means the
-        phone may say nothing for minutes -- and a healthy silent source must
+        phone may change nothing for minutes -- and a healthy silent source must
         not read STALE.
+
+        **But only a value the phone is still reporting.** This used to refresh
+        everything ever written, from its last written value, forever. So a
+        sense switched off on the phone went on being rewritten into Potluck
+        as GOOD with a small age: the last "speech" replayed as current, and
+        with location off the last fix refreshed indefinitely -- the twenty-hour
+        replay again, one layer up. A healthy phone re-reports every live value
+        at least every heartbeat, two minutes, which is inside this window, so
+        the quiet room is unaffected. A value it has stopped reporting is left
+        to age into STALE, which is then the truth: the phone stopped saying.
         """
         now = self.now()
         with self.lock:
             for name, value in list(self.written.items()):
                 if name in self.pending:
+                    continue
+                if now - self.seen_at.get(name, float("-inf")) > self.stale_s / 2:
                     continue
                 if now - self.written_at.get(name, 0) >= self.stale_s / 2:
                     self.pending[name] = value

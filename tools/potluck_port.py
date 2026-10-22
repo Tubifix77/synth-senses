@@ -23,8 +23,11 @@ What it answers, agreed with that project:
     404  not a sense this port serves
     405  anything but GET. The companion gains senses, never actuators.
 
-A reading that is absent, NO_DATA, out of range or without an age is left out of
-its object, never sent as zero. The phone side spent a day removing fake zeros,
+A reading that is absent, STALE, NO_DATA, out of range or without an age is left
+out of its object, never sent as zero. STALE is withheld because the bridge
+refreshes only what the phone still reports, so a STALE value is one the phone
+has stopped reporting -- a sense switched off answers 503 within minutes, rather
+than its last reading being presented as now. The phone side spent a day removing fake zeros,
 and the companion's own accounting depends on gaps staying visible.
 
 **There is no location path, and no way to turn one on.** Coordinates entering
@@ -55,9 +58,12 @@ PORT = 8079
 #: is down. Several poll intervals, so one slow read is not a blind spot.
 LINK_DOWN_S = 30.0
 
-#: Qualities worth passing on. A STALE reading is still a reading, and `age_s`
-#: says how old; NO_DATA, or anything unrecognised, is not.
-SERVED_QUALITIES = ("GOOD", "STALE")
+#: Qualities worth passing on: GOOD only. STALE was served too at first, with
+#: `age_s` saying how stale, but once the bridge refreshes only values the phone
+#: is still reporting, STALE means exactly "the phone stopped saying this" --
+#: and a sense that has stopped is an absence, not an old present. Serving it
+#: as a 200 kept it in the companion's current state.
+SERVED_QUALITIES = ("GOOD",)
 
 #: path -> ((field in the answer, Potluck value under act/phone/), ...)
 #: These five and no others. Note what is not here: lat and lon.

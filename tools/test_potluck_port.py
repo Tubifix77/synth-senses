@@ -106,7 +106,12 @@ st, body = s.answer("/phone/body")
 check("NO_DATA is left out", st == 200 and "posture" not in body, str(body))
 m = {"resources": [res("motion", 0, quality="STALE", age_ms=400000)]}
 st, body = snap(m)[0].answer("/phone/body")
-check("STALE is kept, and the age says how stale", st == 200 and body.get("age_s") == 400, str(body))
+check("STALE is withheld: the phone stopped reporting it, so it is not now",
+      st == 503, str((st, body)))
+m = {"resources": [res("motion", 0), res("posture", 0, quality="STALE")]}
+st, body = snap(m)[0].answer("/phone/body")
+check("and a STALE field drops out while a GOOD one stays",
+      st == 200 and "posture" not in body and body.get("motion") == "still", str(body))
 m = {"resources": [res("motion", 9), res("posture", 0)]}
 st, body = snap(m)[0].answer("/phone/body")
 check("an ordinal naming no word is left out", "motion" not in body and body.get("posture") == "face_up",

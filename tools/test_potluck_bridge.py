@@ -697,10 +697,41 @@ check("nothing is rewritten two seconds later",
       len(hub.writes) == len(pb.VALUES),
       str(len(hub.writes)))
 clock.advance(4)                                            # now past half
+# The heartbeat: the same values again, unchanged but still being reported.
+pending.offer(pb.values_from(percept()))
 pb._drain(pending, budget, hub)
-check("but everything is refreshed at half of stale_ms, so a quiet room "
-      "never reads STALE", len(hub.writes) == 2 * len(pb.VALUES),
+check("but everything still reported is refreshed at half of stale_ms, so a "
+      "quiet room never reads STALE", len(hub.writes) == 2 * len(pb.VALUES),
       str(len(hub.writes)))
+
+print("\na value the phone stops reporting is not replayed")
+# refresh_due used to rewrite everything ever written, so a sense switched off
+# on the phone was replayed into Potluck as fresh, forever -- the last "speech"
+# as current, and with location off the last fix refreshed indefinitely.
+_clk = Clock()
+_hub = Hub()
+_pen = pb.Pending(10000, now=_clk)
+_bud = pb.Budget(per_second=1000.0, burst=10000, now=_clk)
+_pen.offer(pb.values_from(percept()))
+pb._drain(_pen, _bud, _hub)
+_n0 = len(_hub.writes)
+_clk.advance(6)                                    # hearing switched off
+_pen.offer(pb.values_from(percept(hearing=None)))
+pb._drain(_pen, _bud, _hub)
+_later = _hub.names[_n0:]
+check("the senses still reported are refreshed", "battery" in _later, str(_later))
+check("hearing, switched off, is not refreshed from its old value",
+      "sound" not in _later and "loudness" not in _later, str(_later))
+_clk.advance(20)
+_pen.offer(pb.values_from(percept(hearing=None)))
+pb._drain(_pen, _bud, _hub)
+check("nor later: it is left to age into Potluck's STALE",
+      "sound" not in _hub.names[_n0:], str(_hub.names[_n0:]))
+_clk.advance(1)
+_pen.offer(pb.values_from(percept()))              # hearing back on
+pb._drain(_pen, _bud, _hub)
+check("and it comes back the moment the phone reports it again",
+      "sound" in _hub.names[_n0:], str(_hub.names[_n0:]))
 
 print("\nthe contract a consumer checks itself against")
 # A consumer that renders these numbers keeps a copy of the words, and a copy
