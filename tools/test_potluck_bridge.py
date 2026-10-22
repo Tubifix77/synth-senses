@@ -312,6 +312,38 @@ check("a 504 from the owning board is reported and retried later",
 _ok, _hold, _note, _, _ = pb.write_value(_Answer(200, "applied"), "lab", "battery", 0.5)
 check("and a 200 is simply applied", _ok and _note == "applied", _note)
 
+print("\nthe interval, not one second")
+# The TV evening, tallied as the phone now sends it: speech under several
+# names, a lot of unnamed samples, some Silence and a little Music.
+_tv = {"samples": 50, "classified": 50, "unnamed": 16, "level_db_mean": -46.2,
+       "top": {"Speech": 18, "Silence": 7, "Child speech, kid speaking": 5,
+               "Music": 4, "Animal": 3}}
+_one_second = {"events": [], "classifier": "ok", "level_db": -51.5}
+check("the TV evening reads as speech from its tally",
+      pb.sound_class(percept(hearing=dict(_one_second, recent=_tv))) == pb.SOUND.index("speech"))
+check("where its last single second alone said quiet",
+      pb.sound_class(percept(hearing=_one_second)) == pb.SOUND.index("quiet"))
+_night = {"samples": 24, "classified": 24, "unnamed": 1, "level_db_mean": -54.1,
+          "top": {"Silence": 22, "Breathing": 1}}
+check("the quiet night reads as quiet",
+      pb.sound_class(percept(hearing=dict(_one_second, recent=_night))) == pb.SOUND.index("quiet"))
+check("an interval with nothing nameable at all is quiet",
+      pb.sound_class(percept(hearing=dict(_one_second, recent=dict(_tv, top={})))) == pb.SOUND.index("quiet"))
+check("an interval where the classifier never ran says nothing",
+      pb.sound_class(percept(hearing=dict(_one_second, recent=dict(_tv, classified=0)))) is None)
+check("a tie goes to the sound, not to quiet",
+      pb.sound_class(percept(hearing=dict(_one_second, recent=dict(
+          _tv, top={"Speech": 5, "Silence": 5})))) == pb.SOUND.index("speech"))
+check("speech is counted by category, so one-word Silence cannot outvote it",
+      pb.sound_class(percept(hearing=dict(_one_second, recent=dict(
+          _tv, top={"Silence": 8, "Speech": 5, "Conversation": 4})))) == pb.SOUND.index("speech"))
+_vals = pb.values_from(percept(hearing=dict(_one_second, recent=_tv)))
+check("loudness is the interval's energy mean when there is one",
+      abs(_vals.get("loudness", 0) - (-46.2)) < 0.01, str(_vals.get("loudness")))
+_vals1 = pb.values_from(percept(hearing=_one_second))
+check("and the sample's own level when there is not",
+      abs(_vals1.get("loudness", 0) - (-51.5)) < 0.01, str(_vals1.get("loudness")))
+
 print("\nthe sound curation")
 for label, want in (("Speech", "speech"), ("Conversation", "speech"),
                     ("Child speech, kid speaking", "speech"),

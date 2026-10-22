@@ -62,6 +62,7 @@ class SenseService : LifecycleService() {
     private lateinit var body: BodySensor
     private lateinit var selfSensor: SelfSensor
     private lateinit var locationFeed: LocationFeed
+    private val hearingTally = HearingTally()
     private lateinit var audio: AudioSensor
     private lateinit var speech: SpeechSensor
     private lateinit var habituation: Habituation
@@ -206,6 +207,9 @@ class SenseService : LifecycleService() {
             }
         }
         forceTranscribe = false
+        // Every sample is evidence, sent or not: a heartbeat used to carry
+        // one second of a two-minute interval and throw the rest away.
+        h?.let { hearingTally.add(it) }
 
         val r = radio?.sample(prefs.ble, prefs.wifi, prefs.cell)
         val b = body.sample()
@@ -269,8 +273,10 @@ class SenseService : LifecycleService() {
         val toSend = candidate.copy(
             trigger = trigger,
             seq = seq,
-            attention = verdict.attention
+            attention = verdict.attention,
+            hearing = candidate.hearing?.copy(recent = hearingTally.summary())
         )
+        hearingTally.reset()
         val ok = link.send(toSend)
 
         Live.update {

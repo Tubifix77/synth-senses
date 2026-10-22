@@ -153,6 +153,14 @@ def _idx(table, value):
         return None
 
 
+def _loudness(percept):
+    """The interval's energy-mean level when the phone sent one, else this sample's."""
+    mean = _dig(percept, "hearing", "recent", "level_db_mean")
+    if isinstance(mean, (int, float)) and not isinstance(mean, bool):
+        return mean
+    return _dig(percept, "hearing", "level_db")
+
+
 def _dig(percept, *path):
     """percept["a"]["b"], or None the moment anything is missing.
 
@@ -169,6 +177,37 @@ def _dig(percept, *path):
 
 
 def sound_class(percept):
+    """What the room sounded like: from the interval if the phone sent one.
+
+    A phone build with `hearing.recent` tallies every sample since the last
+    percept, so the dominant category over that interval is the honest answer.
+    Counted by category rather than by label, because speech arrives under
+    several names ("Speech", "Child speech, kid speaking", "Conversation") and
+    a raw-label count would let one-word Silence outvote it. Samples with no
+    nameable sound are left out of the vote; an interval with nothing nameable
+    at all is quiet. A tie goes to the sound rather than to quiet, since half
+    an interval of speech is something that happened.
+    """
+    recent = _dig(percept, "hearing", "recent")
+    if isinstance(recent, dict):
+        top = recent.get("top")
+        classified = recent.get("classified")
+        if isinstance(top, dict) and isinstance(classified, int):
+            if classified <= 0:
+                return None
+            votes = {}
+            for label, n in top.items():
+                if isinstance(n, int) and n > 0:
+                    b = _bucket(label)
+                    votes[b] = votes.get(b, 0) + n
+            if not votes:
+                return SOUND.index("quiet")
+            best = max(votes.items(), key=lambda kv: (kv[1], kv[0] != "quiet"))
+            return SOUND.index(best[0])
+    return _sound_of_sample(percept)
+
+
+def _sound_of_sample(percept):
     """Collapse the heard events to one of SOUND, or None if we cannot tell.
 
     `quiet` is a real reading and is published: it means the ears worked and
@@ -204,12 +243,17 @@ def sound_class(percept):
             best = (name, conf)
     if best is None:
         return SOUND.index("quiet")
-    name = best[0]
+    return SOUND.index(_bucket(best[0]))
+
+
+def _bucket(name):
+    """One YAMNet label -> one SOUND word."""
+    name = str(name).lower()
     for bucket, needles in SOUND_MAP:
         for needle in needles:
             if needle in name:
-                return SOUND.index(bucket)
-    return SOUND.index("other")
+                return bucket
+    return "other"
 
 
 def place_number(percept):
@@ -261,7 +305,7 @@ VALUES = [
     # anything differencing it sees a large negative.
     ("steps",        "u64", "count",   lambda p: _dig(p, "body", "steps"), 0),
     ("sound",        "u32", None,      sound_class, 0),
-    ("loudness",     "f32", None,      lambda p: _dig(p, "hearing", "level_db"), 1.5),
+    ("loudness",     "f32", None,      lambda p: _loudness(p), 1.5),
     ("place",        "u32", None,      place_number, 0),
     ("battery",      "f32", "ratio",   lambda p: _dig(p, "self", "battery"), 0.02),
     ("battery_temp", "f32", "celsius", lambda p: _dig(p, "self", "battery_temp_c"), 0.5),

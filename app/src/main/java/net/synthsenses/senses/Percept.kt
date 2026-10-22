@@ -38,7 +38,22 @@ data class Hearing(
      * therefore publishing a confident lie whenever the model was missing --
      * the same mistake as reporting zero for a radio that never scanned.
      */
-    val classifier: String? = null
+    val classifier: String? = null,
+    /**
+     * Everything heard since the previous percept went out, not just this
+     * sample's one second. Null on a percept built without one. See
+     * HearingTally for why it exists.
+     */
+    val recent: Recent? = null
+)
+
+/** A [HearingTally] summary, as it goes on the wire. */
+data class Recent(
+    val samples: Int,
+    val classified: Int,
+    val unnamed: Int,
+    val top: Map<String, Int>,
+    val levelDbMean: Float
 )
 
 // ---- radio: the sense of place ----
@@ -250,6 +265,15 @@ data class Percept(
                 put("events", scoredArray(h.events))
                 put("classifier", h.classifier ?: JSONObject.NULL)
                 put("transcript", h.transcript ?: JSONObject.NULL)
+                put("recent", h.recent?.let { r ->
+                    JSONObject().apply {
+                        put("samples", r.samples)
+                        put("classified", r.classified)
+                        put("unnamed", r.unnamed)
+                        put("top", JSONObject().apply { r.top.forEach { (k, v) -> put(k, v) } })
+                        put("level_db_mean", r2(r.levelDbMean))
+                    }
+                } ?: JSONObject.NULL)
             }
         } ?: JSONObject.NULL)
 

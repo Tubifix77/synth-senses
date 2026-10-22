@@ -17,6 +17,16 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **Hearing reports the interval, not one second.** In a steady scene the
+  phone habituates and sends a percept every two minutes, and each carried the
+  sound class of its own 975 ms window; every other sample's classification was
+  discarded. A companion reading Potluck with the TV on was told "quiet" or
+  "other" almost every time, while the classifier's top sound across the same
+  samples was Speech 18 of 60. Every sample is now tallied into a nullable
+  `hearing.recent`, and the bridge publishes the dominant category over the
+  interval and its energy-mean loudness. No schema change, and habituation is
+  untouched. Found when the AI-Consciousness session asked why a loud TV
+  never reached its companion as speech.
 - **`tools/potluck_port.py`: the phone's senses, read back off Potluck and
   served to a companion.** Built with the ai-consciousness session to fit its
   read-only sensor contract: five loopback GET paths, each a JSON object with
