@@ -253,7 +253,37 @@ It **redacts OCR text and transcripts by default**, so its output is safe to
 paste somewhere or hand to an assistant. `--raw` includes them once you have
 decided that is fine.
 
-## 2. Then, the bridge
+## 2. Then, the bridge — now via Potluck
+
+**Direction changed, 2026-10-22.** This section was written before Potluck
+existed, and planned a private pipe from this receiver into the mind. Tue's
+direction since: Potluck is the hub, and a mind such as
+`D:\Projects\ai-consciousness` uses the senses **through a port on Potluck**.
+That is the better shape — through one hub a mind gets the whole house, the
+phone alongside passive-sensor's room presence and the boards, not one phone.
+
+What that means here:
+
+- **This side's job is to keep its senses in Potluck honest and rich.** That is
+  built: the bridge writes twelve values, paired and pinned, and the fixes of
+  2026-10-22 are what make those values true.
+- **The port is not this repo's code.** It is what Potluck's `INTEGRATIONS.md`
+  calls a program on the hub's API — HTTP and JSON, its preferred kind because
+  it costs the boards nothing — reading `/api/model`, `/api/events` or
+  `/api/stream`. On the mind's side it lands naturally as a `Sensor` in
+  ai-consciousness's `templates/daemon-core.py`, whose `poll()` writes into
+  world state; that project's rule that the companion "reads the world, it
+  never changes it" fits a read-only port exactly.
+- **One open question, and it is real.** Through Potluck the phone is twelve
+  8-byte numbers. The richest parts of a percept — the narration, what the
+  camera sees, transcripts, named devices — do not fit a value. A mind fed only
+  through Potluck gets the dials and not the prose. Either the port also reads
+  this receiver's stream for that, or Potluck grows a channel for text, or the
+  mind works from numbers. That is a choice for Tue and Potluck, not one to
+  make here by default.
+
+What follows is the original plan, kept because the transport it describes —
+JSON lines both ways — is still what any consumer of the rich stream would use.
 
 **Context.** This project is the sensory apparatus for a separate project of
 the author's, on machine consciousness. This one produces percepts; that one is
