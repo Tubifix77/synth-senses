@@ -22,6 +22,27 @@ import java.io.File
  * pressure is something close to fatigue. None of it needs a permission and all
  * of it costs nothing to read.
  */
+/**
+ * Whether the phone is being fed, which is what `self.charging` has always been
+ * documented to mean.
+ *
+ * It used to be `BatteryManager.isCharging`, which answers a different
+ * question: whether the system currently considers the battery to be filling.
+ * Vendor battery protection pauses that while the phone stays plugged in. A
+ * Huawei P20 Lite on a wall charger all night held itself at 81-82% in a
+ * regular ~88-minute cycle -- top up, stop, drift, top up -- and `isCharging`
+ * followed the cycle, so `charging` read false for 182 of 299 samples taken on
+ * the charger. It did not even track the current: it agreed with the direction
+ * of `current_ma` 55% of the time.
+ *
+ * `EXTRA_PLUGGED` is stable across all of that, because the plug does not move.
+ * Whether current is actually flowing in right now is still published, as the
+ * sign of `current_ma`, so nothing is lost by this. [plugged] below zero means
+ * the extra was missing, and only then is the old answer used.
+ */
+internal fun onExternalPower(plugged: Int, isCharging: Boolean): Boolean =
+    if (plugged < 0) isCharging else plugged > 0
+
 class SelfSensor(private val context: Context) {
 
     companion object {
@@ -51,6 +72,8 @@ class SelfSensor(private val context: Context) {
             ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
             ?.takeIf { it != Int.MIN_VALUE }
             ?.let { it / 10f }            // reported in tenths of a degree
+
+        val plugged = sticky?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
 
         val voltageV = sticky
             ?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)
@@ -85,7 +108,7 @@ class SelfSensor(private val context: Context) {
 
         return SelfState(
             batteryPct = level,
-            charging = batteryManager.isCharging,
+            charging = onExternalPower(plugged, batteryManager.isCharging),
             batteryTempC = tempC,
             currentMa = currentMa,
             voltageV = voltageV,

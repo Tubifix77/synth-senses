@@ -132,6 +132,12 @@ receiver parses these percepts unchanged.
 
 ### Fixed
 
+- **`charging` means plugged in, as documented.** It came from
+  `BatteryManager.isCharging`, which follows vendor battery protection: the P20
+  holds itself at 81–82% on a charger in a regular ~88-minute top-up cycle, and
+  the flag followed the cycle, reading `false` for 182 of 299 samples taken on
+  the charger. It now comes from `EXTRA_PLUGGED`; whether current is flowing in
+  right now is the sign of `current_ma`.
 - **`current_ma` is no longer 1000x wrong on Huawei.** Android documents
   `BATTERY_PROPERTY_CURRENT_NOW` as microamps and the code divided by 1000
   accordingly; Huawei reports milliamps. Across a night on a wall charger the

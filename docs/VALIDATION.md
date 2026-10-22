@@ -608,15 +608,35 @@ impossible; the true figures are about −640 mA and +1010 mA. The value is
 plausible enough to be believed and wrong by three orders of magnitude, which
 is worse than reporting nothing.
 
-#### A worn battery on a charger never reaches full
+#### On a charger, the phone holds its charge — and `charging` said otherwise
 
-Battery ranged **0.64 to 0.82** across the night, rising 54 times and falling
-37, with the `charging` flag changing **12 times**. It never completed a
-charge and never came close to empty, ending at 81%. Either EMUI's battery
-protection or a worn cell, and for an always-on host it does not matter:
-**power is not a constraint for this deployment.** It does mean `battery` and
-`charging` are noisy published values on an old handset, and a consumer that
-treats a `charging` transition as an event will see twelve of them a night.
+Battery ranged **0.64 to 0.82** across the night and ended at 81%, so **power
+is not a constraint for this deployment.** The shape of it is not wear. Laid
+out at each change of the `charging` flag it is a perfectly regular cycle:
+
+| time | battery | `charging` | current |
+|---|---|---|---|
+| 00:10 | 81% | true → false | −140 mA |
+| 01:10 | 82% | false → true | +420 mA |
+| 01:34 | 81% | true → false | −140 mA |
+| 02:40 | 82% | false → true | +440 mA |
+
+and so on every ~88 minutes until morning. That is EMUI's battery protection
+holding the cell near 80%: plugged in throughout, it tops up, stops, lets it
+drift, and tops up again.
+
+The defect was ours. `charging` came from `BatteryManager.isCharging`, which
+follows that charge-hold logic rather than the plug, so a phone on the charger
+all night reported `charging: false` for **182 of 299 samples**. It was not a
+good current signal either — it agreed with the direction of `current_ma` only
+55% of the time. `self.charging` is documented as being fed, so it now comes
+from `EXTRA_PLUGGED`, which does not move when the plug does not; the sign of
+`current_ma` still carries whether current is flowing in right now.
+
+Measured before claiming a cost: the flapping did **not** waste attention. Of
+73 salient percepts overnight, exactly one had `chg:` as its novelty, and that
+was 23:05, the real moment the phone was plugged in. Habituation absorbed every
+later flip. The harm was a wrong published value, nothing more.
 
 ### One thin scan mints a duplicate of the room you are in
 
