@@ -669,8 +669,24 @@ switched on, and twenty minutes later the age was **530 s**: a fresh fix had
 arrived about twelve minutes after the feed first asked. Nothing else on the
 phone requests location, so it was this feed. Indoors, under a floor, a first
 network fix took about twelve minutes; the four-minute check was simply too
-early to see it. `status` reports `location_providers` and `location_fixes` so
-the delivery rate can be measured rather than inferred.
+early to see it.
+
+Measured with `location_fixes` on the next start: the first fix arrived after
+about six minutes, and then **0 → 1 → 2 → 4 → 6** across the following seven
+— about one a minute, which is the rate the feed asks for. So the steady state
+is right and only the first fix is slow, six to twelve minutes indoors.
+
+**An unexplained crash, recorded rather than guessed at.** The build that
+added those diagnostics dropped its connection twice on its first start — the
+receiver shows hello, "peer closed", hello, "peer closed", then a stable link —
+and recovered on its own. The next build put the newest crash report into
+`status`, and it came back **null**: `SynthSensesApp` writes a report for any
+uncaught Kotlin or Java exception, and wrote none. So it was not an exception in
+this code. What remains is a crash in native code — the ML libraries are
+native, and those bypass the handler — or the system killing the process.
+Android 9 offers no way to ask which; `getHistoricalProcessExitReasons` arrived
+in Android 11. It has not recurred. If it does, the receiver's connect log is
+the evidence, and the timing — first start after an update — is the lead.
 
 #### Seven times Earth's field, and a precise compass bearing
 
