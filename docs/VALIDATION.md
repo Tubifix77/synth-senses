@@ -778,6 +778,27 @@ Measured before claiming a cost: the flapping did **not** waste attention. Of
 was 23:05, the real moment the phone was plugged in. Habituation absorbed every
 later flip. The harm was a wrong published value, nothing more.
 
+#### The ears were on the close-talk input, and nothing could tell
+
+`AudioSensor` requested `UNPROCESSED` unconditionally, with a fallback to
+`MIC` in a `catch`. Android documents that `UNPROCESSED` "behaves like DEFAULT"
+on a phone without it, silently, so the fallback could never run, and nothing
+reported which input was in use. Asked on 2026-10-22, after `status` gained
+`mic_source`, **the P20 does not declare
+`PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED`**: every hearing sample before
+`6a9a57e` came from its ordinary input, processed for a mouth near the mic.
+It now records from `VOICE_RECOGNITION`, which the CDD requires to run
+without noise reduction or gain control (5.4.2).
+
+Not yet measured: whether that hears a television better. The only "before"
+is two readings from the interval-tally build, one `quiet` and one `speech`
+in about five minutes, against three `Speech` votes in the first four
+percepts after the switch. That is suggestive, not a comparison, and the
+level readings are not comparable across the change at all. The question
+came from Tue asking whether speakerphone mode would hear the room better.
+The instinct was right, though not that mechanism: speakerphone is the call
+input, which suppresses background noise on purpose.
+
 ### One thin scan mints a duplicate of the room you are in
 
 Found later the same evening, with WiFi on and the starvation gone. The phone
