@@ -573,6 +573,10 @@ and the same reading found a second source of fake zeros: more than five scan
 starts in thirty seconds are refused outright, about one sample in six at the
 5 s default. Both now publish `null`.
 
+**Confirmed on the P20 after the fix:** 3 of 3 screen-off samples heard BLE,
+against 0 of 29 on the build immediately before it. The behaviour read out of
+Android 9's `ScanManager` holds on the hardware.
+
 **Place learning was perfect, which validates two fixes at once.** One place,
 `p2`, across all 303 samples. **Zero switches, zero new places, similarity
 1.00 throughout.** Against the previous evening's 114 switches in 531 samples
@@ -655,6 +659,16 @@ Location is now requested while `location` is on, from the network provider
 and GPS about once a minute, and every published fix carries `gps.age_s`. The
 gps block had also never been documented in `PROTOCOL.md` — its sample percept
 had `"gps": null` — and now is.
+
+**On hardware, only half of this works yet.** The first install's first
+percept read `gps.age_s` **160 971** — the borrowed fix was 44.7 hours old,
+older than the log alone had shown — and four minutes later **161 166**: the
+same fix ageing, with no fresh one from either provider. So the age now tells
+the truth about a failure the earlier builds hid, but the phone is not sensing
+yet. Indoors GPS cannot answer; the network provider should, and did not. The
+leading suspect is a GPS-only location mode, which switches the network
+provider off. `status` now reports `location_providers` and `location_fixes`,
+so the cause can be read from off-device rather than guessed.
 
 #### Seven times Earth's field, and a precise compass bearing
 

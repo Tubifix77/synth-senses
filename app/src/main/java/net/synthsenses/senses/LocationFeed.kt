@@ -12,6 +12,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Where the phone is, sensed rather than borrowed.
@@ -48,6 +49,24 @@ internal class LocationFeed(private val context: Context) {
     @Volatile
     private var newest: Location? = null
     private var requesting = false
+    private val received = AtomicInteger(0)
+
+    /**
+     * Fixes this feed has actually been given since the service started, and
+     * which providers the phone has switched on. Exposed in `status` because
+     * the first install showed the failure this is for: updates requested,
+     * nothing arriving, and only `gps.age_s` climbing to say so. Indoors GPS
+     * never answers, so with the network provider off there is no fix at all,
+     * and without these that looks identical to a feed that was never asked.
+     */
+    val fixesReceived: Int get() = received.get()
+
+    fun providers(): Map<String, Boolean> {
+        val lm = manager ?: return emptyMap()
+        return (PROVIDERS + LocationManager.PASSIVE_PROVIDER).associateWith { p ->
+            runCatching { lm.isProviderEnabled(p) }.getOrDefault(false)
+        }
+    }
 
     // All four overridden on purpose. From API 30 the last three are default
     // methods, but on Android 9 they are abstract in the framework, and a
@@ -56,6 +75,7 @@ internal class LocationFeed(private val context: Context) {
     private val listener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
             newest = location
+            received.incrementAndGet()
         }
 
         @Deprecated("Deprecated in Java")

@@ -475,6 +475,8 @@ class SenseService : LifecycleService() {
                             audio.lastClassifyError ?: JSONObject.NULL)
                         put("speech_last_error", speech.lastError ?: JSONObject.NULL)
                         put("current_unit", selfSensor.currentUnit ?: JSONObject.NULL)
+                        put("location_fixes", locationFeed.fixesReceived)
+                        put("location_providers", JSONObject(locationFeed.providers()))
                         put("still_ceiling", body.stillCeiling)
                         put("still_ceiling_samples", body.stillCeilingSamples)
                         put("speech", prefs.speech)
