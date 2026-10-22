@@ -449,6 +449,108 @@ Two things follow, and neither is a flaw in the maths:
   visit are permanent debris. A phone left in BLE-only mode for months would
   accumulate thousands, and nothing reclaims them or the id space.
 
+### The first overnight run, 2026-10-21 23:02 to 07:27
+
+A Huawei P20 Lite (ANE-LX1, Android 9, EMUI), on a charger, untouched, six
+senses on, 5 s interval. **8.42 hours, 302 percepts.** The device is the
+household emergency line and a retired handset, which is the realistic host
+for this project rather than its awkward low end.
+
+**The foreground service survived.** No gap longer than five minutes, no
+sequence reset, no restart. This was the question the night was spent on, and
+an aggressive vendor ROM leaving the service alone for eight hours is what
+makes an always-on deployment viable at all.
+
+**Nothing went quiet.** The failure mode that matters here is a sense that
+works and then stops without throwing, so each was counted across the night
+and across its thirds:
+
+| sense | samples | first | last |
+|---|---|---|---|
+| vision labels | 304/304 | 23:02 | 07:27 |
+| hearing level | 304/304 | 23:02 | 07:27 |
+| wifi / cell / gps / steps | 304/304 | 23:02 | 07:27 |
+| hearing events | 292/304 | 23:04 | 07:27 |
+| ble | **0/304** | — | — |
+
+That includes `VisionSensor.onFrame`'s `ImageProxy` lifetime hack, described
+elsewhere in this file as the most suspect code in the repo. It produced
+labels on every one of 304 samples over eight hours without stalling. Not
+proof it is correct, but it is no longer the leading suspect.
+
+The BLE zero is ambiguous and should not be read as a fault: the named devices
+seen earlier that evening were a soundbar and a robot lawnmower, both of which
+sleep at night. It is still worth noting that `ble_count: 0` cannot distinguish
+"scanned, found nothing" from "scan failed" — the same shape as the empty
+sound-event list that needed `classifier` to resolve.
+
+**Place learning was perfect, which validates two fixes at once.** One place,
+`p2`, across all 303 samples. **Zero switches, zero new places, similarity
+1.00 throughout.** Against the previous evening's 114 switches in 531 samples
+on the Xiaomi, this is the containment guard and the evidence-based tie-break
+doing exactly what they were written for. A stationary phone in a quiet room
+is the easiest possible case, so this confirms the fixes rather than stressing
+them.
+
+**Attention behaved.** 226 heartbeats to 78 salient triggers, median salience
+0.01. Three quarters of the night the habituation model had nothing to say,
+which is correct for an empty dark room. What it did report was `Silence` 246
+times, and `Breathing` and `Snoring` 26 times each — the app noticed someone
+asleep.
+
+#### The `still` threshold does not port between phones
+
+The finding the night was actually for, and it needed a phone nobody was
+touching to get it. `accel_rms` over 305 untouched samples:
+
+| value | samples |
+|---|---|
+| 0.01–0.07 | 13 |
+| 0.09–0.16 | 39 |
+| **0.17–0.18** | **220** |
+| 0.19–0.21 | 33 |
+
+A sharp peak at **0.17–0.18**. `classifyMotion` calls something `still` only
+below **0.08**, so the P20 reported **`handled` for 290 of 303 samples while
+lying face up on a charger all night**. The Xiaomi idles at 0.04–0.05 and
+reports `still` correctly. Same code, same situation, opposite answer.
+
+So the published `motion` value — an ordinal on the wire, a dial in Potluck —
+was wrong all night on one of the two target devices.
+
+The fix is **not** to retune 0.08 to something that suits a Huawei: that
+overfits the second phone exactly as it currently overfits the first. A
+resting baseline has to be learned per device, the way the magnetic baseline
+already is, so the question becomes "is this phone moving more than it usually
+does" rather than "is this number under a constant chosen on someone else's
+hardware".
+
+Recorded honestly because the route to it was not clean: the same claim was
+made the previous evening from 49 samples taken while the user was holding the
+phone, retracted when they pointed that out — *"i am handling it to find
+transcribe speech ofcourse it says handled"* — and is only now supportable
+from eight hours of a phone on a table. **The retraction was correct when it
+was made.** Being right later does not make contaminated evidence good.
+
+#### `current_ma` is wrong by a factor of 1000 on this device
+
+`SelfSensor` divides `BATTERY_PROPERTY_CURRENT_NOW` by 1000, documented by
+Android as microamps. Huawei reports milliamps. Overnight the field ranged
+**−0.64 to +1.01 mA**, which for a phone drawing from a wall charger is
+impossible; the true figures are about −640 mA and +1010 mA. The value is
+plausible enough to be believed and wrong by three orders of magnitude, which
+is worse than reporting nothing.
+
+#### A worn battery on a charger never reaches full
+
+Battery ranged **0.64 to 0.82** across the night, rising 54 times and falling
+37, with the `charging` flag changing **12 times**. It never completed a
+charge and never came close to empty, ending at 81%. Either EMUI's battery
+protection or a worn cell, and for an always-on host it does not matter:
+**power is not a constraint for this deployment.** It does mean `battery` and
+`charging` are noisy published values on an old handset, and a consumer that
+treats a `charging` transition as an event will see twelve of them a night.
+
 ### One thin scan mints a duplicate of the room you are in
 
 Found later the same evening, with WiFi on and the starvation gone. The phone
