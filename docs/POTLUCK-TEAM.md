@@ -43,10 +43,15 @@ other.
     `?` outputs `x, y, a, b, theta, conf`, with their encodings
   - `rf_link`'s `{node}/rf/channel` and
     `{node}/rf/link/{peer}/{seq,count,mean,var}`
-- **State:** active. Planning **PS-1**, a presence test in the house: a person
-  stands on taped spots, then walks two routes the PC calls out, with the route
-  file sealed under a sha256 until the reconstruction is committed and scored
-  blind.
+  - the descriptor's **`panel`** block — `rf_fusion`'s room card on Potluck's
+    dashboard — and its **`view`** block, the Potluck Desk's "Room presence"
+    window. Both live in `potluck-modules.json`.
+- **State: on hold.** **PS-1** is written and ready but blocked on who deploys
+  while `potluck` is on hiatus, and the boards' current state is unknown — it
+  assumes nothing and starts from a fresh deploy. PS-1 is a presence test in
+  the house: a person stands on taped spots, then walks two routes the PC calls
+  out, with the route file sealed under a sha256 until the reconstruction is
+  committed and scored blind.
 - **Needs nothing from `synth-senses`**, and has no plans to ask for a phone
   value.
 - **May later ask Potluck** to measure the house mesh's Wi-Fi beacons as extra
@@ -78,12 +83,17 @@ other.
 
 ### `poor-mans-extender` — Wi-Fi extender with three ESP32-S3
 
-- **State:** on hold since 18 October. Never spoken to from here.
-- **Everything about it is assumed.** Synth Senses knows only its name.
-- **Assumed, and the reason this file exists:** it uses *three ESP32-S3
-  boards*, and so does `passive-sensor`. If those are the same three physical
-  boards, the two projects contend for hardware rather than merely for
-  attention. **Nobody has confirmed this either way.**
+- **State: finished (confirmed).** Its README reads "Status (2026-10-16):
+  done, by the owner's call, and parked", and "Do not assume any board runs it
+  now". Last commit `8e499ab`. **No session will touch the boards on its
+  behalf.**
+- **Not a separate firmware owner.** Like `passive-sensor`, it is a component
+  compiled into Potluck's firmware image and deployed the same way — `potluck
+  apply`, via the cluster file's `firmware.extender` entry. On the bench, board
+  B ran "Potluck + pme_hotspot + rf_link in one image". Neither project flashes
+  anything itself.
+- **But its *role* is the live risk to PS-1**, which is not what this file
+  first guessed. See below.
 
 ---
 
@@ -95,21 +105,39 @@ other.
 | `--vocabulary` labels | `synth-senses` | Renaming, reordering or inserting breaks `potluck-desk`'s build. Appending does not. |
 | `rf_fusion` / `rf_link` paths | `passive-sensor` | Renaming breaks the desk's view of presence. |
 | Hub write rate | `potluck` | Two copies of one program look like one over its share. **Never run two bridges.** |
-| The three ESP32-S3 boards | *unassigned* | **Assumed** shared between `passive-sensor` and `poor-mans-extender`. A reflash during PS-1 ruins a 45-minute session. |
+| The three ESP32-S3 boards | **Potluck's cell (Tue)** | The boards belong to the cell; `passive-sensor` and `poor-mans-extender` are apps inside one firmware image, not joint firmware owners. Neither flashes its own. |
+| The extender **role** | `potluck` cluster file | While active, one board joins the house mesh and **the whole cell follows the router's channel** (L3.8, L3.28). Every channel change makes each `passive-sensor` board relearn its links (D14) — about a minute blind. |
 | GPU / Ollama | *unassigned* | `dark-factory` (not a Potluck project) runs only when Tue says the GPU is free. Synth Senses may want it later to evaluate a speech model, and will ask first. |
 
 ---
 
-## Open, and only Tue can settle them
+## What the hardware question turned out to be
+
+This file was written asking whether `passive-sensor` and `poor-mans-extender`
+flash the same three boards and would therefore contend. **They do share the
+boards and they do not contend over firmware** — both are components compiled
+into one Potluck image, deployed by `potluck apply`. A reflash by a rival
+project was the wrong worry.
+
+The real risk is subtler and was found by `passive-sensor`, not here. When the
+**extender role** is active, one board joins the house mesh, and the whole cell
+then follows the router's channel. Each channel change costs every
+`passive-sensor` board about a minute of relearning its links — which, during a
+blind-scored walk, is indistinguishable from the method simply being wrong. A
+reflash would at least have been obvious; this would have quietly inflated the
+error and been believed.
+
+PS-1 therefore leaves the extender role idle for the session and records that
+choice (`56067a6`). Worth keeping as a general shape: **the dangerous
+interaction between two projects was not the one either of them owned, it was a
+property of the platform they both sit inside.**
+
+## Open, and only Tue can settle it
 
 1. **Who deploys the boards for PS-1.** Every deploy so far went through the
    `potluck` session, which is on hiatus. `passive-sensor` needs a fresh deploy
    and the ground floor undisturbed for about 45 minutes. It has explicitly left
-   this to Tue.
-2. **Whether `poor-mans-extender` and `passive-sensor` share boards.** If they
-   do, they cannot both be active, and PS-1 needs that settled before it starts.
-3. **Whether `poor-mans-extender` has anything left to do at all.** It may be
-   finished, in which case the contention above is moot.
+   this to Tue, and it is now the only thing standing between PS-1 and a run.
 
 ---
 
