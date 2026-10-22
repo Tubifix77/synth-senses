@@ -476,6 +476,7 @@ class SenseService : LifecycleService() {
                         put("speech_last_error", speech.lastError ?: JSONObject.NULL)
                         put("current_unit", selfSensor.currentUnit ?: JSONObject.NULL)
                         put("location_fixes", locationFeed.fixesReceived)
+                        put("last_crash", lastCrash() ?: JSONObject.NULL)
                         put("location_providers", JSONObject(locationFeed.providers()))
                         put("still_ceiling", body.stillCeiling)
                         put("still_ceiling_samples", body.stillCeilingSamples)
@@ -601,6 +602,24 @@ class SenseService : LifecycleService() {
      * So this is built only from things that change when something actually
      * changes: which senses are on, and the state of the link.
      */
+    /**
+     * The newest crash report SynthSensesApp left on disk, so a crash on a phone
+     * with no adb can be read from off-device. The first install of the
+     * location diagnostics crashed twice on connect and recovered, and there was
+     * no way to see why: the report sat in Android/media on the phone. Reports
+     * survive installs, so a crash is readable after the next one.
+     */
+    @Suppress("DEPRECATION") // externalMediaDirs: SynthSensesApp writes there
+    private fun lastCrash(): JSONObject? = runCatching {
+        val dir = externalMediaDirs.filterNotNull().firstOrNull() ?: return null
+        val newest = dir.listFiles { f -> f.name.startsWith("crash-") }
+            ?.maxByOrNull { it.lastModified() } ?: return null
+        JSONObject().apply {
+            put("file", newest.name)
+            put("text", newest.readLines().take(40).joinToString("\n"))
+        }
+    }.getOrNull()
+
     private fun statusText(): String {
         val on = mutableListOf<String>()
         if (prefs.vision) on += "vision"

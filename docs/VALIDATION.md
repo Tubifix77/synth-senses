@@ -660,15 +660,17 @@ and GPS about once a minute, and every published fix carries `gps.age_s`. The
 gps block had also never been documented in `PROTOCOL.md` — its sample percept
 had `"gps": null` — and now is.
 
-**On hardware, only half of this works yet.** The first install's first
-percept read `gps.age_s` **160 971** — the borrowed fix was 44.7 hours old,
-older than the log alone had shown — and four minutes later **161 166**: the
-same fix ageing, with no fresh one from either provider. So the age now tells
-the truth about a failure the earlier builds hid, but the phone is not sensing
-yet. Indoors GPS cannot answer; the network provider should, and did not. The
-leading suspect is a GPS-only location mode, which switches the network
-provider off. `status` now reports `location_providers` and `location_fixes`,
-so the cause can be read from off-device rather than guessed.
+**On hardware it works, slowly.** The first install's first percept read
+`gps.age_s` **160 971** — the borrowed fix was 44.7 hours old, older than the
+log alone had shown — and four minutes later **161 166**, still ageing. That
+was read here at first as "the phone is not sensing", with a GPS-only location
+mode as the suspect. Both were wrong. `status` showed all three providers
+switched on, and twenty minutes later the age was **530 s**: a fresh fix had
+arrived about twelve minutes after the feed first asked. Nothing else on the
+phone requests location, so it was this feed. Indoors, under a floor, a first
+network fix took about twelve minutes; the four-minute check was simply too
+early to see it. `status` reports `location_providers` and `location_fixes` so
+the delivery rate can be measured rather than inferred.
 
 #### Seven times Earth's field, and a precise compass bearing
 
