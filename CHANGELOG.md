@@ -134,6 +134,13 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Fixed
 
+- **The phone no longer describes what it "sees" in the dark.** On a frame
+  with brightness 0.00 the image labeller returned Sky, Monochrome and Space
+  for all 749 such frames, and the narration repeated them — "I can see sky,
+  monochrome, space" in a pitch-dark room. Below brightness 0.10 those three
+  words are the labeller's answer to any black image, measured across both
+  phones, so vision now publishes empty labels, objects and text there, keeps
+  `brightness`, and skips running three models on nothing.
 - **BLE was blind whenever the screen was off, and reported that as an empty
   room.** Since Android 8.1 an unfiltered BLE scan returns nothing with the
   screen off, and the scanner passed no filter. With the screen off the P20

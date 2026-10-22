@@ -621,6 +621,34 @@ transcribe speech ofcourse it says handled"* — and is only now supportable
 from eight hours of a phone on a table. **The retraction was correct when it
 was made.** Being right later does not make contaminated evidence good.
 
+#### On a black frame, the labeller still answers
+
+All night `vision.brightness` was 0.00 — the camera faced a dark ceiling — and
+every one of those frames came back labelled **Sky, Monochrome, Space**. The
+narration repeated it, so the phone said "I can see sky, monochrome, space" in
+a pitch-dark room, sometimes in the same sentence as "it is dark". Across every
+frame from both phones:
+
+| brightness | frames | top labels |
+|---|---|---|
+| 0.00 | 749 | Sky 749, Monochrome 749, Space 749 |
+| below 0.05 | 248 | the same three, 248 each |
+| below 0.10 | 116 | Sky 116, Space 107, Monochrome 74 |
+| below 0.20 | 26 | Sky 24, Monochrome 16, Space 11, two others |
+| 0.20 and up | 454 | Musical instrument, Desk, Room, … — real variety |
+
+Below 0.10 the output is the same three words essentially every time: the
+labeller's response to an empty image, not to a scene. Above 0.20 it varies the
+way a real room does. The cut is at 0.10, the conservative end — only where the
+evidence says the answer is the black-frame signature in nearly every case — so
+the 26 frames between 0.10 and 0.20, two of which may have held something, are
+still labelled.
+
+Unlike BLE, an empty list is the truthful answer here rather than a null: the
+camera *did* look, and nothing was recognisable. `vision.brightness` is still
+published and says why. It also stops the labeller, the object detector and
+OCR all running on nothing, which on an always-on phone is every dark hour.
+
 #### `current_ma` is wrong by a factor of 1000 on this device
 
 `SelfSensor` divides `BATTERY_PROPERTY_CURRENT_NOW` by 1000, documented by

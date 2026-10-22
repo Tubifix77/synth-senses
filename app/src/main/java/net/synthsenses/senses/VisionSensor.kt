@@ -77,6 +77,21 @@ class VisionSensor(
             return null
         }
 
+        // A black frame carries nothing a model can use, and the labeller
+        // answers anyway -- see [TOO_DARK_TO_SEE]. The camera did look, so an
+        // empty list is the truthful answer, and brightness says why. It also
+        // spares three models a night of inference on nothing.
+        if (tooDarkToSee(frame.brightness)) {
+            if (!KEEP_CAMERA_WARM) unbind()
+            return Vision(
+                lens = lens,
+                brightness = frame.brightness,
+                labels = emptyList(),
+                objects = emptyList(),
+                text = null
+            )
+        }
+
         val labels = runCatching {
             labeler.process(frame.image).await()
                 .map { Scored(it.text, it.confidence) }
@@ -258,3 +273,18 @@ class VisionSensor(
         analysisExecutor.shutdown()
     }
 }
+
+/**
+ * Mean luma below which a frame is treated as showing nothing.
+ *
+ * Measured, not chosen: below 0.10 the ML Kit labeller answered "Sky,
+ * Monochrome, Space" on essentially every frame, from both phones -- 749 frames
+ * at exactly 0.00 got all three, every time -- which is its response to a black
+ * image rather than to any scene. Above 0.20 its labels vary the way a real
+ * room does. 0.10 is the conservative end of that gap, so the few frames between
+ * 0.10 and 0.20 that may hold something are still labelled. See
+ * docs/VALIDATION.md.
+ */
+internal const val TOO_DARK_TO_SEE = 0.10f
+
+internal fun tooDarkToSee(brightness: Float): Boolean = brightness < TOO_DARK_TO_SEE

@@ -210,6 +210,7 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `attention.salience` | 0–1. What got through the habituation model. |
 | `attention.novel` | tokens never seen, or fully recovered. Usually the reason it spoke. |
 | `attention.floor_reason` | set when an intensity floor overrode habituation |
+| `vision.labels` | what the image labeller recognised, strongest first. **Empty when the frame is too dark to carry content** — mean brightness below 0.10 — because there the labeller answers "Sky, Monochrome, Space" for any black image. `vision.brightness` is still published and says why. |
 | `vision.box` | normalised `[left, top, right, bottom]` in 0–1 of the frame |
 | `vision.track` | stable across frames while the object stays in view. `null` if untracked. |
 | `hearing.*_db` | dBFS, so always negative. `-90` is the floor. |
