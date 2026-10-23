@@ -17,6 +17,10 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **Broadcast names arrive as text.** A headset near the P20 advertised its
+  name with a trailing NUL, which went into `radio.ble_named` and the narration
+  as `\u0000`. Bluetooth names and WiFi SSIDs now have control characters
+  dropped and are trimmed, and a name made only of padding is null.
 - **The ears listen to the room, on every phone.** Hearing asked for the
   `UNPROCESSED` microphone input unconditionally, and Android documents that a
   phone without it "behaves like DEFAULT" — silently, with no error — so the

@@ -146,9 +146,9 @@ class RadioSensor(private val context: Context) {
             override fun onScanResult(type: Int, result: ScanResult) {
                 val addr = result.device?.address ?: return
                 val id = shortHash(addr)
-                val name = runCatching {
+                val name = radioName(runCatching {
                     result.scanRecord?.deviceName ?: result.device?.name
-                }.getOrNull()?.takeIf { it.isNotBlank() }
+                }.getOrNull())
                 // keep the strongest sighting of each device in the window
                 val existing = found[id]
                 if (existing == null || result.rssi > existing.rssi) {
@@ -222,7 +222,7 @@ class RadioSensor(private val context: Context) {
             w.scanResults.map { r ->
                 Beacon(
                     id = shortHash(r.BSSID),
-                    name = r.SSID?.takeIf { it.isNotBlank() },
+                    name = radioName(r.SSID),
                     rssi = r.level
                 )
             }
@@ -327,6 +327,18 @@ internal fun shortHash(s: String): String {
  * placeholder for "nothing measured". GSM and WCDMA have other ranges and no
  * observed placeholder, so only the sentinel is removed for them.
  */
+/**
+ * A broadcast name as text a person could read, or null.
+ *
+ * Names are whatever a device's firmware put in its advertisement, padding
+ * included: a headset on the P20's first evening online advertised
+ * "smartSILENO free" with a trailing NUL, which went into the percept and the
+ * narration as `\u0000`. Control characters are dropped and the rest trimmed,
+ * so a name made only of padding is no name at all.
+ */
+internal fun radioName(raw: String?): String? =
+    raw?.filterNot { it.isISOControl() }?.trim()?.takeIf { it.isNotEmpty() }
+
 internal fun cellDbm(kind: String, raw: Int): Int? = when {
     raw == Int.MAX_VALUE -> null
     (kind == "lte" || kind == "nr") && raw >= -44 -> null
