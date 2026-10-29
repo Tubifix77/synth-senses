@@ -64,6 +64,16 @@ class AudioSensor(private val context: Context) {
     var micSource: String? = null
         private set
 
+    /**
+     * Samples skipped because the phone was ringing or on a call, since the
+     * service started, for `status`. The first ring test on the P20 could not
+     * be read: a skipped sample is only an absence in the hearing tally, and
+     * an absence cannot be told from a sample that was never due.
+     */
+    @Volatile
+    var callStandDowns = 0
+        private set
+
     /** The last classification failure, for `status`. logcat is not reachable. */
     var lastClassifyError: String? = null
         private set
@@ -179,6 +189,7 @@ class AudioSensor(private val context: Context) {
         val mode = runCatching { am?.mode }.getOrNull()
         if (micIsBusy(mode)) {
             Log.i(TAG, "phone is ringing or on a call — not touching the mic")
+            callStandDowns += 1
             return@withContext null
         }
 

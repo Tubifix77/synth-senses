@@ -17,6 +17,10 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **`status` counts the samples hearing gave up to a call**, as
+  `mic_call_stand_downs`. The first ring test on the P20 rang normally but
+  could not be read off the percept log, where a skipped sample is only a
+  missing one; read the count before and after a call instead.
 - **A blind WiFi scan claims no place.** From 2026-10-24 the P20's WiFi scans
   came back empty for five days while it stayed connected to its home network,
   so place learning had BLE alone, and a phone that never moved minted about

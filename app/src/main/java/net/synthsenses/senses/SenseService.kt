@@ -478,6 +478,7 @@ class SenseService : LifecycleService() {
                         put("sound_model", audio.modelAvailable)
                         put("sound_model_from", audio.modelSource ?: JSONObject.NULL)
                         put("mic_source", audio.micSource ?: JSONObject.NULL)
+                        put("mic_call_stand_downs", audio.callStandDowns)
                         put("sound_last_error",
                             audio.lastClassifyError ?: JSONObject.NULL)
                         put("speech_last_error", speech.lastError ?: JSONObject.NULL)
