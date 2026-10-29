@@ -17,6 +17,18 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **The phone's PC side is one program.** `tools/synth_senses_service.py`
+  runs the receiver, the bridge and the port together, starts any that stops
+  (at most once in 30 s), and stops them all when it stops. It is meant to be
+  started by Potluck's tray beside the hub, so the phone is served whenever
+  Potluck is. Until now the three were started by hand and stopped whenever
+  the terminal or Claude session holding them did, which left the phone STALE
+  in Potluck three times in a week. A second copy exits at once (code 3)
+  instead of running a second bridge. On Windows the programs are held in a
+  job object, so killing the service, which is what a tray does, cannot leave
+  an orphaned bridge writing beside the next one. A test kills a parent with
+  and without that guard to show the difference. Output goes to rolling logs
+  in `logs/`, and lines appended to `logs/commands.jsonl` reach the phone.
 - **Broadcast names arrive as text.** A headset near the P20 advertised its
   name with a trailing NUL, which went into `radio.ble_named` and the narration
   as `\u0000`. Bluetooth names and WiFi SSIDs now have control characters

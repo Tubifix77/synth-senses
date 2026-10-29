@@ -228,9 +228,13 @@ tools/test_potluck_bridge.py  its ordinals, budget, and that absence stays absen
 tools/potluck_port.py      those numbers, read back off Potluck, served on loopback
                            to a companion in ai-consciousness. No location path.
 tools/test_potluck_port.py what it answers, what it withholds, 502 vs 503
+tools/synth_senses_service.py  receiver + bridge + port as one program, kept
+                           running; what Potluck's tray starts. One copy only.
+tools/test_synth_senses_service.py  the lock, the backoff, and that its
+                           programs die with it
 ```
 
-All six tool suites are stdlib-only and run in CI on every push, as does
+All seven tool suites are stdlib-only and run in CI on every push, as does
 `apk_facts.py` against the APK that job just built. `python3
 tools/<name>.py` runs any of them locally, which is faster than a CI cycle and
 needs no toolchain.

@@ -62,3 +62,6 @@ _unpack.py
 
 # the Potluck pairing token and the certificate fingerprint it pinned
 .potluck-token.json
+
+# synth_senses_service.py: each program's rolling log and the commands file
+logs/
