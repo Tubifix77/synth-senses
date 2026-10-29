@@ -17,6 +17,17 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **A blind WiFi scan claims no place.** From 2026-10-24 the P20's WiFi scans
+  came back empty for five days while it stayed connected to its home network,
+  so place learning had BLE alone, and a phone that never moved minted about
+  1,400 new places and published a different `place` to Potluck every few
+  samples. A scan that lists nothing while connected is now treated as blind:
+  `radio.place_id` is null rather than new.
+- **An old fix is not written to Potluck as current.** The same five days the
+  phone received no location fixes and sent its last one, honestly aged by
+  `gps.age_s`, which the bridge never read: Potluck showed a five-day-old
+  position as live. `lat` and `lon` are now written only from a fix at most
+  15 minutes old, so a stopped feed ages into STALE.
 - **The phone's PC side is one program.** `tools/synth_senses_service.py`
   runs the receiver, the bridge and the port together, starts any that stops
   (at most once in 30 s), and stops them all when it stops. It is meant to be

@@ -733,6 +733,20 @@ pb._drain(_pen, _bud, _hub)
 check("and it comes back the moment the phone reports it again",
       "sound" in _hub.names[_n0:], str(_hub.names[_n0:]))
 
+print("\nan old fix is where the phone was, not where it is")
+# 2026-10-24 to -29: the P20 received no fixes and sent its last one, aged
+# 445470 s, every sample. The bridge wrote it into Potluck as current.
+_v = pb.values_from(percept(gps={"age_s": 445470}))
+check("a five-day-old fix writes no coordinates",
+      "lat" not in _v and "lon" not in _v, str(sorted(_v)))
+check("while everything else in that percept is still written",
+      "battery" in _v and "place" in _v, str(sorted(_v)))
+_v = pb.values_from(percept(gps={"age_s": 30}))
+check("a fresh fix is written", "lat" in _v and "lon" in _v, str(sorted(_v)))
+_v = pb.values_from(percept(gps={"age_s": pb.GPS_MAX_AGE_S}))
+check("up to the limit itself", "lat" in _v, str(sorted(_v)))
+check("a fix with no age, as schema 2 sent, is used", "lat" in pb.values_from(percept()))
+
 print("\nthe contract a consumer checks itself against")
 # A consumer that renders these numbers keeps a copy of the words, and a copy
 # drifts: a desktop view came to label ordinal 3 "impact" while this bridge

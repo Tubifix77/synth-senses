@@ -101,6 +101,7 @@ class RadioSensor(private val context: Context) {
         val ble = if (wantBle) scanBle() else null
         val aps = if (wantWifi) scanWifi() else emptyList()
         val cell = if (wantCell) readCell() else null
+        val ssid = connectedSsid()
 
         // Fingerprint the place from whatever is stable: APs first, then BLE
         // devices that look fixed (strong and named).
@@ -108,14 +109,15 @@ class RadioSensor(private val context: Context) {
         aps.forEach { fingerprint["w:${it.id}"] = it.rssi }
         ble.orEmpty().filter { it.rssi > -75 }.forEach { fingerprint["b:${it.id}"] = it.rssi }
 
-        val match = if (fingerprint.isEmpty()) null else placeMemory.recognise(fingerprint)
+        val match = if (fingerprint.isEmpty() || wifiScanBlind(wantWifi, aps.size, ssid)) null
+                    else placeMemory.recognise(fingerprint)
 
         return Radio(
             bleCount = ble?.size,
             bleNamed = ble?.filter { it.name != null }?.sortedByDescending { it.rssi }?.take(8),
             bleStrongestRssi = ble?.maxOfOrNull { it.rssi },
             wifiCount = aps.size,
-            wifiConnected = connectedSsid(),
+            wifiConnected = ssid,
             wifiStrongestRssi = aps.maxOfOrNull { it.rssi },
             cell = cell,
             placeId = match?.id,
@@ -327,6 +329,23 @@ internal fun shortHash(s: String): String {
  * placeholder for "nothing measured". GSM and WCDMA have other ranges and no
  * observed placeholder, so only the sentinel is removed for them.
  */
+/**
+ * True when the WiFi scan cannot be believed: the phone is connected to a
+ * network, yet the scan lists none -- not even the one it is on.
+ *
+ * Seen on the P20 from 2026-10-24: every scan came back empty for five days
+ * while the phone stayed on its home network, so each place fingerprint was
+ * BLE alone, which drifts with every passing headset. The phone never moved
+ * and minted about 1,400 new places, churning a memory that holds 120 -- the
+ * real rooms survived only because eviction takes the least-visited first --
+ * and published a different "place" to Potluck every few samples. An empty
+ * scan while connected is a blind scan, and a blind scan
+ * says nothing about where the phone is, so no place is recognised or
+ * learned from it. Not connected, an empty scan can be a real empty street.
+ */
+internal fun wifiScanBlind(wantWifi: Boolean, apCount: Int, connectedSsid: String?): Boolean =
+    wantWifi && apCount == 0 && connectedSsid != null
+
 /**
  * A broadcast name as text a person could read, or null.
  *

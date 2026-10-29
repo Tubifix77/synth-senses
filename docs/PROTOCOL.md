@@ -219,6 +219,7 @@ step counters need `ACTIVITY_RECOGNITION`. Write your receiver defensively.
 | `hearing.events` | YAMNet class names. Empty array if `yamnet.tflite` is absent. |
 | `radio.*.id` | FNV-1a hash of the MAC or BSSID, 10 hex chars. Never a raw address. |
 | `radio.place_similarity` | coverage 0–1, see [VALIDATION.md](VALIDATION.md) |
+| `radio.place_id` | the learned place, `p<n>`. **Null when the WiFi scan is blind**: the phone is connected to a network yet the scan lists none, which no working scan does. A blind scan leaves BLE alone, and BLE alone mints a new place every few samples, so no place is claimed from it. Also null with no fingerprint at all. |
 | `body.motion` | `still` \| `handled` \| `walking` \| `vehicle` |
 | `body.posture` | `face_up` \| `face_down` \| `upright` \| `tilted` \| `pocket` \| `unknown` |
 | `body.magnetic_anomaly` | µT deviation from a slow baseline. Above ~15 means something metal or electrical is close. |

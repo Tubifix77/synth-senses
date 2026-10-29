@@ -131,8 +131,10 @@ ABSENT_NOTES = {
                "Permanently absent below API 29.",
     "sound": "quiet is a real reading; no hearing block at all is absence "
              "and is never written.",
-    "lat": "written only while the user has location switched on.",
-    "lon": "written only while the user has location switched on.",
+    "lat": "written only while the user has location switched on, and only "
+           "from a fix at most GPS_MAX_AGE_S old.",
+    "lon": "written only while the user has location switched on, and only "
+           "from a fix at most GPS_MAX_AGE_S old.",
     "ble_count": "absent when the phone could not look: BLE off or denied, a "
                  "scan refused for starting too soon after the last five, or "
                  "the screen off on Android 13+ with nothing heard. A written "
@@ -256,6 +258,24 @@ def _bucket(name):
     return "other"
 
 
+#: A fix older than this is where the phone was, not where it is. The phone
+#: asks for a fix a minute, and the slowest first fix measured indoors took
+#: twelve, so fifteen minutes is generous to a working feed and still far
+#: short of what went wrong: from 2026-10-24 the P20 stopped receiving fixes
+#: and kept sending its last one, honestly aged, for five days -- and this
+#: bridge wrote it into Potluck as current every time, because it never
+#: looked at `gps.age_s`. Absent the age (schema 2 had none), the fix is used.
+GPS_MAX_AGE_S = 900
+
+
+def _fix(percept, key):
+    """gps[key] from a fix fresh enough to be the phone's position now."""
+    age = _dig(percept, "gps", "age_s")
+    if isinstance(age, (int, float)) and not isinstance(age, bool) and age > GPS_MAX_AGE_S:
+        return None
+    return _dig(percept, "gps", key)
+
+
 def place_number(percept):
     """`p3` -> 3. The ids are assigned in first-seen order and persisted.
 
@@ -320,8 +340,8 @@ VALUES = [
     # forty, so a tighter threshold would spend the write budget on noise
     # without telling anyone anything. Precision is not affected -- what is
     # written is what the phone reported.
-    ("lat",          "f32", "degree",  lambda p: _dig(p, "gps", "lat"), 0.0002),
-    ("lon",          "f32", "degree",  lambda p: _dig(p, "gps", "lon"), 0.0002),
+    ("lat",          "f32", "degree",  lambda p: _fix(p, "lat"), 0.0002),
+    ("lon",          "f32", "degree",  lambda p: _fix(p, "lon"), 0.0002),
     # Approved for the first rollout on 2026-10-21. Appended rather than
     # inserted, which is what keeps every other ordinal where it was and makes
     # this non-breaking for a consumer that has already pinned the list.
