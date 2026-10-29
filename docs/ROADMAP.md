@@ -182,8 +182,11 @@ matters:
   never cost that phone a call.** The ears already opened the mic in short
   bursts and released it in a `finally`, which made a collision unlikely;
   `micIsBusy` now makes it impossible, standing down from the first ring rather
-  than from the moment someone answers. Verify it anyway on the first evening —
-  ring the phone from another one while the service runs.
+  than from the moment someone answers. **Verified on 2026-10-29:** the P20 was
+  rung for 20 s, unanswered, while the service ran. It rang normally, the
+  percept sent mid-ring carried no hearing at all, the next tally held 19 of
+  its 24 due samples, and hearing came back on its own after the call. The
+  answered half of a call is still untested.
 - **It cannot report its own heat.** Thermal status is API 29 and headroom is
   API 30, so both degrade to absent here. `self.battery_temp_c` still works and
   is the only heat signal this phone has. On a device that is permanently
