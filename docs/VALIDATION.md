@@ -794,7 +794,14 @@ Not yet measured: whether that hears a television better. The only "before"
 is two readings from the interval-tally build, one `quiet` and one `speech`
 in about five minutes, against three `Speech` votes in the first four
 percepts after the switch. That is suggestive, not a comparison, and the
-level readings are not comparable across the change at all. The question
+level readings are not comparable across the change at all.
+
+The TV session itself ran that evening, 20:50–21:10 UTC, with the companion in
+ai-consciousness polling the port. All four of its polls read `speech`, at
+−35.96 to −44.9 dB, and none read `music`. Four readings, one room, one
+programme: the TV is audible to the new input, which is all this shows. The
+companion still described the room as quiet, which was its own prompt's
+doing and has been fixed there, not here. The question
 came from Tue asking whether speakerphone mode would hear the room better.
 The instinct was right, though not that mechanism: speakerphone is the call
 input, which suppresses background noise on purpose.
