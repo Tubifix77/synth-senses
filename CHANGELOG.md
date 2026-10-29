@@ -201,6 +201,10 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Fixed
 
+- **A `set` that worked says so.** The command's own `cmd` field was counted
+  as an unknown setting, so every remote `set` came back `ok: false` with
+  "not a setting: cmd" after applying everything it was given. Seen on the
+  P20 toggling `location`.
 - **A cell signal of −44 dBm is no longer published as a reading.** 124 of
   the Xiaomi's 323 readings were exactly −44 — the top of the LTE RSRP range —
   on cells that otherwise read −102 to −112; it is that modem's placeholder for

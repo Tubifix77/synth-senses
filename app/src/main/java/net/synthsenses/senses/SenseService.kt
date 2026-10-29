@@ -354,7 +354,7 @@ class SenseService : LifecycleService() {
                     applied += "$name=$value"
                 }
 
-                cmd.args.keys().forEach { key ->
+                cmd.argNames().forEach { key ->
                     when (key) {
                         "interval_ms" -> {
                             prefs.intervalMs = cmd.long("interval_ms", prefs.intervalMs)

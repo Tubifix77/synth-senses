@@ -91,6 +91,14 @@ class LinkCommandTest {
     }
 
     @Test
+    fun `the command's own name is not one of its arguments`() {
+        // set counted "cmd" as an unknown setting and acked every set ok:false
+        assertEquals(listOf("location"), cmd("set", """{"cmd":"set","location":true}""").argNames())
+        assertEquals(listOf("wifi"), cmd("set", """{"command":"set","wifi":false}""").argNames())
+        assertEquals(emptyList<String>(), cmd("set", """{"cmd":"set"}""").argNames())
+    }
+
+    @Test
     fun `speak carries its text through untouched`() {
         val c = cmd("speak", """{"cmd":"speak","text":"hello there, it is 12:00 & all is well"}""")
         assertEquals("hello there, it is 12:00 & all is well", c.str("text"))

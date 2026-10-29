@@ -49,6 +49,14 @@ class Link(
             args.optDouble(key, fallback.toDouble()).toFloat()
 
         fun bool(key: String, fallback: Boolean): Boolean = args.optBoolean(key, fallback)
+
+        /**
+         * The argument names, without the field that named the command. `args` is
+         * the whole inbound object, so `set` used to count its own `cmd` as an
+         * unknown setting and reply `ok: false` to every set it had applied.
+         */
+        fun argNames(): List<String> =
+            args.keys().asSequence().filterNot { it == "cmd" || it == "command" }.toList()
     }
 
     enum class State { OFFLINE, CONNECTING, OPEN, HTTP }
