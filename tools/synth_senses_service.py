@@ -31,6 +31,13 @@ Things it guarantees, because each one has gone wrong without it:
 - **Commands still reach the phone.** The receiver takes commands as JSON
   lines on its stdin. Lines appended to the commands file (--commands) are
   passed to it, and its replies are in receiver.log.
+- **Potluck can see which phone is sending.** Every REPORT_S this reports to
+  the hub's integration list under the pairing name: connected with the
+  phone's maker, model and Android version, idle with no phone attached, or
+  an error while one of the three is down. The model comes from a `status`
+  this asks for each time a phone connects, so it is always the phone that is
+  there now. Only phones on the websocket count as attached; one posting over
+  HTTP never says it arrived.
 
 Exit codes: 0 stopped when asked, 2 no pairing (pair once with
 potluck_bridge.py --pair), 3 already running.
@@ -58,6 +65,18 @@ BACKOFF_S = 30.0
 
 #: Each log rolls over at this size, keeping one older file.
 LOG_BYTES = 5 * 1024 * 1024
+
+#: How often the hub hears how this is doing. Its rule is at least every 30 s,
+#: and a report older than 60 s reads "disconnected".
+REPORT_S = 20.0
+
+#: The hub's cap on a report's detail.
+DETAIL_MAX = 200
+
+#: The receiver's own lines for a phone arriving and leaving (receiver.py,
+#: serve_ws). test_synth_senses_service.py checks they are still what it says.
+NODE_CONNECTED = "*** node connected from "
+NODE_LEFT = " disconnected ("
 
 
 def programs(hub, python=sys.executable):
@@ -192,13 +211,137 @@ class Child:
                 self.proc.kill()
 
 
-def pump(stream, log):
+def pump(stream, log, on_line=None):
     """Copy a program's output into its log, a line at a time."""
     import logging
     for raw in iter(stream.readline, b""):
         line = raw.decode("utf-8", "replace").rstrip("\r\n")
         log.emit(logging.makeLogRecord({"msg": line, "levelno": 20, "levelname": "INFO"}))
+        if on_line is not None:
+            try:
+                on_line(line)
+            except Exception:
+                pass                      # the log matters more than the report
     stream.close()
+
+
+_stdin_lock = threading.Lock()
+
+
+def send_line(child, line):
+    """One line to a program's stdin; False when it is not there to take it.
+    Locked, because commands and the status asked on a connect come from
+    different threads and must not interleave mid-line."""
+    proc = child.proc
+    if proc is None or proc.poll() is not None or proc.stdin is None:
+        return False
+    with _stdin_lock:
+        try:
+            proc.stdin.write(line.encode("utf-8"))
+            proc.stdin.flush()
+            return True
+        except OSError:
+            return False
+
+
+def device_label(device):
+    """A status reply's `device` as a person reads it: "HUAWEI ANE-LX1 · Android 9".
+
+    Maker, model and Android version and nothing else. It goes to the hub, and
+    from there to anything that reads its model, so nothing that tells one
+    phone of a make from another goes in. None when there is no model to name.
+    """
+    if not isinstance(device, dict):
+        return None
+
+    def clean(key):
+        v = device.get(key)
+        return "" if v is None else "".join(c for c in str(v) if c.isprintable()).strip()
+
+    maker, model, android = clean("manufacturer"), clean("model"), clean("android")
+    if not model:
+        return None
+    # A Pixel says "Google" and "Pixel 8"; some makers repeat themselves.
+    name = model if maker and model.lower().startswith(maker.lower()) else " ".join(p for p in (maker, model) if p)
+    if android:
+        name += " · Android " + android
+    return name[:DETAIL_MAX]
+
+
+class Presence:
+    """Whether a phone is attached and which one, read off the receiver's output.
+
+    The receiver says when a phone connects and when it leaves, and a status
+    reply says what it is. Each connect is answered with a status request
+    (`ask`), so the model is known within a second of the phone arriving and is
+    never one that has since gone.
+    """
+
+    def __init__(self, ask):
+        self.ask = ask
+        self.nodes = 0
+        self.device = None
+        self._lock = threading.Lock()
+
+    def see(self, line):
+        if line.startswith(NODE_CONNECTED):
+            with self._lock:
+                self.nodes += 1
+            self.ask()
+        elif line.startswith("*** node ") and NODE_LEFT in line:
+            with self._lock:
+                self.nodes = max(0, self.nodes - 1)
+                if self.nodes == 0:
+                    self.device = None
+        elif line.startswith("{") and '"type": "status"' in line:
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                return
+            if isinstance(msg, dict) and msg.get("type") == "status":
+                label = device_label(msg.get("device"))
+                if label:
+                    with self._lock:
+                        self.device = label
+
+    def reset(self):
+        """The receiver started again, and its phones went with the old one."""
+        with self._lock:
+            self.nodes, self.device = 0, None
+
+
+def report(presence, children):
+    """-> (state, detail) for the hub's integration list."""
+    down = [c.name for c in children if not c.running()]
+    if down:
+        return "error", "%s not running, restarting" % " and ".join(down)
+    if presence.nodes == 0:
+        return "idle", "no phone connected"
+    return "connected", presence.device or "a phone, model not reported yet"
+
+
+def keep_reporting(post, name, presence, children, stop, say, period=REPORT_S):
+    """Tell the hub how this is doing until `stop`, then that it stopped.
+    Logs only a change, of state or of how the hub answered, so a steady
+    connection costs one line rather than one every REPORT_S."""
+    last = None
+
+    def tell(state, detail):
+        try:
+            status, body, _ = post("/api/integrations", {"name": name, "state": state, "detail": detail})
+            answer = "ok" if status == 200 else "%s %s" % (status, body.get("result", ""))
+        except Exception as e:
+            answer = "%s: %s" % (type(e).__name__, e)
+        return answer
+
+    while not stop.is_set():
+        state, detail = report(presence, children)
+        answer = tell(state, detail)
+        if (state, detail, answer) != last:
+            say("told the hub %s: %s (%s)" % (state, detail, answer))
+            last = (state, detail, answer)
+        stop.wait(period)
+    tell("disconnected", "stopped")
 
 
 def forward_commands(path, child, stop):
@@ -212,14 +355,7 @@ def forward_commands(path, child, stop):
             if not line:
                 time.sleep(0.5)
                 continue
-            proc = child.proc
-            if proc is None or proc.poll() is not None or proc.stdin is None:
-                continue
-            try:
-                proc.stdin.write(line.encode("utf-8"))
-                proc.stdin.flush()
-            except OSError:
-                pass
+            send_line(child, line)
 
 
 def main(argv=None):
@@ -250,25 +386,35 @@ def main(argv=None):
         return 3
     try:
         with open(os.path.join(ROOT, ".potluck-token.json"), encoding="utf-8") as f:
-            if not json.load(f).get("token"):
-                raise ValueError("no token")
+            pairing = json.load(f)
+        if not pairing.get("token"):
+            raise ValueError("no token")
     except (OSError, ValueError) as e:
         say("no pairing in .potluck-token.json (%s): pair once with potluck_bridge.py --pair" % e)
         return 2
 
     guard = KillWithParent()
+    presence = Presence(ask=lambda: send_line(children[0], '{"cmd": "status"}\n'))
 
     def spawn(child):
         p = subprocess.Popen(child.argv, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              stdin=subprocess.PIPE if child.name == "receiver" else subprocess.DEVNULL,
                              **guard.popen_kwargs())
         guard.adopt(p)
-        threading.Thread(target=pump, args=(p.stdout, child.log), daemon=True).start()
+        watch = presence.see if child.name == "receiver" else None
+        threading.Thread(target=pump, args=(p.stdout, child.log, watch), daemon=True).start()
         return p
 
     children = [Child(name, cmd, make_log(args.logs, name), spawn, say=say)
                 for name, cmd in programs(args.hub)]
     stop = threading.Event()
+
+    from potluck_bridge import Hub
+    hub = Hub(args.hub, token=pairing["token"], fingerprint=pairing.get("fingerprint"))
+    reporter = threading.Thread(target=keep_reporting,
+                                args=(hub.post, pairing.get("name", "Synth Senses"), presence,
+                                      children, stop, say),
+                                daemon=True)
 
     def ask_stop(*_):
         stop.set()
@@ -286,14 +432,19 @@ def main(argv=None):
         while not stop.is_set():
             for c in children:
                 try:
-                    c.tend()
+                    if c.tend() and c is receiver:
+                        presence.reset()
                 except OSError as e:
                     say("%s did not start: %s" % (c.name, e))
                     c.last_start = c.clock()
+            if reporter.ident is None:
+                reporter.start()          # after the first starts, so it does not report them down
             stop.wait(2.0)
     finally:
         for c in reversed(children):
             c.stop()
+        if reporter.is_alive():
+            reporter.join(timeout=20)     # its last word: stopped
         say("stopped")
         lock.close()
     return 0

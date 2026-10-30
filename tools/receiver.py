@@ -420,6 +420,9 @@ def serve_ws(sock, addr, headers, key):
     with clients_lock:
         clients.append(sock)
     say(f"\n*** node connected from {node} — commands are live ***")
+    # Said on every way out, a clean close included: synth_senses_service.py
+    # reads these two lines to know whether a phone is attached.
+    why = "closed"
     try:
         while True:
             opcode, data = ws_read(sock)
@@ -446,12 +449,13 @@ def serve_ws(sock, addr, headers, key):
             else:
                 handle_reply(msg, node)
     except (ConnectionError, OSError) as e:
-        say(f"\n*** node {node} disconnected ({e}) ***")
+        why = str(e)
     finally:
         with clients_lock:
             if sock in clients:
                 clients.remove(sock)
         sock.close()
+        say(f"\n*** node {node} disconnected ({why}) ***")
 
 
 def serve_http(sock, body_start, headers):

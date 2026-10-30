@@ -3,6 +3,7 @@
 programs die with it, a stopped program is started again but not in a loop,
 and commands still reach the receiver."""
 import io
+import json
 import os
 import subprocess
 import sys
@@ -128,6 +129,69 @@ with tempfile.TemporaryDirectory() as d:
     got = rc.proc.stdin.getvalue()
     check("a line appended to the commands file is passed on", b'{"cmd": "status"}\n' in got, repr(got))
     check("one already there is not resent", b"old" not in got, repr(got))
+
+print("\nPotluck is told which phone is sending, and nothing more")
+p20 = {"model": "ANE-LX1", "manufacturer": "HUAWEI", "android": "9", "sdk_int": 28}
+check("maker, model and Android version", svc.device_label(p20) == "HUAWEI ANE-LX1 · Android 9",
+      repr(svc.device_label(p20)))
+check("a maker the model already names is not said twice",
+      svc.device_label({"manufacturer": "Google", "model": "Google Pixel 8", "android": "15"})
+      == "Google Pixel 8 · Android 15")
+check("no model, no label", svc.device_label({"manufacturer": "HUAWEI"}) is None
+      and svc.device_label(None) is None)
+check("padding and control characters do not reach the hub",
+      svc.device_label({"manufacturer": "X\u0000", "model": " Y\n"}) == "X Y")
+check("held to the hub's cap", len(svc.device_label({"model": "m" * 500})) == svc.DETAIL_MAX)
+check("whatever else the reply carries stays out of the label",
+      svc.device_label(dict(p20, serial="ABC123", id="7bcba62e8d58")) == "HUAWEI ANE-LX1 · Android 9")
+
+asked = []
+pres = svc.Presence(ask=lambda: asked.append(1))
+up = [svc.Child(n, [], None, None) for n in ("receiver", "bridge", "port")]
+for ch in up:
+    ch.proc = Receiver()
+check("idle before any phone", svc.report(pres, up) == ("idle", "no phone connected"))
+pres.see("*** node connected from 192.168.0.40:51234 — commands are live ***")
+check("a connect asks the phone what it is", asked == [1])
+check("connected before it has answered", svc.report(pres, up)[0] == "connected")
+pres.see(json.dumps({"type": "status", "device_id": "7bcba62e8d58", "device": p20}))
+check("connected, as the phone it is", svc.report(pres, up) == ("connected", "HUAWEI ANE-LX1 · Android 9"),
+      str(svc.report(pres, up)))
+pres.see(json.dumps({"seq": 1, "narration": 'it said "type": "status" aloud'}))
+check("a percept is never read as a reply", svc.report(pres, up)[1] == "HUAWEI ANE-LX1 · Android 9")
+pres.see("*** node 192.168.0.40:51234 disconnected (closed) ***")
+check("a phone that leaves takes its label with it", svc.report(pres, up) == ("idle", "no phone connected"))
+pres.see("*** node connected from 192.168.0.40:51300 — commands are live ***")
+pres.see(json.dumps({"type": "status", "device": p20}))
+pres.reset()
+check("a receiver restart forgets its phones", svc.report(pres, up)[0] == "idle")
+up[1].proc.poll = lambda: 1
+check("a program down is an error, by name", svc.report(pres, up) == ("error", "bridge not running, restarting"))
+
+receiver_src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "receiver.py"),
+                    encoding="utf-8").read()
+check("the receiver still says the lines this reads",
+      'say(f"\\n' + svc.NODE_CONNECTED + "{node}" in receiver_src
+      and "{node}" + svc.NODE_LEFT in receiver_src)
+
+posts = []
+halt = threading.Event()
+
+
+def fake_post(path, body):
+    posts.append((path, body))
+    if len(posts) >= 3:
+        halt.set()
+    return 200, {"ok": True}, {}
+
+
+said = []
+svc.keep_reporting(fake_post, "Synth Senses", svc.Presence(ask=lambda: None), up[:1], halt,
+                   said.append, period=0.01)
+check("reports under the pairing name, to the integration list",
+      all(p == "/api/integrations" and b["name"] == "Synth Senses" for p, b in posts), str(posts[:1]))
+check("and its last report says it stopped", posts[-1][1]["state"] == "disconnected", str(posts[-1]))
+check("an unchanged state is logged once", len(said) == 1, str(said))
 
 print("\nits programs die with it, however it ends")
 # A parent that spawns a child the way the service does, then is killed hard --

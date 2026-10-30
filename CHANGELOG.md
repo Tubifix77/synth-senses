@@ -17,6 +17,13 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **Potluck can see which phone is sending.** `synth_senses_service.py`
+  reports to the hub's integration list every 20 s, under the pairing name:
+  `connected` with the phone's maker, model and Android version ("HUAWEI
+  ANE-LX1 · Android 9"), `idle` with no phone attached, `error` while one of
+  its programs is down. The model comes from a `status` it asks for on each
+  connect. The receiver now says a phone left on a clean close too, not only
+  on an error.
 - **`status` counts the samples hearing gave up to a call**, as
   `mic_call_stand_downs`. The first ring test on the P20 rang normally but
   could not be read off the percept log, where a skipped sample is only a
