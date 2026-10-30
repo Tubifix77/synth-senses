@@ -59,8 +59,8 @@ import kotlin.math.min
  * High containment means most of what I can see belongs to somewhere I already
  * know, which is a degraded scan of that place rather than a new one — so no
  * new place is minted, and the scan teaches nothing, because counting it as a
- * visit would dilute every anchor's persistence. A single stray device shares
- * nothing with the room, so it is still correctly new. See `docs/VALIDATION.md`
+ * visit would dilute every anchor's persistence. Stray devices share nothing
+ * with the room, so they are still correctly new. See `docs/VALIDATION.md`
  * for the measured separation between the three cases.
  *
  * Measured behaviour, 12 revisits after 6 training visits, over 200 seeds of
@@ -185,7 +185,13 @@ class PlaceMemory(private val file: File) {
     }
 
     fun recognise(fingerprint: Map<String, Int>): Match? {
-        if (fingerprint.isEmpty()) return null
+        // Fewer entries than MIN_SHARED can never score against any place, so a
+        // place minted from them is one that can never be recognised again.
+        // Seen on the P20, 2026-10-29: lying still, its WiFi scans kept coming
+        // back as the home network alone, and every such sample with no BLE in
+        // range minted a fresh place -- 17 dead ids in 90 minutes. Too little
+        // to say where the phone is, so say nothing.
+        if (fingerprint.size < MIN_SHARED) return null
         val now = System.currentTimeMillis()
 
         // The weight of everything visible right now: the denominator for
@@ -233,8 +239,8 @@ class PlaceMemory(private val file: File) {
         // both covered the same room and the reported place flapped.
         //
         // Coverage cannot see this on its own. It asks how much of the place is
-        // visible; this asks how much of what is visible is the place. A single
-        // stray device shares nothing with the room and still mints, as it must.
+        // visible; this asks how much of what is visible is the place. A few
+        // stray devices share nothing with the room and still mint, as they must.
         if (bestId != null && best.containment >= CONTAINED && best.shared >= MIN_SHARED) {
             val k = places.getValue(bestId)
             k.lastMs = now

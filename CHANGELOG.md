@@ -205,6 +205,14 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Fixed
 
+- **A one-entry scan claims no place.** Lying still on 2026-10-29, the P20's
+  WiFi scans kept shrinking to the home network alone, and each such sample
+  with no BLE in range minted a new place: 17 in 90 minutes, none of which
+  any later scan could match, since a match needs two shared entries.
+  `place_id` is now null for a fingerprint that small. This is half of that
+  night's churn, not all of it: scans of two networks minted another 9, for
+  reasons the percept log cannot show, and a place founded on such a scan
+  went on to become the shelf's id for the rest of the day.
 - **A `set` that worked says so.** The command's own `cmd` field was counted
   as an unknown setting, so every remote `set` came back `ok: false` with
   "not a setting: cmd" after applying everything it was given. Seen on the

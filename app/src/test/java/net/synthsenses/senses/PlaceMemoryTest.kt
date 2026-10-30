@@ -124,9 +124,24 @@ class PlaceMemoryTest {
         repeat(8) { pm.recognise(revisit(desk, 0.25, 8, 3)) }
 
         val before = pm.count()
-        val m = pm.recognise(mapOf("b:stray" to -70))!!
-        assertTrue("one anchor is not enough evidence", m.isNew)
-        assertEquals(before + 1, pm.count())
+        assertNull("one anchor is not enough evidence", pm.recognise(mapOf("b:stray" to -70)))
+        assertEquals("nor enough to found a place on", before, pm.count())
+    }
+
+    @Test
+    fun `a scan that sees only the home network mints nothing`() {
+        // The P20 on 2026-10-29, lying still: scans shrank to the one network it
+        // was connected to, and each one with no BLE in range minted a place no
+        // later scan could ever match. 17 of them in 90 minutes.
+        val pm = fresh()
+        val desk = room(14)
+        repeat(8) { pm.recognise(revisit(desk, 0.25, 8, 3)) }
+        val home = desk.keys.first()
+
+        val before = pm.count()
+        repeat(30) { assertNull(pm.recognise(mapOf(home to -42))) }
+        assertEquals("no place minted from a one-entry scan", before, pm.count())
+        assertTrue("and the room is still itself", !pm.recognise(revisit(desk, 0.25, 8, 3))!!.isNew)
     }
 
     @Test
