@@ -311,13 +311,20 @@ class Presence:
 
 
 def report(presence, children):
-    """-> (state, detail) for the hub's integration list."""
+    """-> (state, detail) for the hub's integration list.
+
+    The Potluck Desk puts `detail` on its Synth Senses button while the state
+    is "connected", finding the report by the name "Synth Senses" and kind
+    "program". So connected means the detail is a device label and nothing
+    else, and a phone that has not said what it is yet is just "phone", the
+    desk's own word for it. A rename of the pairing breaks the desk: tell it.
+    """
     down = [c.name for c in children if not c.running()]
     if down:
         return "error", "%s not running, restarting" % " and ".join(down)
     if presence.nodes == 0:
         return "idle", "no phone connected"
-    return "connected", presence.device or "a phone, model not reported yet"
+    return "connected", presence.device or "phone"
 
 
 def keep_reporting(post, name, presence, children, stop, say, period=REPORT_S):

@@ -153,7 +153,8 @@ for ch in up:
 check("idle before any phone", svc.report(pres, up) == ("idle", "no phone connected"))
 pres.see("*** node connected from 192.168.0.40:51234 — commands are live ***")
 check("a connect asks the phone what it is", asked == [1])
-check("connected before it has answered", svc.report(pres, up)[0] == "connected")
+check("connected before it has answered, and named only as the desk would",
+      svc.report(pres, up) == ("connected", "phone"), str(svc.report(pres, up)))
 pres.see(json.dumps({"type": "status", "device_id": "7bcba62e8d58", "device": p20}))
 check("connected, as the phone it is", svc.report(pres, up) == ("connected", "HUAWEI ANE-LX1 · Android 9"),
       str(svc.report(pres, up)))
