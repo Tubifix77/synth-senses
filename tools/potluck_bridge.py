@@ -752,7 +752,7 @@ def pair(hub, name, right, poll_s=3, timeout_s=300, asks=3):
     return None
 
 
-def write_value(hub, system, name, value, dry_run=False):
+def write_value(hub, system, name, value, dry_run=False, inbox="phone"):
     """One write.
 
     -> (ok, hold_seconds, note, keep, throttled). `keep` says whether the
@@ -761,7 +761,7 @@ def write_value(hub, system, name, value, dry_run=False):
     not answer means *not now*, and discarding a perfectly good reading there
     leaves the cell showing something older until the next stale-refresh.
     """
-    path = f"potluck://{system}/act/phone/{name}"
+    path = f"potluck://{system}/act/{inbox}/{name}"
     if dry_run:
         return True, 0, f"would write {path} = {value}", False, False
     status, body, headers = hub.post("/api/write", {"path": path, "value": value})

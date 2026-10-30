@@ -38,6 +38,8 @@ Things it guarantees, because each one has gone wrong without it:
   this asks for each time a phone connects, so it is always the phone that is
   there now. Only phones on the websocket count as attached; one posting over
   HTTP never says it arrived.
+- **The cell can steer the phone**, within the scope in potluck_steer.py:
+  changes to the `phone_steer` inbox become `set` and `sample` commands.
 
 Exit codes: 0 stopped when asked, 2 no pairing (pair once with
 potluck_bridge.py --pair), 3 already running.
@@ -277,8 +279,9 @@ class Presence:
     never one that has since gone.
     """
 
-    def __init__(self, ask):
+    def __init__(self, ask, on_status=None):
         self.ask = ask
+        self.on_status = on_status
         self.nodes = 0
         self.device = None
         self._lock = threading.Lock()
@@ -299,6 +302,8 @@ class Presence:
             except ValueError:
                 return
             if isinstance(msg, dict) and msg.get("type") == "status":
+                if self.on_status is not None:
+                    self.on_status(msg)
                 label = device_label(msg.get("device"))
                 if label:
                     with self._lock:
@@ -369,6 +374,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--hub", required=True, help="https://<host>:8443 of the Potluck hub")
     ap.add_argument("--logs", default=os.path.join(ROOT, "logs"), help="where each program's log goes")
+    ap.add_argument("--system", default="lab", help="the cell id in Potluck paths")
     ap.add_argument("--commands", default=None,
                     help="a file whose appended JSON lines are sent to the phone (default: <logs>/commands.jsonl)")
     args = ap.parse_args(argv)
@@ -401,7 +407,10 @@ def main(argv=None):
         return 2
 
     guard = KillWithParent()
-    presence = Presence(ask=lambda: send_line(children[0], '{"cmd": "status"}\n'))
+    import potluck_steer
+    steer = potluck_steer.Steer()
+    presence = Presence(ask=lambda: send_line(children[0], '{"cmd": "status"}\n'),
+                        on_status=steer.phone_said)
 
     def spawn(child):
         p = subprocess.Popen(child.argv, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -416,11 +425,26 @@ def main(argv=None):
                 for name, cmd in programs(args.hub)]
     stop = threading.Event()
 
-    from potluck_bridge import Hub
+    from potluck_bridge import Hub, write_value
     hub = Hub(args.hub, token=pairing["token"], fingerprint=pairing.get("fingerprint"))
     reporter = threading.Thread(target=keep_reporting,
                                 args=(hub.post, pairing.get("name", "Synth Senses"), presence,
                                       children, stop, say),
+                                daemon=True)
+
+    def get_model():
+        status, body, _ = hub.get("/api/model")
+        return body if status == 200 and isinstance(body, dict) else None
+
+    def write_back(name, value):
+        ok, _hold, note, _keep, _throttled = write_value(hub, args.system, name, value,
+                                                         inbox=potluck_steer.INBOX)
+        return ok, note
+
+    steering = threading.Thread(target=potluck_steer.steer_forever,
+                                args=(get_model, write_back,
+                                      lambda cmd: send_line(children[0], json.dumps(cmd) + "\n"),
+                                      steer, stop, say),
                                 daemon=True)
 
     def ask_stop(*_):
@@ -446,6 +470,7 @@ def main(argv=None):
                     c.last_start = c.clock()
             if reporter.ident is None:
                 reporter.start()          # after the first starts, so it does not report them down
+                steering.start()
             stop.wait(2.0)
     finally:
         for c in reversed(children):

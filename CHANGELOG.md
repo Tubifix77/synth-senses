@@ -17,6 +17,14 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **The Potluck cell can steer the phone.** A second inbox, `phone_steer`,
+  holds eight values the desk, a board or Home Assistant may write: `sample`
+  (a new number takes a sample), `lens`, `interval_s`, `threshold`, and
+  `vision`, `hearing`, `speech` and `location` on or off. The service turns
+  each change into the `set` or `sample` the phone already understands, and
+  writes the phone's own state back so the switches show the truth. Only a
+  change is a command, so a restart replays nothing. Not `speak`, not
+  `forget`, not naming places: that scope is Tue's choice.
 - **Potluck can see which phone is sending.** `synth_senses_service.py`
   reports to the hub's integration list every 20 s, under the pairing name:
   `connected` with the phone's maker, model and Android version ("HUAWEI
