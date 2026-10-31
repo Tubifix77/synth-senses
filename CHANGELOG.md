@@ -24,7 +24,9 @@ assumes a number will not. Nothing else on the wire changed shape.
   each change into the `set` or `sample` the phone already understands, and
   writes the phone's own state back so the switches show the truth. Only a
   change is a command, so a restart replays nothing. Not `speak`, not
-  `forget`, not naming places: that scope is Tue's choice.
+  `forget`, not naming places: that scope is Tue's choice. When the hub
+  loses the values, as a package change does by restarting the inbox, the
+  service notices them go NO_DATA and writes the phone's state back again.
 - **Potluck can see which phone is sending.** `synth_senses_service.py`
   reports to the hub's integration list every 20 s, under the pairing name:
   `connected` with the phone's maker, model and Android version ("HUAWEI

@@ -25,7 +25,9 @@ How it behaves, each because the alternative goes wrong:
   the phone's own `status` is written back into the inbox, so a switch flipped
   from the PC console or the phone's panel is not left showing the old state.
   All eight get a value that way (`sample` starts at 0), because the hub reads
-  a value never written as an app that is not working.
+  a value never written as an app that is not working. The same happens when
+  the hub loses them, as a package change does: a value that goes NO_DATA is
+  forgotten and the phone asked again.
 - **Never stale.** `stale_ms` is 0: these are settings, not readings, and a
   quiet day must not read as the program having stopped.
 - **Out of range is clamped, not refused**, to what `set` accepts.
@@ -97,6 +99,23 @@ class Steer:
         self.seen = None              # what the hub held at the last look
         self._back = {}               # write-backs waiting to go
         self._lock = threading.Lock()
+
+    def lost(self, values):
+        """-> True when the hub has dropped values it held.
+
+        A package change restarts the inbox actors, and every value reads
+        NO_DATA until written again (Potluck package 133, 2026-10-31). Nothing
+        here would notice, because the service stays connected, so the desk's
+        controls would sit blank. Forgetting them makes the next status write
+        them all back, the counter's 0 included.
+        """
+        with self._lock:
+            if self.seen is None:
+                return False
+            gone = [k for k in self.seen if k not in values]
+            for k in gone:
+                del self.seen[k]
+            return bool(gone)
 
     def commands(self, values):
         """-> the commands this look at the hub calls for, `set` first."""
@@ -195,7 +214,11 @@ def steer_forever(get_model, write, send, steer, stop, say, every_s=2.0):
             up = model is not None
             say("steering: hub %s" % ("answering" if up else "not answering"))
         if model is not None:
-            for cmd in steer.commands(steer_values(model)):
+            values = steer_values(model)
+            if steer.lost(values):
+                say("steering: the hub lost the inbox's values, asking the phone for them")
+                send({"cmd": "status"})
+            for cmd in steer.commands(values):
                 say("steering: the cell asks %s" % json.dumps(cmd))
                 send(cmd)
                 if cmd["cmd"] == "set":

@@ -91,6 +91,37 @@ s.phone_said({"senses": {"vision": False}})
 check("a write that failed is not marked as held, so it is not a command either",
       s.commands({"vision": True}) == [] and dict(s.write_backs()) == {"vision": False})
 
+print("\na hub that loses the values gets them back")
+s = ps.Steer()
+check("nothing is lost before the first look", not s.lost({}))
+s.commands({"sample": 4, "vision": True, "interval_s": 5})
+check("all there is nothing lost", not s.lost({"sample": 4, "vision": True, "interval_s": 5}))
+check("NO_DATA after a package change is", s.lost({}))
+check("and only once", not s.lost({}))
+s.phone_said({"interval_ms": 5000, "senses": {"vision": True}})
+check("the phone's next status writes them all back, the counter's 0 too",
+      dict(s.write_backs()) == {"interval_s": 5, "vision": True, "sample": 0}, str(s.write_backs()))
+for n, v in s.write_backs():
+    s.wrote(n, v)
+check("and writing them back is not read as a command",
+      s.commands({"sample": 0, "vision": True, "interval_s": 5}) == [])
+
+stop = threading.Event()
+looks = [model(sample=1, vision=True), {"resources": []}]
+sent = []
+
+
+def get_model():
+    if not looks:
+        stop.set()
+        return {"resources": []}
+    return looks.pop(0)
+
+
+ps.steer_forever(get_model, lambda n, v: (True, "applied"), sent.append, ps.Steer(), stop,
+                 lambda m: None, every_s=0)
+check("the loop asks the phone once when the values go", sent == [{"cmd": "status"}], str(sent))
+
 print("\nthe loop")
 stop = threading.Event()
 looks = [model(sample=1, vision=True), model(sample=2, vision=False)]
