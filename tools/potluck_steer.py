@@ -41,7 +41,10 @@ import threading
 INBOX = "phone_steer"
 
 #: (name, kind, unit). Order is the manifest's; values may be appended, never
-#: inserted or renamed, because the Potluck Desk builds its controls from them.
+#: inserted or renamed, because the Potluck Desk builds its controls from them
+#: (potluck-desk 0fb3398, "Steer the phone"). Its controls show only what is
+#: written back, so dropping the write-back would freeze them. Tell the desk
+#: before changing the inbox name, a value's name or type, or the write-back.
 VALUES = [
     ("sample",     "u32",  None),
     ("lens",       "u32",  None),
