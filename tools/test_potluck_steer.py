@@ -72,16 +72,21 @@ s.phone_said({"type": "status", "interval_ms": 5000, "threshold": 0.35,
               "senses": {"vision": False, "lens": "back", "hearing": True, "speech": False,
                          "location": True}})
 back = dict(s.write_backs())
-check("what the hub holds wrong, or not at all, is queued",
+check("what the hub holds wrong, or not at all, is queued, the counter included",
       back == {"vision": False, "threshold": 0.35, "lens": 0, "hearing": True, "speech": False,
-               "location": True}, str(back))
+               "location": True, "sample": 0}, str(back))
 check("what it already holds is not", "interval_s" not in back)
 s.wrote("vision", False)
 check("a write the hub took is done", "vision" not in dict(s.write_backs()))
 check("and is not then read back as a command", s.commands({"vision": False, "interval_s": 5}) == [])
 
 s = ps.Steer()
-s.commands({"vision": True})
+s.commands({"sample": 41})
+s.phone_said({"senses": {}})
+check("a counter someone has written is never written over", "sample" not in dict(s.write_backs()))
+
+s = ps.Steer()
+s.commands({"vision": True, "sample": 1})
 s.phone_said({"senses": {"vision": False}})
 check("a write that failed is not marked as held, so it is not a command either",
       s.commands({"vision": True}) == [] and dict(s.write_backs()) == {"vision": False})
@@ -113,6 +118,12 @@ print("\nthe manifest")
 check("an inbox, its values typed", ps.manifest_outputs()
       == "sample:u32 lens:u32 interval_s:u32 threshold:f32 vision:bool hearing:bool speech:bool location:bool")
 check("within an inbox's twelve", len(ps.VALUES) <= 12)
+import io, contextlib, json  # noqa: E401,E402
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+    sys.argv = ["potluck_steer.py", "--manifest"]
+    ps.main()
+check("never stale: settings, not readings", json.loads(buf.getvalue())["config"]["stale_ms"] == 0)
 
 print("\n%d failure(s)" % len(failures))
 for f in failures:

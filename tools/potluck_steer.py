@@ -24,6 +24,10 @@ How it behaves, each because the alternative goes wrong:
 - **The switches show the truth.** After every `set`, and on every connect,
   the phone's own `status` is written back into the inbox, so a switch flipped
   from the PC console or the phone's panel is not left showing the old state.
+  All eight get a value that way (`sample` starts at 0), because the hub reads
+  a value never written as an app that is not working.
+- **Never stale.** `stale_ms` is 0: these are settings, not readings, and a
+  quiet day must not read as the program having stopped.
 - **Out of range is clamped, not refused**, to what `set` accepts.
 
     python3 tools/potluck_steer.py --manifest      # the inbox, for the cell's owner
@@ -147,6 +151,11 @@ class Steer:
                 now[k] = senses[k]
         with self._lock:
             seen = self.seen or {}
+            # The hub counts a value never written as an app not working, so
+            # the counter gets a start too. Only when it holds none: writing
+            # over a number someone wrote would be read back as a command.
+            if "sample" not in seen:
+                now["sample"] = 0
             for k, v in now.items():
                 if seen.get(k) != v:
                     self._back[k] = v
@@ -204,7 +213,7 @@ def manifest_outputs():
 def main():
     if "--manifest" in sys.argv[1:]:
         print(json.dumps({"name": INBOX, "module": "builtin:inbox", "latency_class": 4, "pin": "A",
-                          "config": {"outputs": manifest_outputs(), "stale_ms": 86400000}}, indent=2))
+                          "config": {"outputs": manifest_outputs(), "stale_ms": 0}}, indent=2))
         print("\nand in the cluster file's \"outside\", for each value:", file=sys.stderr)
         for n, _k, _u in VALUES:
             print('  "act/%s/%s": {"mode": "read_write", "writers": ["Potluck Desk", "Synth Senses"]}'
