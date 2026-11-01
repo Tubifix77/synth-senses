@@ -25,16 +25,18 @@ staring at an unchanging room sends almost nothing, by design.
 
 | | |
 |---|---|
-| receiving percepts | **works, tested in CI** |
+| receiving percepts | **works, tested in CI, and running off a real phone** since 2026-10-21 |
 | the percept schema | **stable at version 3**, tested against the code |
 | sending commands back | JSON lines in on the receiver's stdin. See below. |
-| curated "reports" rather than raw percepts | **does not exist yet** |
+| the senses as twelve numbers in a Potluck cell | **running** since 2026-10-21. See [Or through Potluck](#or-through-potluck). |
+| steering the phone from the Potluck cell | **running** since 2026-10-31: a sample, the lens, the interval, the threshold and four sense switches |
+| curated "reports" rather than raw percepts | **does not exist** |
 
-That third and fourth rows are deliberate. The shaping layer that would
-summarise, budget and decide when to wake you is called the bridge, it lives
-in *this* repository, and it is deferred until the app has run on real
-hardware. See [ROADMAP.md](ROADMAP.md). Until then you consume percepts
-directly, which is the honest interface rather than a promised one.
+The last row is deliberate. A layer that would summarise, budget and decide
+when to wake you is easy to design wrongly against a stream nobody has
+watched, so it waits until a consumer says what it needs. The one consumer so
+far, a companion in the ai-consciousness project, chose the Potluck numbers
+instead. See [ROADMAP.md](ROADMAP.md).
 
 Nothing below is aspirational. If it is described here, it runs.
 
@@ -79,6 +81,41 @@ needs none of this repository at runtime.
 
 The cost is that HTTP is one-way. The command channel only exists over the
 websocket, so an HTTP integration can never steer the phone.
+
+### Or through Potluck
+
+On the author's own network the phone is read through Potluck, a home hub,
+so that one hub gives a mind the whole house. `tools/synth_senses_service.py`
+runs the receiver, `tools/potluck_bridge.py` and `tools/potluck_port.py` as
+one program, kept running by Potluck's tray. What it publishes:
+
+- **The `phone` inbox: twelve numbers.** `salience`, `motion`, `posture`,
+  `steps`, `sound`, `loudness`, `place`, `battery`, `battery_temp`, `lat`,
+  `lon`, `ble_count`. Labels travel as ordinals into the append-only lists in
+  `Vocabulary.kt`; `python3 tools/potluck_bridge.py --vocabulary` prints them.
+  Only a change is written, and a value the phone still reports is rewritten
+  before Potluck would call it stale. One the phone has stopped reporting is
+  left to go stale, because that is then the truth.
+- **A loopback HTTP port, 127.0.0.1:8079,** for a companion on the same PC:
+  `GET /phone/body`, `/phone/hearing`, `/phone/place`, `/phone/self` and
+  `/phone/attention`, each a JSON object with `age_s`. 503 means nothing is
+  sensed there right now, 502 that the hub cannot be reached. **There is no
+  location path**, by construction.
+- **The `phone_steer` inbox: eight values the cell may write.** `sample` (a
+  number it does not already hold takes a sample), `lens` (0 back, 1 front),
+  `interval_s` (1 to 600), `threshold` (0 to 1), and `vision`, `hearing`,
+  `speech` and `location` on or off. Each change becomes the `set` or `sample`
+  in [PROTOCOL.md](PROTOCOL.md); out-of-range values are clamped. Only a
+  change is a command, so a restart replays nothing. After every `set`, and
+  whenever the phone connects or the hub loses the values, the phone's own
+  state is written back, so what the inbox shows is what the phone does. Not
+  `speak`, not `forget`, not naming places.
+- **An integration report, "Synth Senses".** Every 20 s: `connected` with the
+  phone's maker, model and Android version, `idle` with no phone connected,
+  or `error` when one of its programs is down and being restarted.
+
+The Potluck Desk builds its Synth Senses view from these names. Renaming,
+reordering or removing any of them breaks it: tell its maintainer first.
 
 ## What a percept is
 

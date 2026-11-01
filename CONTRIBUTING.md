@@ -2,15 +2,19 @@
 
 ## The state of things
 
-It builds, and the unit tests run: CI assembles a debug APK, runs Android Lint
-and executes the JVM unit-test suite on every push. It covers the three
-validated algorithms plus the wire schema, the stimulus vocabulary, the offline
-backlog, inbound command parsing, the narrator and the identifier hashing. What has never happened is any of
-it running on a phone. No percept has ever been produced by real hardware.
+It builds, the unit tests run, and it runs on a phone. CI assembles a debug
+APK, runs Android Lint, executes the JVM unit-test suite and eight
+standard-library tool suites, and starts the app on emulators at API 28 and
+API 36 on every push. The tests cover the three validated algorithms plus the
+wire schema, the stimulus vocabulary, the offline backlog, inbound command
+parsing, the narrator and the identifier hashing.
 
-So the most valuable contribution now is a device and half an hour of
-`adb logcat` — see the table below, and the list of unmeasured constants in
-[docs/VALIDATION.md](docs/VALIDATION.md).
+Since 2026-10-21 it has also run on real hardware: an evening on a Xiaomi 14T
+Pro and, from that night, days at a time on a Huawei P20 Lite on Android 9.
+What that found, and what is still unmeasured, is in
+[docs/VALIDATION.md](docs/VALIDATION.md). The most valuable contribution now
+is a second kind of phone, and data from one that moves: a walk, a car ride,
+someone picking it up. The table below says what to log.
 
 ## Setup
 
@@ -42,7 +46,7 @@ each is a one-line change once someone has real data:
 
 | Where | Constant | How to measure |
 |---|---|---|
-| `BodySensor.classifyMotion` | motion boundaries | log `accel_rms`/`gyro_rms` while walking, driving, sitting |
+| `BodySensor.classifyMotion` | motion boundaries above `still` | log `accel_rms`/`gyro_rms` while walking, driving, handling the phone. `still` itself is learned per phone and needs nothing |
 | `BodySensor.posture` | gravity-vector cutoffs | log `posture` against known phone positions |
 | `BodySensor` | `MAG_BASELINE_ALPHA` | watch `magnetic_anomaly` near motors and metal |
 | `Habituation` | `RATE`, `TAU_MS` | does it go quiet too fast, or not fast enough? |
@@ -51,9 +55,13 @@ each is a one-line change once someone has real data:
 If you retune anything, please include the observations in the PR. A number
 without a measurement behind it is what's already there.
 
-**The `ImageProxy` lifetime in `VisionSensor.onFrame`** is the single most
-suspect piece of code in the repo. It holds the proxy open for a fixed 1.5 s
-while ML Kit reads the planes. A proper fix closes it on task completion instead.
+**The `ImageProxy` lifetime in `VisionSensor.onFrame`** holds the proxy open
+for a fixed 1.5 s while ML Kit reads the planes. It has survived days on the
+P20 without stalling, which makes it no longer the leading suspect, but a
+proper fix closes it on task completion instead.
+
+**An on-device speech recogniser.** The system one cannot work here; see
+`docs/ROADMAP.md` for why, and what the model has to manage.
 
 **New senses.** Ideas that fit the design: notification listener as a social
 sense, NFC tags as a deliberate "this object is X" input, ultrasonic chirp-and-echo

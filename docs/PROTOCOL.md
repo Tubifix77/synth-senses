@@ -444,8 +444,16 @@ unreliably.
   },
   "interval_ms": 5000, "heartbeat_ms": 120000, "threshold": 0.35,
   "senses": {"vision": true, "lens": "back", "ocr": true, "hearing": true,
-             "sound_model": true, "speech": false, "ble": true, "wifi": false,
-             "cell": false, "location": false, "voice": false},
+             "sound_model": true, "sound_model_from": "asset",
+             "mic_source": "voice_recognition", "mic_call_stand_downs": 0,
+             "sound_last_error": null, "speech_last_error": null,
+             "current_unit": "milliamp", "location_fixes": 1822,
+             "last_crash": null,
+             "location_providers": {"network": true, "gps": true, "passive": true},
+             "still_ceiling": 0.154, "still_ceiling_samples": 120,
+             "speech": false, "ble": true, "wifi": true,
+             "cell": true, "location": true, "voice": true},
+  "crashes": [],
   "habituation": {
     "tokens": 314, "quiet": 201, "mean": 0.64,
     "gains": {"s": 2.0},
@@ -455,6 +463,21 @@ unreliably.
   "spooled": 0
 }
 ```
+
+`senses` holds the switches and, beside them, what each sense has found out
+about this phone. None of it can be read any other way without a cable:
+
+| field | meaning |
+|---|---|
+| `sound_model_from` | `asset` or `file`: where YAMNet was loaded from. `null` when there is no model, which makes hearing deaf. |
+| `mic_source` | the input the last sample opened: `unprocessed`, `voice_recognition` or `mic`. `null` before the first sample. |
+| `mic_call_stand_downs` | samples hearing skipped because the phone was ringing or on a call, since the service started |
+| `sound_last_error`, `speech_last_error` | the last classifier or recogniser failure, as text, or `null` |
+| `current_unit` | `milliamp` or `microamp` once the phone's battery current unit is established, `null` until then. `self.current_ma` is withheld while it is `null`. |
+| `location_fixes` | fixes the location feed has received since the service started. A number that stops rising while `location` is on is a stuck feed. |
+| `location_providers` | which providers the system has switched on |
+| `last_crash` | the newest crash report the app wrote to its media folder, `{file, text}` with the first 40 lines, or `null`. `crashes` lists up to five such file names, newest first. |
+| `still_ceiling`, `still_ceiling_samples` | the `accel_rms` below which this phone counts as `still`, learned from its own resting floor, and how many readings that is learned from |
 
 ## Token prefixes
 

@@ -6,11 +6,11 @@
 
 <p align="center">
   <a href="https://github.com/Tubifix77/synth-senses/actions/workflows/build.yml"><img alt="build" src="https://github.com/Tubifix77/synth-senses/actions/workflows/build.yml/badge.svg"></a>
-  <img alt="platform" src="https://img.shields.io/badge/platform-Android%2010%2B-3DDC84">
+  <img alt="platform" src="https://img.shields.io/badge/platform-Android%209%2B-3DDC84">
   <img alt="language" src="https://img.shields.io/badge/kotlin-2.4-7F52FF">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
   <img alt="schema" src="https://img.shields.io/badge/percept%20schema-v3-orange">
-  <img alt="status" src="https://img.shields.io/badge/status-builds%20%C2%B7%20untested%20on%20hardware-yellow">
+  <img alt="status" src="https://img.shields.io/badge/status-running%20on%20a%20phone%20%C2%B7%20not%20all%20measured-yellowgreen">
 </p>
 
 ---
@@ -51,42 +51,53 @@ only traffic on the wire is percepts out and commands in.
 
 ## Status
 
-It builds, and it runs. CI assembles a debug APK, passes Android Lint, runs
-the JVM unit-test suite and five standard-library suites for the tooling, and
-starts the app on emulators at **both ends of the supported range** — API 28,
-which is minSdk, and API 36, which is targetSdk. Six jobs, all green. AGP
-9.4.1, Gradle 9.7.1, Kotlin 2.4.20, compileSdk 37, minSdk 28, and nothing
-pinned below its current release.
+It builds, and it runs on a phone. CI assembles a debug APK, passes Android
+Lint, runs the JVM unit-test suite and eight standard-library suites for the
+tooling, and starts the app on emulators at **both ends of the supported
+range** — API 28, which is minSdk, and API 36, which is targetSdk. Six jobs,
+all green. AGP 9.4.1, Gradle 9.7.1, Kotlin 2.4.20, compileSdk 37, minSdk 28,
+and nothing pinned below its current release.
 
 The test counts move with every push and are worth reading from CI rather than
 from here.
 
 What that does and does not buy you:
 
-- **Verified.** It compiles and packages, and the APK has been opened and
-  checked: the manifest merged to compileSdk 37 / minSdk 29 / targetSdk 36, the
-  app's classes really are in the dex, and no model file is bundled. The three
-  algorithms behave the way [docs/VALIDATION.md](docs/VALIDATION.md) describes,
-  measured against the shipped Kotlin rather than a Python model of it, and the
-  invariants this README claims — bucketed tokens, null-not-fabricated sense
-  blocks, hashed identifiers, a bounded backlog — each have tests now.
-- **Verified, and worth the trouble.** The first run of those tests found a bug
-  no model of the algorithm could have found: `PlaceMemory` could not recognise
-  a place a second time, because a place created moments ago fails its own
-  persistence filter. Every scan minted a new place. Eighteen visits to one
-  room produced eighteen rooms.
-- **Not verified.** Anything needing hardware. No percept has ever come off a
-  real phone. Sensor thresholds are reasoned from magnitudes rather than
-  measured, and the `ImageProxy` lifetime in `VisionSensor.onFrame` remains the
-  most suspect code here.
+- **Verified in CI.** It compiles and packages, and the APK is opened and
+  checked on every push: the merged manifest, the app's classes in the dex,
+  and no model file bundled. The three algorithms behave the way
+  [docs/VALIDATION.md](docs/VALIDATION.md) describes, measured against the
+  shipped Kotlin rather than a Python model of it, and the invariants this
+  README claims — bucketed tokens, null-not-fabricated sense blocks, hashed
+  identifiers, a bounded backlog — each have tests.
+- **Verified on hardware.** Since 2026-10-21 it has run on two phones: an
+  evening on a Xiaomi 14T Pro, and from that night on a Huawei P20 Lite on
+  Android 9, which has been sending percepts for days at a time. One stretch
+  on the current build: 1,391 percepts over 32.5 hours with no gap longer
+  than about two minutes, every percept carrying vision and hearing, and the
+  phone recognised as one place throughout. Battery drain was measured at
+  15.4 points an hour on the Xiaomi. The phone was rung while sensing and
+  rang normally, with hearing standing down for the call. The percepts reach
+  a Potluck home hub as twelve numbers, and from there a companion in a
+  separate AI project, and that hub can steer the phone back.
+- **Verified, and worth the trouble.** The hardware found what no test
+  could: places renaming themselves `"null"` after a reload, a deaf APK out
+  of CI, BLE blind with the screen off, location fixes replayed as current
+  for twenty hours, a `still` threshold that fitted one phone and not the
+  other, and WiFi scans shrinking to the home network and minting a new
+  place every few seconds. Each is fixed and has a test; the list, with the
+  numbers, is in [docs/VALIDATION.md](docs/VALIDATION.md).
+- **Not verified.** The motion bands above `still` (walking, vehicle,
+  handled) and posture are still reasoned rather than measured, and the
+  magnetic baseline's time constant is a guess. An answered call has not been
+  tested, only a rung one. Speech transcription does not work with the
+  system recogniser and needs an on-device model; `speech` ships off.
 - `tools/receiver.py` is tested on every push, not just once by hand: a real
   RFC 6455 handshake checked against the spec's published example, masked and
   fragmented frames, a backlog flush, ping and close, plus the HTTP fallback.
-  The eleven commands round-tripping with replies was verified in a manual
-  session.
 
-So trust it to build, and to gate attention sensibly. Do not trust a number
-that came off a sensor until you have watched that sensor yourself.
+So trust it to build, to run unattended, and to gate attention sensibly. Do
+not trust a motion label above `still` until you have watched it yourself.
 
 ## Quick start
 
@@ -270,6 +281,14 @@ place. Validated over 12 simulated revisits each:
 | Adjacent room sharing 4 access points | 0.41 | correctly new |
 | Unrelated 40-device scan | 0.00 | correctly new |
 
+On real radio the simulation held only once WiFi was in the fingerprint. With
+BLE alone a phone lying still on one desk minted 32 places in twenty minutes,
+because a home's BLE devices come and go and rotate their addresses; with WiFi
+it recognised the same room 38 times out of 38. **Turn `wifi` on for place
+learning.** Scans that come back thin, as an old phone's sometimes do, are
+recognised as the room seen badly rather than as somewhere new; see
+[docs/VALIDATION.md](docs/VALIDATION.md) for the night that taught that.
+
 Places start unnamed. The phone discovers that a place exists; your AI names it
 with `name_place`. That division of labour is the interesting part.
 
@@ -294,6 +313,12 @@ organ with directable attention.
 
 `attend v 0.2` is roughly "stop caring about the walls". Full details and prefix
 list in [docs/PROTOCOL.md](docs/PROTOCOL.md).
+
+On a Potluck home hub the phone's senses also appear as twelve numbers in the
+cell, and the cell can steer it back: a sample, the lens, the interval, the
+threshold and four sense switches. `tools/synth_senses_service.py` runs all of
+it as one program. See
+[docs/INTEGRATION.md](docs/INTEGRATION.md#or-through-potluck).
 
 ## Permissions
 
@@ -359,7 +384,7 @@ Use `wss://` if the link leaves your LAN. **Tell people in the room.** See
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | percept schema, frame types, full command reference |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | for whoever is building the consuming side: how to receive percepts and what they mean |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | what happens next, and what is deliberately not started yet — including the order to start the Potluck bridge in |
-| [docs/VALIDATION.md](docs/VALIDATION.md) | what was tested, what the tests caught |
+| [docs/VALIDATION.md](docs/VALIDATION.md) | what was tested and measured, in CI and on phones, and what it caught |
 | [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) | dependencies and their licences |
 | [CHANGELOG.md](CHANGELOG.md) | version history |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | how to work on this |

@@ -4,19 +4,26 @@ What happens next, in order, and what is deliberately not being started yet.
 
 ## 1. First, a phone
 
-Nothing below should begin until the app has run on real hardware for a decent
-stretch. Everything still unverified in this project is hardware-shaped, and no
-amount of further design work substitutes for thirty minutes with a device and
-`adb logcat`:
+**Done, as far as a phone on a shelf can take it.** The app has run on real
+hardware since 2026-10-21: an evening on the Xiaomi, and from that night the
+P20, which has since sent percepts for 43 and then 60 hours without a gap over
+ten minutes. Where each item on the original list stands:
 
 - the `ImageProxy` lifetime in `VisionSensor.onFrame`, which holds the proxy
-  open for a fixed 1.5 s and is the most suspect code here
-- the motion and posture thresholds in `BodySensor`, reasoned from magnitudes
-  rather than measured
-- `MAG_BASELINE_ALPHA`, a guess at a time constant
-- mic contention between `AudioSensor` and `SpeechSensor`
-- battery life, currently an estimate
-- whether the foreground service survives the night on an aggressive vendor ROM
+  open for a fixed 1.5 s and was the most suspect code here: **survived** 304
+  of 304 labelled samples over 8.4 hours, and 32.5 hours of frames on v12
+- the motion and posture thresholds in `BodySensor`: **`still` measured** and
+  now learned per phone; the bands above it and posture still need a walk, a
+  car and someone handling the phone
+- `MAG_BASELINE_ALPHA`, a guess at a time constant: **open**, and needs logcat
+- mic contention between `AudioSensor` and `SpeechSensor`: **not exercised**,
+  because `speech` is off until it has an on-device recogniser (below)
+- battery life: **measured**, 15.4 points an hour on the Xiaomi with every
+  sense on
+- whether the foreground service survives the night on an aggressive vendor
+  ROM: **yes on EMUI 9**, for days; not tried overnight on HyperOS
+
+The rest of this section is the record of how it got there.
 
 ### The control panel can lie about what the phone is doing
 
@@ -495,6 +502,13 @@ behaviour has never run for five minutes, let alone a night. And the drain
 loop's whole reason for existing — that writes keep going while the phone is
 silent — is exactly the part a one-shot write cannot exercise.
 
+**All of that has since run.** From the same evening the bridge took real
+percepts from the phone, and it has written them into the cell for days at a
+time under the real cadence, refreshing quiet values before they went stale.
+Running under load is how it was found that one unprovisioned value starved
+the other eleven, and that a sense switched off on the phone went on being
+refreshed as current. Both are fixed, see VALIDATION.md.
+
 Potluck is a separate project of the author's: a distributed runtime that
 federates ESP32-S3 boards, and optionally a PC, into one addressable machine
 whose boards pool their sensors. A phone with a camera, a microphone, a
@@ -719,6 +733,16 @@ echo '{"schema":2,"seq":1,"trigger":"requested","self":{"battery":0.95}}' | \
 the Phone desktop, reads STALE after five minutes, and is overwritten the
 moment real percepts arrive.
 
+**How it runs now.** Since 2026-10-29 the receiver, the bridge and the port are
+one program, `tools/synth_senses_service.py`, which Potluck's tray starts and
+restarts. It holds a single-instance lock, so a second copy exits, and it
+reports itself to the hub as "Synth Senses" with the phone's model. Since
+2026-10-31 it also reads a second inbox, `phone_steer`, so the cell can take
+a sample, switch the lens, change the interval and threshold, and switch
+vision, hearing, speech and location; see
+[INTEGRATION.md](INTEGRATION.md#or-through-potluck). The commands above are
+how to run the pieces by hand, for a test.
+
 They live at `potluck://lab/act/phone/<name>`, written by a **PC-side bridge**
 reading `receiver.py`'s stdout — not by the phone, which would need TLS, cert
 pinning and pairing implemented in Kotlin for no gain. The bridge pairs as
@@ -796,7 +820,7 @@ python3 tools/receiver.py | python3 tools/potluck_bridge.py --dry-run
 python3 tools/potluck_bridge.py --manifest     # the inbox block to paste
 ```
 
-It is built and tested against a cell that does not exist yet, which is
+It was built and tested before the cell held its inbox, which was
 possible precisely because an unprovisioned write answers 404 and that is a
 state rather than an error. `--dry-run` prints what it would send; `--manifest`
 prints the `builtin:inbox` block and the `outside` entries so the cluster file

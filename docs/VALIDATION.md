@@ -14,14 +14,15 @@ untested. Written so you know which parts to trust.
 | `Habituation.kt` curve | prototyped, validated, now unit-tested |
 | `PlaceMemory.kt` coverage metric | prototyped, **failed**, redesigned, revalidated — then the unit tests found a **fourth** failure |
 | `TempoSensor.kt` solar maths | prototyped, **bug found**, fixed, validated against almanac, now unit-tested |
-| All Kotlin | **compiles** — CI assembles a debug APK, lints, and runs 71 unit tests per push |
-| The APK itself | **opened and checked** — manifest, dex contents and packaged assets |
-| On-device behaviour | **entirely untested** — thresholds are reasoned, not measured |
+| All Kotlin | **compiles** — CI assembles a debug APK, lints, runs the unit tests, and starts the app on emulators at API 28 and 36 |
+| The APK itself | **opened and checked on every push** by `tools/apk_facts.py` |
+| On-device behaviour | **run on two phones since 2026-10-21**, days at a time on one: battery, `still`, place learning, hearing, vision and a rung call measured; the motion bands above `still`, posture and an answered call are not |
 
 Every algorithm here has had a real bug caught by testing it, and one of them
 had a bug that only appeared once the tests ran against the shipped Kotlin
-rather than against a model of it. That is the argument for the tests, and the
-reason to be suspicious of everything in the last row.
+rather than against a model of it. That is the argument for the tests. The
+last row is the argument for hardware: every section below dated from
+2026-10-21 on is something the tests could not have found.
 
 ## Receiver, end to end
 
@@ -352,6 +353,53 @@ A reminder that a confident guess about which dependency will break is still a
 guess.
 
 ## The APK, opened
+
+CI had been producing a debug APK for a while before anyone looked inside one.
+Doing so confirmed the things that are easy to assume and cheap to check:
+
+| Claim | Found |
+|---|---|
+| manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 28`, `targetSdkVersion 36` |
+| the app's own code is really packaged | 369 references to `Lnet/synthsenses/` across 8 dex files |
+| it degrades without the model | no `yamnet.tflite` was packaged, as CI had no copy — **changed on 2026-10-21**: CI now fetches the model and verifies its hash, and `apk_facts.py --require` fails the build if it is missing |
+| permissions are what the manifest declares | 19 — the 18 declared, plus `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` added by androidx |
+| the foreground service declares the types it uses | `200 = location\|camera\|microphone` |
+| it still ships for every ABI | `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` |
+
+**This is no longer a one-off.** It was, and it decayed within the day:
+lowering `minSdk` to 28 made the row above stale the same evening it was
+written, and the table said so rather than being quietly wrong.
+[`tools/apk_facts.py`](../tools/apk_facts.py) now reads these facts out of the
+binary manifest — no `aapt`, no Android SDK, pure stdlib — and **CI runs it
+against every APK it builds**, failing the job if `minSdk`, `targetSdk` or
+`compileSdk` drift from the expected values or if `assets/README.md` or a
+model file reappears in the package.
+
+Writing it turned up one thing worth recording, because it is the kind of bug
+that reports success: `attributeStart` in a compiled XML node counts from the
+attribute extension struct, 16 bytes into the node, not from the node itself.
+Off by those 16, every attribute name resolves to a garbage string-pool index
+— which does not throw, it reads as *"this element has no attributes"*. The
+first run reported a manifest with no package, no SDK versions and no
+permissions, which is indistinguishable from a tool that works and an APK that
+is empty.
+
+It also turned up something nobody had noticed: `app/src/main/assets/README.md`,
+instructions written for a human, was being packaged and shipped to devices.
+Excluded now via `ignoreAssetsPatterns`.
+
+The size is worth stating plainly, since nothing else in the repo does. The
+debug APK is **about 178 MiB**:
+
+| | |
+|---|---|
+| native libraries, 4 ABIs | ~126 MiB |
+| dex | ~44 MiB |
+| bundled ML Kit models | ~7 MiB |
+
+That is ML Kit and MediaPipe shipping bundled models and native code for every
+ABI, in a build with no minification. It is not a defect, but it makes
+`adb install` slow, and a single-ABI build is much smaller.
 
 ## Battery, measured at last, 2026-10-21
 
@@ -929,76 +977,88 @@ One orphan held 20 anchors and 0 stable purely because it was new. That is
 what the `isLearning()` window exists for, and reading `stable 0` as a defect
 is a mistake the receiver briefly encouraged.
 
-CI had been producing a debug APK for a while before anyone looked inside one.
-Doing so confirmed the things that are easy to assume and cheap to check:
 
-| Claim | Found |
-|---|---|
-| manifest merges to what the build asks for | `compileSdkVersion 37`, `minSdkVersion 28`, `targetSdkVersion 36` |
-| the app's own code is really packaged | 369 references to `Lnet/synthsenses/` across 8 dex files |
-| it degrades without the model | no `yamnet.tflite` was packaged, as CI had no copy — **changed on 2026-10-21**: CI now fetches the model and verifies its hash, and `apk_facts.py --require` fails the build if it is missing |
-| permissions are what the manifest declares | 19 — the 18 declared, plus `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` added by androidx |
-| the foreground service declares the types it uses | `200 = location\|camera\|microphone` |
-| it still ships for every ABI | `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` |
+### Two kinds of thin scan, 2026-10-29
 
-**This is no longer a one-off.** It was, and it decayed within the day:
-lowering `minSdk` to 28 made the row above stale the same evening it was
-written, and the table said so rather than being quietly wrong.
-[`tools/apk_facts.py`](../tools/apk_facts.py) now reads these facts out of the
-binary manifest — no `aapt`, no Android SDK, pure stdlib — and **CI runs it
-against every APK it builds**, failing the job if `minSdk`, `targetSdk` or
-`compileSdk` drift from the expected values or if `assets/README.md` or a
-model file reappears in the package.
+After the places were forgotten at 22:46 UTC, the P20 lay still on its shelf
+and minted 34 places by 00:31. Its WiFi scans, normally 11 to 17 access
+points, kept shrinking for minutes at a time. The percept log says exactly
+what each minting scan held:
 
-Writing it turned up one thing worth recording, because it is the kind of bug
-that reports success: `attributeStart` in a compiled XML node counts from the
-attribute extension struct, 16 bytes into the node, not from the node itself.
-Off by those 16, every attribute name resolves to a garbage string-pool index
-— which does not throw, it reads as *"this element has no attributes"*. The
-first run reported a manifest with no package, no SDK versions and no
-permissions, which is indistinguishable from a tool that works and an APK that
-is empty.
+| scan | places minted | why |
+|---|---|---|
+| the home network alone, no BLE | 17 | one entry, and a match needs two shared: no later scan could ever recognise such a place |
+| the home network and one other access point, no BLE | 9 | one *settled* anchor in common with the shelf |
+| the home network, at most one other, and a few passing BLE devices | 7 | the same, plus BLE that rotates |
+| a full scan, after the forget | 1 | correct: the shelf itself, p1 |
 
-It also turned up something nobody had noticed: `app/src/main/assets/README.md`,
-instructions written for a human, was being packaged and shipped to devices.
-Excluded now via `ignoreAssetsPatterns`.
+In every one of them the home network was the loudest thing heard, at -40 to
+-42 dBm, which is also what it reads in a full scan. These were degraded scans
+of the shelf, and the guard that exists for exactly that, containment, wanted
+two shared anchors before it would say so. One of the seven, p26, founded on
+the home network, one neighbour and five BLE devices, then outscored the real
+place and **was reported as the shelf for 654 samples**.
 
-The size is worth stating plainly, since nothing else in the repo does. The
-debug APK is **about 178 MiB**:
+Two fixes, both pinned by tests rebuilt from these scans. A fingerprint of one
+entry claims no place at all (`464eb21`). And when a scan has WiFi in it,
+containment now weighs only the access points, and one shared access point
+carrying at least half of what is heard is enough. Without WiFi it still
+wants two, because the loudest BLE device is often a watch, which goes
+wherever its owner does. The two cases that must still mint are tested too:
+the home network heard faintly from down the street, and a BLE scan elsewhere
+with the watch along.
+
+The cause on the phone is unknown. The next run did not show it: on v12 every
+scan held 11 to 17 access points.
+
+## Thirty-two hours on v12, 2026-10-30 to 11-01
+
+The P20, untouched on its shelf, on charge, in a mostly dark room, from 16:41
+UTC on 10-30 to 01:14 on 11-01. Read with `tools/digest.py`.
 
 | | |
 |---|---|
-| native libraries, 4 ABIs | ~126 MiB |
-| dex | ~44 MiB |
-| bundled ML Kit models | ~7 MiB |
+| percepts | 1,391, 0.7 a minute: 730 heartbeats, 653 salient, 8 requested |
+| continuity | longest gap 124 s against a 120 s heartbeat; nothing over three minutes |
+| vision | a vision block in 1,391 of 1,391, brightness 0.00 to 0.03, no labels: frames kept arriving, and in the dark the labeller is not asked |
+| hearing | classifier `ok` on 1,391 of 1,391. The tally covered 23,457 samples and classified all of them, which is 32.5 hours at one every five seconds: no sample lost to the mic |
+| place | p1 from the forget at 16:46 to the end. One place, none minted. Scans held 11 to 17 access points throughout, so the thin-scan rules above were not exercised |
+| `still` | 1,369 of 1,391. The learned ceiling was 0.154 from 120 readings; resting `accel_rms` ran 0.02 to 0.15, mean 0.10 |
+| motion otherwise | 8 `handled` and 5 `walking` in the three minutes of the install, which is right. Then 7 isolated `handled` across 32 hours at `accel_rms` 0.15 to 0.24, just over the ceiling. Nobody recorded whether the shelf was touched, so they are either bumps or the ceiling's false-positive rate, at most 7 in about 23,000 samples |
+| calls | `mic_call_stand_downs` 0 in all 35 `status` replies. No call is known to have come in, so this shows the counter does not count without one, and nothing more |
+| self | 75 to 77% on the charger, battery 35 to 41 °C, mean 37 |
 
-That is ML Kit and MediaPipe shipping bundled models and native code for every
-ABI, in a build with no minification. It is not a defect, but it makes
-`adb install` slow, and a single-ABI build is much smaller.
+The resting floor is worth a line. On 10-21 the same phone rested at 0.17 to
+0.18; here it rests near 0.10. A fixed constant fitted to either night would
+have been wrong on the other. The ceiling is learned per phone, and this
+shows it needs to be, since it moves on the same phone.
+
+Over the same stretch, package changes and restarts on Potluck's side emptied
+the `phone_steer` inbox 14 times between 13:48 UTC on 10-31 and 01:17 on 11-01.
+Before `f8a25b0` nothing noticed, and the desk's controls sat blank. The
+service now sees the values go `NO_DATA` and writes the phone's state back.
+The hub keeps its event record in memory, so only the last four refills were
+still in it to check, and all four were applied.
 
 ## Not tested at all
 
-Everything that needs real hardware:
+Everything that still needs real hardware and a person with it:
 
-- **The `ImageProxy` lifetime hack** in `VisionSensor.onFrame` holds the proxy
-  open for 1.5 s on a background thread while ML Kit reads the planes. This is
-  the single most suspect piece of code in the repo. If you see "ImageProxy
-  closed" warnings, raise the delay; if you see frame starvation, restructure it
-  to close the proxy from the completion of the ML Kit tasks instead.
-- **Motion thresholds** in `BodySensor.classifyMotion` are reasoned from
-  magnitudes, not measured. Watch `accel_rms` and `gyro_rms` while actually
-  walking, driving and sitting, then retune.
+- **Motion thresholds above `still`** in `BodySensor.classifyMotion` are
+  reasoned from magnitudes, not measured. `still` is learned per phone. Watch
+  `accel_rms` and `gyro_rms` while actually walking, driving and handling the
+  phone, then retune.
 - **Posture thresholds**, likewise.
 - **Magnetic anomaly baseline** — `MAG_BASELINE_ALPHA = 0.002` is a guess at the
   right time constant.
-- **Battery life.** The 4–8 hour figure is an estimate from what the camera
-  typically costs, not a measurement.
 - **Mic contention** between `AudioSensor` and `SpeechSensor`. The design opens
   and closes `AudioRecord` per sample specifically to avoid it, but this is
   exactly the kind of thing that behaves differently per vendor.
-- **Vendor quirks.** MIUI/HyperOS is aggressive about background services. The
-  foreground service should survive, but battery-optimisation exemption may be
-  needed for long runs.
+- **A night on HyperOS.** The service has run for days on EMUI 9 on the P20,
+  but the Xiaomi has only had an evening. HyperOS is aggressive about
+  background services, and a battery-optimisation exemption may be needed.
+- **An answered call.** A rung, unanswered call was tested on 2026-10-29.
+  Answering one, with the service running, has not been.
 - **The discovery beacon reaching a phone.** Both halves are tested — the
   packet's shape, the broadcast targets, and that none of it reaches stdout, in
   `test_receiver_ws.py`; the parsing and the URL rules in `EndpointTest`. What

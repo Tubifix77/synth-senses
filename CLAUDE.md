@@ -58,16 +58,18 @@ one can verify the latter until this runs on a phone.
 the build files, so a bare run always checks against the real ceiling. Pass
 `--sdk` / `--agp` only to ask a what-if question.
 
-What is genuinely untested is everything that needs hardware. No percept has
-ever come off a real phone.
+It runs on hardware. Since 2026-10-21 it has run on two phones: an evening
+on the Xiaomi, and from that night on the P20, which has sent percepts for
+43 and 60 hours unbroken (no gap over ten minutes, updates included). The
+whole chain is live: phone → receiver → bridge → the Potluck cell's `phone`
+inbox → `potluck_port.py` → a companion in ai-consciousness, and back again
+through the `phone_steer` inbox, tested end to end on 2026-10-31. The bridge's
+rate budget, refresh-before-stale and drain loop have run under real cadence
+for days.
 
-The Potluck side is one step further on: as of 2026-10-21 the bridge is
-paired against the real hub, the certificate is pinned, and a hand-made
-percept wrote `battery = 0.95` to the live cell and came back `applied`. So
-the chain below the phone works. Nothing about the phone end of it does yet,
-and the rate budget, the refresh-before-stale behaviour and the drain loop
-under real cadence are all still unexercised — a one-shot write cannot touch
-them.
+What is still untested needs a person as well as a phone: the motion bands
+above `still`, posture, an answered call, and the magnetic time constant. See
+"Still unmeasured" below.
 
 ## How work lands: main, and nothing else
 
@@ -462,7 +464,9 @@ so it needs no calibration.
 
 **The `ImageProxy` lifetime hack survived its first long run** — 304 of 304
 samples carried vision labels across 8.4 hours without stalling. Not proof it
-is correct, but it is no longer the leading suspect.
+is correct, but it is no longer the leading suspect. On v12, 1,391 of 1,391
+percepts over 32.5 hours carried a vision block, though in a dark room, so
+that run shows frames arriving rather than labelling.
 
 Still genuinely unmeasured: the thresholds *above* `still` in
 `classifyMotion` (walking, vehicle, and the handled bands), posture, and the
