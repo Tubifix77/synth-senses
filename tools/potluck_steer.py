@@ -28,7 +28,8 @@ How it behaves, each because the alternative goes wrong:
   All eight get a value that way (`sample` starts at 0), because the hub reads
   a value never written as an app that is not working. The same happens when
   the hub loses them, as a package change does: a value that goes NO_DATA is
-  forgotten and the phone asked again.
+  forgotten and the phone asked again. One a board put back as STALE after a
+  software restart is written back as it is, which changes only its quality.
 - **Never stale.** `stale_ms` is 0: these are settings, not readings, and a
   quiet day must not read as the program having stopped.
 - **Out of range is clamped, not refused**, to what `set` accepts.
@@ -40,6 +41,7 @@ It runs inside synth_senses_service.py, which has the receiver to send through.
 import json
 import sys
 import threading
+import time
 
 INBOX = "phone_steer"
 
@@ -64,6 +66,10 @@ LENSES = ["back", "front"]
 
 SWITCHES = ("vision", "hearing", "speech", "location")
 
+#: How long a value written back for being STALE is left before it may be
+#: written again, so a hub slow to show the write is not sent one every look.
+REFRESH_HOLD_S = 30.0
+
 #: What `set` accepts (docs/PROTOCOL.md).
 INTERVAL_S = (1, 600)
 
@@ -76,6 +82,22 @@ def steer_values(model):
     for r in (model or {}).get("resources") or []:
         name = r.get("name") or ""
         if name.startswith(PREFIX) and r.get("value") is not None:
+            out[name[len(PREFIX):]] = r["value"]
+    return out
+
+
+def stale_values(model):
+    """{name: value} for every steering value the hub holds but calls STALE.
+
+    With `stale_ms` 0 nothing here ages, so STALE means a board restarted by
+    software and put back what was last written (Potluck 40a8ae3 on). The value
+    is still the truth; only its quality needs a write.
+    """
+    out = {}
+    for r in (model or {}).get("resources") or []:
+        name = r.get("name") or ""
+        if (name.startswith(PREFIX) and r.get("value") is not None
+                and r.get("quality") == "STALE"):
             out[name[len(PREFIX):]] = r["value"]
     return out
 
@@ -96,9 +118,11 @@ def _switch(v):
 class Steer:
     """The translation, with no sockets: values in, commands and write-backs out."""
 
-    def __init__(self):
+    def __init__(self, clock=time.monotonic):
         self.seen = None              # what the hub held at the last look
         self._back = {}               # write-backs waiting to go
+        self._refreshed = {}          # name -> when it was last queued for being STALE
+        self._clock = clock
         self._lock = threading.Lock()
 
     def lost(self, values):
@@ -191,6 +215,19 @@ class Steer:
                 if seen.get(k) != v:
                     self._back[k] = v
 
+    def refresh(self, stale):
+        """Queue each STALE value to be written back as it is. -> True if any
+        was not already queued. The value does not change, so it is never a
+        command; a write-back already queued for it wins, being newer."""
+        now = self._clock()
+        with self._lock:
+            new = [k for k in stale if k not in self._back
+                   and now - self._refreshed.get(k, float("-inf")) >= REFRESH_HOLD_S]
+            for k in new:
+                self._back[k] = stale[k]
+                self._refreshed[k] = now
+            return bool(new)
+
     def write_backs(self):
         """-> [(name, value)] still to write, without taking them."""
         with self._lock:
@@ -227,6 +264,8 @@ def steer_forever(get_model, write, send, steer, stop, say, every_s=2.0):
             if steer.lost(values):
                 say("steering: the hub lost the inbox's values, asking the phone for them")
                 send({"cmd": "status"})
+            if steer.refresh(stale_values(model)):
+                say("steering: the hub calls the inbox's values stale, writing them back as they are")
             for cmd in steer.commands(values):
                 say("steering: the cell asks %s" % json.dumps(cmd))
                 send(cmd)

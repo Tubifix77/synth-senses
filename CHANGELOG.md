@@ -30,7 +30,10 @@ assumes a number will not. Nothing else on the wire changed shape.
   A value that comes back after being missing is a baseline, not a command:
   counting its return as a change sent a `set` and a sample after every
   restart on Potluck's side, the two unexplained samples at 02:46 on 10-31
-  and seven more that night.
+  and seven more that night. And from Potluck 40a8ae3, a board restarted by
+  software puts the values back as STALE rather than NO_DATA; with `stale_ms`
+  0 nothing else makes them STALE, so each is written back as it is, which
+  changes only its quality and is never a command.
 - **Potluck can see which phone is sending.** `synth_senses_service.py`
   reports to the hub's integration list every 20 s, under the pairing name:
   `connected` with the phone's maker, model and Android version ("HUAWEI

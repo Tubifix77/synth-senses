@@ -137,6 +137,42 @@ check("a fresh service whose first look found an empty hub sends nothing as it f
       s.commands(dict(BASE)) == [])
 check("then a press is a press", s.commands(dict(BASE, sample=1)) == [{"cmd": "sample"}])
 
+print("\na board restarted by software puts the values back STALE")
+# Potluck 40a8ae3: the values are as last written, only the quality says STALE.
+def stale_model(**values):
+    m = model(**values)
+    for r in m["resources"]:
+        if r["name"].startswith(ps.PREFIX):
+            r["quality"] = "STALE"
+    return m
+
+
+clock = [0.0]
+s = ps.Steer(clock=lambda: clock[0])
+s.commands(dict(BASE, sample=3))
+m = stale_model(**dict(BASE, sample=3))
+check("the same values in STALE are not a command", s.commands(ps.steer_values(m)) == [])
+check("nor lost", not s.lost(ps.steer_values(m)))
+check("each is queued to be written back as it is",
+      s.refresh(ps.stale_values(m)) and dict(s.write_backs()) == dict(BASE, sample=3),
+      str(s.write_backs()))
+for n, v in s.write_backs():
+    s.wrote(n, v)
+check("written, they are still not a command", s.commands(ps.steer_values(model(**dict(BASE, sample=3)))) == [])
+clock[0] = 5.0
+check("a hub slow to show the write is not written to again at once",
+      not s.refresh(ps.stale_values(m)) and s.write_backs() == [])
+clock[0] = 31.0
+check("but is after the hold", s.refresh(ps.stale_values(m)))
+check("GOOD values are never refreshed", ps.stale_values(model(**BASE)) == {})
+
+s = ps.Steer(clock=lambda: 0.0)
+s.commands(dict(BASE))
+s.phone_said({"interval_ms": 30000, "senses": {}})
+s.refresh(ps.stale_values(stale_model(**BASE)))
+check("a write-back of the phone's newer state wins over the stale value",
+      dict(s.write_backs())["interval_s"] == 30)
+
 print("\nthe loop")
 stop = threading.Event()
 looks = [model(sample=1, vision=True), model(sample=2, vision=False)]
