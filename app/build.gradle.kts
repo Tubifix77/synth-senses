@@ -146,7 +146,7 @@ dependencies {
     //
     // Worth knowing if a downgrade is ever needed: 4.12.0 carries no published
     // advisories, and 5.4.0 is the highest release that builds at compileSdk 36.
-    implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
