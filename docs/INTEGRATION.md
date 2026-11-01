@@ -94,7 +94,8 @@ one program, kept running by Potluck's tray. What it publishes:
   `lon`, `ble_count`. Labels travel as ordinals into the append-only lists in
   `Vocabulary.kt`; `python3 tools/potluck_bridge.py --vocabulary` prints them.
   Only a change is written, and a value the phone still reports is rewritten
-  before Potluck would call it stale. One the phone has stopped reporting is
+  before Potluck would call it stale, and at once if the hub
+  loses it to a board restart. One the phone has stopped reporting is
   left to go stale, because that is then the truth.
 - **A loopback HTTP port, 127.0.0.1:8079,** for a companion on the same PC:
   `GET /phone/body`, `/phone/hearing`, `/phone/place`, `/phone/self` and

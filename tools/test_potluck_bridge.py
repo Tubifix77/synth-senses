@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -732,6 +733,74 @@ _pen.offer(pb.values_from(percept()))              # hearing back on
 pb._drain(_pen, _bud, _hub)
 check("and it comes back the moment the phone reports it again",
       "sound" in _hub.names[_n0:], str(_hub.names[_n0:]))
+
+print("\nwhat the hub lost is written again at once, not at the next refresh")
+# Potluck 40a8ae3: a board restarted by software puts each value back STALE;
+# one powered on starts at NO_DATA. Both used to wait up to half of stale_ms,
+# two and a half minutes of 503 from the port for senses that were working.
+_rc = Clock()
+_rh = Hub()
+_rp = pb.Pending(300000, now=_rc)
+_rb = pb.Budget(per_second=1000.0, burst=10000, now=_rc)
+_rp.offer(pb.values_from(percept()))
+pb._drain(_rp, _rb, _rh)
+_n = len(_rh.writes)
+_rc.advance(10)
+_q = {n: "GOOD" for n, *_ in pb.VALUES}
+_q.update(battery="STALE", sound="NO_DATA", place="BAD_QUALITY_NOT_OURS")
+check("STALE and NO_DATA are queued, nothing else",
+      sorted(_rp.revive(_q)) == ["battery", "sound"], str(_rp.pending))
+pb._drain(_rp, _rb, _rh)
+check("and written as they were", _rh.writes[_n:] in ([("battery", 0.63), ("sound", pb.values_from(percept())["sound"])],
+                                                    [("sound", pb.values_from(percept())["sound"]), ("battery", 0.63)]),
+      str(_rh.writes[_n:]))
+_rc.advance(10)
+check("a hub slow to show the write is not written to again at once", _rp.revive(_q) == [])
+_rc.advance(25)
+_rp.offer(pb.values_from(percept()))
+check("but is after the hold", "battery" in _rp.revive(_q))
+check("a name the hub does not report is left alone",
+      _rp.revive({}) == [] and _rp.revive({"battery": None}) == [])
+
+_sc = Clock()
+_sp2 = pb.Pending(300000, now=_sc)
+_sp2.offer(pb.values_from(percept()))
+for _name, _value in list(_sp2.pending.items()):
+    _sp2.accepted(_name, _value)
+_sc.advance(200)                                   # hearing switched off long ago
+_sp2.offer(pb.values_from(percept(hearing=None)))
+check("a sense the phone stopped reporting is not revived, however the hub reads it",
+      "sound" not in _sp2.revive({"sound": "NO_DATA", "battery": "STALE"}))
+
+check("hub_quality reads one inbox's qualities",
+      pb.hub_quality({"resources": [
+          {"name": "act/phone/battery", "quality": "STALE"},
+          {"name": "act/phone_steer/vision", "quality": "STALE"},
+          {"name": "act/phone/sound", "quality": "GOOD"}]}) == {"battery": "STALE", "sound": "GOOD"})
+
+_lc = Clock()
+_lh = Hub()
+_lp = pb.Pending(300000, now=_lc)
+_lb = pb.Budget(per_second=1000.0, burst=10000, now=_lc)
+_asked = []
+
+
+def _check_hub():
+    _asked.append(_lc())
+    return {"battery": "STALE"}
+
+
+def _lines():
+    yield json.dumps(percept())
+    for _ in range(5):
+        _lc.advance(1)
+        time.sleep(0.02)
+        yield ""
+
+
+pb.run(_lines(), _lp, _lb, _lh, tick=0.005, sleep=lambda s: _lc.advance(s),
+       check_hub=_check_hub, check_every=10, clock=_lc)
+check("the loop asks the hub, and not on every tick", 1 <= len(_asked) <= 2, str(_asked))
 
 print("\nan old fix is where the phone was, not where it is")
 # 2026-10-24 to -29: the P20 received no fixes and sent its last one, aged

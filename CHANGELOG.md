@@ -17,6 +17,13 @@ assumes a number will not. Nothing else on the wire changed shape.
 
 ### Added
 
+- **What the hub loses, the bridge writes again at once.** A board restarted
+  by software puts the phone's values back STALE (Potluck 40a8ae3), and one
+  powered on starts at NO_DATA. The bridge used to wait for its refresh at
+  half of `stale_ms`, up to two and a half minutes in which the port
+  answered 503 for senses that were working. It now reads what the hub holds
+  every 10 s and rewrites any value the phone still reports that reads STALE
+  or NO_DATA, at most once per 30 s each.
 - **The Potluck cell can steer the phone.** A second inbox, `phone_steer`,
   holds eight values the desk, a board or Home Assistant may write: `sample`
   (a new number takes a sample), `lens`, `interval_s`, `threshold`, and

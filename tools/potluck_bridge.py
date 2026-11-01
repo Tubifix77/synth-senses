@@ -428,6 +428,14 @@ def changed(name, old, new, eps):
     return new != old
 
 
+#: How long a value revived for reading STALE or NO_DATA is left before it may
+#: be revived again. See Pending.revive.
+REVIVE_HOLD_S = 30.0
+
+#: How often the bridge looks at what the hub holds, for Pending.revive.
+CHECK_HUB_S = 10.0
+
+
 class Pending:
     """Newest-wins per path, with a refresh before Potluck calls us stale.
 
@@ -446,6 +454,7 @@ class Pending:
         self.written_at = {}     # name -> when that happened
         self.seen_at = {}        # name -> when the phone last reported it
         self.held = {}           # name -> don't try this one again before
+        self.revived_at = {}     # name -> when revive() last queued it
         self.now = now or time.monotonic
         # The reader offers while the drainer takes. Reentrant because
         # refresh_due() is called from inside the drain loop.
@@ -491,6 +500,34 @@ class Pending:
                     continue
                 if now - self.written_at.get(name, 0) >= self.stale_s / 2:
                     self.pending[name] = value
+
+    def revive(self, quality):
+        """Queue at once what the hub has lost. -> the names queued.
+
+        `quality` is {name: quality} as the hub reports it. A board restarted
+        by software puts each value back as STALE (Potluck 40a8ae3 on), and one
+        powered on starts at NO_DATA. Either way the value is still true and
+        refresh_due would rewrite it within half of stale_ms -- up to two and a
+        half minutes in which the port answers 503 for a sense that is working.
+        Same rule as refresh_due: only a value the phone is still reporting,
+        so a sense switched off is not revived. A value revived is not revived
+        again for REVIVE_HOLD_S, so a hub slow to show the write is not sent one
+        on every check. A name the hub does not report at all is left alone.
+        """
+        now = self.now()
+        out = []
+        with self.lock:
+            for name, value in list(self.written.items()):
+                if quality.get(name) not in ("STALE", "NO_DATA") or name in self.pending:
+                    continue
+                if now - self.seen_at.get(name, float("-inf")) > self.stale_s / 2:
+                    continue
+                if now - self.revived_at.get(name, float("-inf")) < REVIVE_HOLD_S:
+                    continue
+                self.pending[name] = value
+                self.revived_at[name] = now
+                out.append(name)
+        return out
 
     def take(self):
         """One (name, value) to write, or None. Oldest-written first.
@@ -821,8 +858,20 @@ def write_value(hub, system, name, value, dry_run=False, inbox="phone"):
 
 # ------------------------------------------------------------------- the loop
 
+def hub_quality(model, inbox="phone"):
+    """{name: quality} for the inbox's values in a /api/model body."""
+    prefix = f"act/{inbox}/"
+    out = {}
+    for r in (model or {}).get("resources") or []:
+        name = r.get("name") or ""
+        if name.startswith(prefix) and r.get("quality"):
+            out[name[len(prefix):]] = r["quality"]
+    return out
+
+
 def run(stream, pending, budget, send, on_percept=None, tick=0.2,
-        sleep=time.sleep):
+        sleep=time.sleep, check_hub=None, check_every=CHECK_HUB_S,
+        clock=time.monotonic):
     """Read percepts, publish numbers. The whole program, minus its plumbing.
 
     Takes its collaborators rather than building them, so the tests can drive
@@ -844,8 +893,18 @@ def run(stream, pending, budget, send, on_percept=None, tick=0.2,
     stop = threading.Event()
 
     def drainer():
+        checked = float("-inf")
         while not stop.is_set():
             try:
+                # `check_hub()` -> {name: quality} or None. Slow on purpose:
+                # this is a second reader of the hub, beside the service's.
+                if check_hub and clock() - checked >= check_every:
+                    checked = clock()
+                    quality = check_hub()
+                    if quality:
+                        lost = pending.revive(quality)
+                        if lost:
+                            say(f"  (the hub lost {', '.join(lost)}: writing them again)")
                 _drain(pending, budget, send)
             except Exception as e:            # never let the writer kill the reader
                 say(f"  (write loop: {type(e).__name__}: {e})")
@@ -1134,14 +1193,23 @@ def main():
             + ("  (will retry)" if keep else ""))
         return ok, hold, note, keep, throttled
 
+    def check_hub():
+        # A hub that is down is not news here: the writes already say so.
+        try:
+            status, model, _headers = hub.get("/api/model")
+        except Exception:
+            return None
+        return hub_quality(model) if status == 200 else None
+
+    checker = None if dry else check_hub
     try:
         if args.follow:
             say(f"following {args.follow}"
                 + ("" if args.from_start else " from the end"))
             run(tail(args.follow, from_start=args.from_start),
-                pending, budget, send)
+                pending, budget, send, check_hub=checker)
         else:
-            run(sys.stdin, pending, budget, send)
+            run(sys.stdin, pending, budget, send, check_hub=checker)
     except KeyboardInterrupt:
         pass
     say(f"\n{counts['written']} written, {counts['refused']} refused")
