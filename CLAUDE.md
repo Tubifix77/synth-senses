@@ -472,6 +472,12 @@ Still genuinely unmeasured: the thresholds *above* `still` in
 `classifyMotion` (walking, vehicle, and the handled bands), posture, and the
 magnetic baseline time constant, which still needs logcat.
 
+One lead for that work, in `docs/VALIDATION.md`: across about fifty hours on
+the shelf the P20 logged fourteen stray `handled` readings, every one with
+`gyro_rms` at its resting 0.00 to 0.01, while real handling always rotated it
+(0.03 to 0.50). Requiring rotation for `handled` would have caught them all,
+but ten real readings from one install are not enough to ship it on.
+
 Fixing those needs a physical device. It needs `adb logcat` less than it did:
 `tools/digest.py` now reads both halves of the motion evidence — `accel_rms`
 **and** `gyro_rms` per motion state, since `classifyMotion` tests gyro in three

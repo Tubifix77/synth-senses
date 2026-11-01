@@ -1011,6 +1011,19 @@ with the watch along.
 The cause on the phone is unknown. The next run did not show it: on v12 every
 scan held 11 to 17 access points.
 
+Everything else that night held. Read with `tools/digest.py` over the same
+window, 22:46 on 10-29 to 16:39 on 10-30, on v11:
+
+| | |
+|---|---|
+| percepts | 919 over 17.9 hours: 491 salient, 428 heartbeats |
+| continuity | longest gap 124 s; nothing over three minutes |
+| vision | a vision block in 919 of 919, brightness 0.00 to 0.01: a dark room, frames arriving |
+| hearing | classifier `ok` on 919 of 919; the tally covered 12,890 samples and classified all of them |
+| `still` | 912 of 919, resting `accel_rms` 0.03 to 0.15 |
+| motion otherwise | 7 `handled`, see below |
+| calls | no counter yet: v11 predates `mic_call_stand_downs`, and none of its 17 `status` replies carry it |
+
 ## Thirty-two hours on v12, 2026-10-30 to 11-01
 
 The P20, untouched on its shelf, on charge, in a mostly dark room, from 16:41
@@ -1024,9 +1037,21 @@ UTC on 10-30 to 01:14 on 11-01. Read with `tools/digest.py`.
 | hearing | classifier `ok` on 1,391 of 1,391. The tally covered 23,457 samples and classified all of them, which is 32.5 hours at one every five seconds: no sample lost to the mic |
 | place | p1 from the forget at 16:46 to the end. One place, none minted. Scans held 11 to 17 access points throughout, so the thin-scan rules above were not exercised |
 | `still` | 1,369 of 1,391. The learned ceiling was 0.154 from 120 readings; resting `accel_rms` ran 0.02 to 0.15, mean 0.10 |
-| motion otherwise | 8 `handled` and 5 `walking` in the three minutes of the install, which is right. Then 7 isolated `handled` across 32 hours at `accel_rms` 0.15 to 0.24, just over the ceiling. Nobody recorded whether the shelf was touched, so they are either bumps or the ceiling's false-positive rate, at most 7 in about 23,000 samples |
-| calls | `mic_call_stand_downs` 0 in all 35 `status` replies. No call is known to have come in, so this shows the counter does not count without one, and nothing more |
+| motion otherwise | 8 `handled` and 5 `walking` in the three minutes of the install, which is right. Then 7 isolated `handled` across 32 hours at `accel_rms` 0.15 to 0.24, just over the ceiling, see below |
+| calls | `mic_call_stand_downs` 0 in all 35 `status` replies, the first build to carry it. No call is known to have come in, so this shows the counter does not count without one, and nothing more |
 | self | 75 to 77% on the charger, battery 35 to 41 °C, mean 37 |
+
+**The stray `handled` readings did not rotate the phone.** Seven on the 10-29
+night and seven on v12, fourteen in about fifty hours, all at `accel_rms` 0.15
+to 0.24 and all with `gyro_rms` 0.00 or 0.01, which is the resting gyro
+reading to the digit. The real handling during the install read `gyro_rms`
+0.03 to 0.50 every time. So these are a translation spike just over the
+`still` ceiling with no rotation, most likely the shelf or the charger cable
+being knocked rather than the phone being picked up. Requiring some rotation
+before calling a phone `handled` would have separated all of them here. That
+rests on ten real handling readings from one install on one phone, so it is
+recorded as the candidate rule rather than shipped; it belongs with the walk
+and car measurements of the bands above `still`.
 
 The resting floor is worth a line. On 10-21 the same phone rested at 0.17 to
 0.18; here it rests near 0.10. A fixed constant fitted to either night would
