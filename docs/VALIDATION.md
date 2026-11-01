@@ -1009,7 +1009,8 @@ the home network heard faintly from down the street, and a BLE scan elsewhere
 with the watch along.
 
 The cause on the phone is unknown. The next run did not show it: on v12 every
-scan held 11 to 17 access points.
+scan held 11 to 17 access points. The fix went onto the P20 as v13 at 03:29
+UTC on 2026-11-01 and, when work paused that day, had not yet met a thin scan.
 
 Everything else that night held. Read with `tools/digest.py` over the same
 window, 22:46 on 10-29 to 16:39 on 10-30, on v11:

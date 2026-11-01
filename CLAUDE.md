@@ -13,7 +13,12 @@ Read `README.md` for the design and `docs/PROTOCOL.md` for the wire format.
 Read `docs/VALIDATION.md` before touching any of the maths — it records which
 algorithms were verified, and which earlier designs failed and why.
 
-## Status: green
+## Status: green, and paused
+
+**On hold since 2026-11-01.** Read the README's "Paused: where to pick up"
+first: it says what is running (the P20 on v13 from `9490cdd`, the service
+under Potluck's tray) and lists the loose ends in order.
+
 
 All six CI jobs pass — assemble debug, android lint, unit tests, receiver
 smoke test, and the emulator at API 28 and API 36. A debug APK is produced.

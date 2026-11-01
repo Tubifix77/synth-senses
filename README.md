@@ -38,6 +38,7 @@ only traffic on the wire is percepts out and commands in.
 
 ## Contents
 
+- [Paused: where to pick up](#paused-where-to-pick-up)
 - [Status](#status)
 - [Quick start](#quick-start)
 - [What it senses](#what-it-senses)
@@ -48,6 +49,70 @@ only traffic on the wire is percepts out and commands in.
 - [Battery](#battery)
 - [Privacy](#privacy)
 - [Docs](#docs)
+
+## Paused: where to pick up
+
+**On hold from 2026-11-01**, for reasons outside the project. Nothing is broken.
+This section is the handover, so read it first when work resumes.
+
+### What is running
+
+- **The P20** (Huawei P20 Lite, Android 9) sits on its shelf on charge,
+  running **v13**, the APK built from `9490cdd`. It has stayed on one place
+  (`p1`) since the places were last forgotten on 2026-10-30.
+- **On the PC**, `tools/synth_senses_service.py` runs the receiver, bridge
+  and port as one program. Potluck's tray starts it and restarts it, so
+  stop it from the tray, not by killing it. It writes `percepts.jsonl` and
+  `logs/` in this folder, and both grow while it runs.
+- **In Potluck**, the phone's twelve values are in the `phone` inbox, the
+  cell can steer it through `phone_steer`, and a companion in
+  ai-consciousness reads it over `127.0.0.1:8079`. The details are in
+  [docs/INTEGRATION.md](docs/INTEGRATION.md#or-through-potluck).
+
+`main` is green, and every change is in [CHANGELOG.md](CHANGELOG.md) under
+Unreleased.
+
+### Loose ends, in the order to take them
+
+1. **Check that v13's place fix holds.** It went on at 03:29 UTC on
+   2026-11-01 and has not yet met the thin WiFi scans it fixes. Run
+   `python tools/digest.py` over the percepts since then. If a scan shows
+   one or two access points and the place stays `p1`, it holds; if new
+   places appear, compare them with the table in
+   [docs/VALIDATION.md](docs/VALIDATION.md), "Two kinds of thin scan".
+2. **Read the call counter after a real call.** Ring the P20 for about
+   20 s, answered or not, and note the time. Then append `{"cmd":"status"}`
+   to `logs/commands.jsonl` and read `mic_call_stand_downs` from the reply
+   in `logs/receiver.log`. Expect about four per 20 s of ringing. It has
+   never yet been on the phone during a call, and VALIDATION.md says so.
+3. **An answered call**, the same way. Only a rung call has been tested.
+4. **The motion bands above `still`**: a walk, a car ride and handling,
+   ideally on the Xiaomi. VALIDATION.md has one lead: every stray `handled`
+   reading on the shelf had no rotation, so requiring rotation for
+   `handled` is the rule to test first.
+5. **Posture**, against known positions, and the **magnetic time
+   constant**, which needs `adb logcat`.
+6. **A night on the Xiaomi**, to see whether HyperOS lets it run.
+7. **An on-device speech recogniser.** It is the one large feature left,
+   and is deferred on purpose; [docs/ROADMAP.md](docs/ROADMAP.md) says why.
+
+### Unexplained, and worth watching
+
+- From 2026-10-24, for five days, the P20's WiFi scans came back empty and
+  its location fixes stopped. Scans returned around when its WiFi settings
+  were opened, and fixes the moment a map app was on screen. On the night
+  of 10-29 its scans shrank to the home network for hours. The app now
+  copes with all three; the cause on the phone is unknown.
+- From Potluck `40a8ae3`, a board restarted in software puts its values
+  back marked STALE. The service rewrites them at once (`1362752`,
+  `faef0ec`), but that has not yet been seen live.
+
+### Before changing anything that crosses to Potluck
+
+The Potluck Desk builds controls from the names in both inboxes, and the
+companion depends on the port's paths. Renaming, reordering or removing any
+of them breaks those projects, so tell their maintainers first. The rule is
+in [CLAUDE.md](CLAUDE.md), under Invariants.
 
 ## Status
 

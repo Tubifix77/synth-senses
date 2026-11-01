@@ -2,6 +2,10 @@
 
 What happens next, in order, and what is deliberately not being started yet.
 
+**Paused on 2026-11-01.** The README's "Paused: where to pick up" holds the
+loose ends in the order to take them. This file holds the reasoning behind
+them.
+
 ## 1. First, a phone
 
 **Done, as far as a phone on a shelf can take it.** The app has run on real
