@@ -70,6 +70,13 @@ SWITCHES = ("vision", "hearing", "speech", "location")
 #: written again, so a hub slow to show the write is not sent one every look.
 REFRESH_HOLD_S = 30.0
 
+#: Writes per look at the hub. Potluck gives a program two writes a second,
+#: and this shares its pairing, so its share, with the bridge, which spends
+#: 1.2 of them. Eight write-backs in one burst were refused as over the share
+#: and took the bridge's writes with them, 33 in the log by 2026-11-01. One per
+#: two-second look is 0.5 a second; a full refill takes 16 s.
+WRITES_PER_LOOK = 1
+
 #: What `set` accepts (docs/PROTOCOL.md).
 INTERVAL_S = (1, 600)
 
@@ -271,7 +278,7 @@ def steer_forever(get_model, write, send, steer, stop, say, every_s=2.0):
                 send(cmd)
                 if cmd["cmd"] == "set":
                     send({"cmd": "status"})
-            for name, value in steer.write_backs():
+            for name, value in steer.write_backs()[:WRITES_PER_LOOK]:
                 ok, note = write(name, value)
                 if ok:
                     steer.wrote(name, value)

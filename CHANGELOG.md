@@ -40,7 +40,10 @@ assumes a number will not. Nothing else on the wire changed shape.
   and seven more that night. And from Potluck 40a8ae3, a board restarted by
   software puts the values back as STALE rather than NO_DATA; with `stale_ms`
   0 nothing else makes them STALE, so each is written back as it is, which
-  changes only its quality and is never a command.
+  changes only its quality and is never a command. Write-backs go one per
+  two-second look: the steering shares the bridge's pairing and so its
+  two writes a second, and eight in a burst were refused as over that share,
+  taking 33 of the bridge's writes with them.
 - **Potluck can see which phone is sending.** `synth_senses_service.py`
   reports to the hub's integration list every 20 s, under the pairing name:
   `connected` with the phone's maker, model and Android version ("HUAWEI

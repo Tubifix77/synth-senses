@@ -196,6 +196,34 @@ check("a set is followed by a status, so the switches get the truth",
       sent == [{"cmd": "set", "vision": False}, {"cmd": "status"}, {"cmd": "sample"}], str(sent))
 check("and what was asked is in the service log", any("the cell asks" in m for m in said), str(said))
 
+print("\nwrites are paced under the program's share")
+stop = threading.Event()
+looks = [model(**BASE)] * 4
+writes = []
+
+
+def get_model():
+    if not looks:
+        stop.set()
+        return model(**BASE)
+    return looks.pop(0)
+
+
+def write_one(name, value):
+    writes.append(name)
+    return True, "applied"
+
+
+s = ps.Steer()
+s.commands({})
+s.phone_said({"interval_ms": 5000, "threshold": 0.35,
+              "senses": {"vision": True, "lens": "back", "hearing": True, "speech": False,
+                         "location": True}})
+ps.steer_forever(get_model, write_one, lambda c: None, s, stop, lambda m: None, every_s=0)
+check("one write per look, never a burst the hub refuses",
+      len(writes) == 5 and len(set(writes)) == 5, str(writes))
+check("and the rest are still queued", len(s.write_backs()) == 3, str(s.write_backs()))
+
 print("\nthe manifest")
 check("an inbox, its values typed", ps.manifest_outputs()
       == "sample:u32 lens:u32 interval_s:u32 threshold:f32 vision:bool hearing:bool speech:bool location:bool")
