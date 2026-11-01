@@ -136,6 +136,9 @@ class PlaceMemory(private val file: File) {
         /** Guards against a one-anchor place matching everything. */
         private const val MIN_SHARED = 2
 
+        /** RadioSensor's key prefix for an access point, as opposed to `b:` for BLE. */
+        internal const val WIFI = "w:"
+
         /**
          * How much of what is visible must belong to a known place before a
          * scan is treated as that place seen badly, rather than as somewhere
@@ -194,15 +197,26 @@ class PlaceMemory(private val file: File) {
         if (fingerprint.size < MIN_SHARED) return null
         val now = System.currentTimeMillis()
 
-        // The weight of everything visible right now: the denominator for
-        // containment below. Computed once, because it does not vary by place.
+        // The weight of everything visible right now, or of the access points
+        // when there are any: the denominator for containment below. Computed
+        // once, because it does not vary by place.
+        val wifiScan = fingerprint.keys.any { it.startsWith(WIFI) }
         var seenWeight = 0f
-        for (rssi in fingerprint.values) seenWeight += signalWeight(rssi)
+        for ((id, rssi) in fingerprint) {
+            if (countsForContainment(id, wifiScan)) seenWeight += signalWeight(rssi)
+        }
 
         var bestId: String? = null
-        var best = Score(0f, 0, 0f, 0f)
+        var best = Score(0f, 0, 0f, 0f, 0)
+        var thinId: String? = null
+        var thin = Score(0f, 0, 0f, 0f, 0)
+        val thinNeeds = if (wifiScan) 1 else MIN_SHARED
         for ((id, known) in places) {
-            val s = score(known, fingerprint, seenWeight)
+            val s = score(known, fingerprint, seenWeight, wifiScan)
+            if (s.contributed >= thinNeeds && s.containment > thin.containment) {
+                thin = s
+                thinId = id
+            }
             // Better coverage wins; an exact tie is broken by the weight of
             // corroborating evidence, never by insertion order. The cap in
             // `score` makes ties at 1.00 common once two places cover one room,
@@ -241,16 +255,27 @@ class PlaceMemory(private val file: File) {
         // Coverage cannot see this on its own. It asks how much of the place is
         // visible; this asks how much of what is visible is the place. A few
         // stray devices share nothing with the room and still mint, as they must.
-        if (bestId != null && best.containment >= CONTAINED && best.shared >= MIN_SHARED) {
-            val k = places.getValue(bestId)
+        //
+        // When the scan has WiFi in it, only the access points are weighed, and
+        // one settled access point carrying most of that weight is enough. Seen
+        // on the P20 the same night as the one-entry scans: its WiFi shrank to
+        // the home network at -40 plus one fainter neighbour, nine such scans
+        // with no BLE minted nine places, and one with five passing BLE devices
+        // minted p26, which then claimed the shelf for 654 samples. Access points
+        // stay where they are; BLE addresses rotate and travel with people, so
+        // they cannot make a scan somewhere new while the home network is still
+        // the loudest thing in it. Without WiFi the bar stays at MIN_SHARED,
+        // because a phone's own watch is the loudest BLE device everywhere.
+        if (thinId != null && thin.containment >= CONTAINED) {
+            val k = places.getValue(thinId)
             k.lastMs = now
             // Neither observed nor counted as a visit, deliberately. A scan we
             // do not trust enough to act on must not teach, and bumping visits
             // on its own would dilute every anchor's persistence.
             save()
-            Log.i(TAG, "thin scan over ${k.id} (coverage ${"%.2f".format(bestCoverage)}," +
-                " contained ${"%.2f".format(best.containment)}) - not a new place")
-            return Match(k.id, k.name, bestCoverage, isNew = false)
+            Log.i(TAG, "thin scan over ${k.id} (coverage ${"%.2f".format(thin.coverage)}," +
+                " contained ${"%.2f".format(thin.containment)}) - not a new place")
+            return Match(k.id, k.name, thin.coverage, isNew = false)
         }
 
         val id = "p$nextId"
@@ -278,23 +303,32 @@ class PlaceMemory(private val file: File) {
      * for why it is this shape rather than a symmetric similarity. `achieved`
      * is kept unrounded so an exact tie at the cap can be broken on evidence.
      * `containment` is the other direction: the share of what is visible that
-     * this place accounts for.
+     * this place accounts for, over access points only when the scan has any.
+     * `contributed` is how many shared anchors went into it. Coverage is zero
+     * below MIN_SHARED shared anchors, but containment is still measured.
      */
     private data class Score(
         val coverage: Float,
         val shared: Int,
         val achieved: Float,
-        val containment: Float
+        val containment: Float,
+        val contributed: Int
     )
 
-    private fun score(k: Known, fingerprint: Map<String, Int>, seenWeight: Float): Score {
-        val none = Score(0f, 0, 0f, 0f)
+    private fun countsForContainment(id: String, wifiScan: Boolean) =
+        !wifiScan || id.startsWith(WIFI)
+
+    private fun score(
+        k: Known, fingerprint: Map<String, Int>, seenWeight: Float, wifiScan: Boolean
+    ): Score {
+        val none = Score(0f, 0, 0f, 0f, 0)
         if (k.anchors.isEmpty()) return none
 
         var expected = 0f
         var achieved = 0f
         var seenHere = 0f
         var shared = 0
+        var contributed = 0
 
         // A learning place is scored on everything it has ever seen, weighted by
         // how often it has seen it. Transients still cost it almost nothing,
@@ -314,16 +348,20 @@ class PlaceMemory(private val file: File) {
                 // Weighted as heard now, matching the denominator: an anchor
                 // heard faintly through a wall must not count as strongly as
                 // the same anchor heard in the room.
-                seenHere += signalWeight(rssiNow)
+                if (countsForContainment(id, wifiScan)) {
+                    seenHere += signalWeight(rssiNow)
+                    contributed += 1
+                }
             }
         }
 
-        if (expected <= 0f || shared < MIN_SHARED) return none
+        if (expected <= 0f || shared == 0) return none
         return Score(
-            coverage = min(1f, achieved / expected),
+            coverage = if (shared < MIN_SHARED) 0f else min(1f, achieved / expected),
             shared = shared,
             achieved = achieved,
-            containment = if (seenWeight <= 0f) 0f else min(1f, seenHere / seenWeight)
+            containment = if (seenWeight <= 0f) 0f else min(1f, seenHere / seenWeight),
+            contributed = contributed
         )
     }
 

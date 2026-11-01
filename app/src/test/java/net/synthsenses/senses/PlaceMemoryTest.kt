@@ -144,6 +144,80 @@ class PlaceMemoryTest {
         assertTrue("and the room is still itself", !pm.recognise(revisit(desk, 0.25, 8, 3))!!.isNew)
     }
 
+    /**
+     * The P20's shelf as its percepts describe it on 2026-10-29: the home
+     * network the loudest thing in every scan, at -40 to -42, among 11 to 17
+     * access points.
+     */
+    private fun shelf(): Pair<PlaceMemory, Map<String, Int>> {
+        val pm = fresh()
+        val room = HashMap(room(15, shift = 1))
+        room["w:home"] = -40
+        repeat(10) { pm.recognise(revisit(room, 0.1, 4, 2) + ("w:home" to -41)) }
+        assertEquals("the shelf settled as one place", 1, pm.count())
+        return pm to room
+    }
+
+    @Test
+    fun `a scan of the home network and one neighbour mints nothing`() {
+        // Same night, after midnight: the scans grew back to two access points,
+        // the home network at -40 and one other no stronger than it, and with no
+        // BLE in range each minted a place. Nine of them, p24 to p34. The one
+        // shared anchor was too few for the old guard, which wanted two.
+        val (pm, room) = shelf()
+        for (neighbour in listOf(-85, -70, -55, -40)) {
+            val m = pm.recognise(mapOf("w:home" to -40, "w:next$neighbour" to neighbour))!!
+            assertTrue("home plus a neighbour at $neighbour is the shelf, seen badly", !m.isNew)
+            assertEquals("p1", m.id)
+        }
+        assertEquals("and nothing was minted", 1, pm.count())
+        assertTrue("the shelf is still itself", !pm.recognise(revisit(room, 0.1, 4, 2))!!.isNew)
+    }
+
+    @Test
+    fun `passing BLE devices do not make the home network somewhere new`() {
+        // p26 was born at 00:10 from the home network, one neighbour and five
+        // passing BLE devices (strongest -63), and went on to claim the shelf for
+        // 654 samples. p3 had the home network alone plus five. BLE addresses
+        // rotate; while the home network is the loudest access point, they do
+        // not move the phone.
+        val (pm, room) = shelf()
+        val passing = (0 until 5).associate { "b:x${rng.nextInt(0, 1_000_000)}" to -63 - it * 3 }
+
+        val p26 = pm.recognise(mapOf("w:home" to -40, "w:next" to -80) + passing)!!
+        val p3 = pm.recognise(mapOf("w:home" to -42) + passing)!!
+        assertTrue("not new", !p26.isNew && !p3.isNew)
+        assertEquals("the shelf keeps its id", listOf("p1", "p1"), listOf(p26.id, p3.id))
+        assertEquals(1, pm.count())
+
+        repeat(20) {
+            assertEquals("and later full scans are still p1", "p1",
+                pm.recognise(revisit(room, 0.1, 4, 2))!!.id)
+        }
+    }
+
+    @Test
+    fun `the home network heard faintly from elsewhere is still elsewhere`() {
+        // The guard on the rule above: one shared access point is enough only
+        // while it carries most of what is heard.
+        val (pm, _) = shelf()
+        val street = HashMap(room(6, shift = 500))
+        street["w:home"] = -88
+        assertTrue("the far end of the street is a new place", pm.recognise(street)!!.isNew)
+    }
+
+    @Test
+    fun `without WiFi one loud BLE device is not enough to claim a place`() {
+        // A watch is the loudest BLE device wherever its owner goes, so a BLE
+        // scan still needs MIN_SHARED anchors in common before it is called a
+        // known place seen badly.
+        val pm = fresh()
+        val fixed = mapOf("b:watch" to -45, "b:tv" to -60, "b:speaker" to -62)
+        repeat(8) { pm.recognise(fixed) }
+        val m = pm.recognise(mapOf("b:watch" to -45, "b:a" to -72, "b:b" to -73))!!
+        assertTrue("somewhere else, with the watch along, is new", m.isNew)
+    }
+
     @Test
     fun `a degraded scan of a known room does not mint a duplicate of it`() {
         val pm = fresh()

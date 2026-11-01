@@ -226,10 +226,16 @@ assumes a number will not. Nothing else on the wire changed shape.
   WiFi scans kept shrinking to the home network alone, and each such sample
   with no BLE in range minted a new place: 17 in 90 minutes, none of which
   any later scan could match, since a match needs two shared entries.
-  `place_id` is now null for a fingerprint that small. This is half of that
-  night's churn, not all of it: scans of two networks minted another 9, for
-  reasons the percept log cannot show, and a place founded on such a scan
-  went on to become the shelf's id for the rest of the day.
+  `place_id` is now null for a fingerprint that small.
+- **The home network, still the loudest, keeps the phone at home.** The rest
+  of that night's 34 places: 9 from scans of the home network at -40 plus one
+  fainter access point, and 7 from the home network plus a few passing BLE
+  devices. Each shared one settled anchor with the shelf, and the guard
+  against minting a duplicate of the current room wanted two. One of them,
+  p26, then claimed the shelf for 654 samples. When a scan has WiFi in it,
+  that guard now weighs only the access points, and one shared access point
+  carrying at least half of what is heard is enough. Without WiFi it still
+  wants two, because a watch is the loudest BLE device wherever it goes.
 - **A `set` that worked says so.** The command's own `cmd` field was counted
   as an unknown setting, so every remote `set` came back `ok: false` with
   "not a setting: cmd" after applying everything it was given. Seen on the

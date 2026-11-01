@@ -106,7 +106,7 @@ class RadioSensor(private val context: Context) {
         // Fingerprint the place from whatever is stable: APs first, then BLE
         // devices that look fixed (strong and named).
         val fingerprint = HashMap<String, Int>()
-        aps.forEach { fingerprint["w:${it.id}"] = it.rssi }
+        aps.forEach { fingerprint["${PlaceMemory.WIFI}${it.id}"] = it.rssi }
         ble.orEmpty().filter { it.rssi > -75 }.forEach { fingerprint["b:${it.id}"] = it.rssi }
 
         val match = if (fingerprint.isEmpty() || wifiScanBlind(wantWifi, aps.size, ssid)) null
