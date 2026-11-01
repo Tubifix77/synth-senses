@@ -70,9 +70,9 @@ class AudioSensor(private val context: Context) {
      * be read: a skipped sample is only an absence in the hearing tally, and
      * an absence cannot be told from a sample that was never due.
      */
-    @Volatile
-    var callStandDowns = 0
-        private set
+    val callStandDowns: Int get() = callGuard.standDowns
+
+    private val callGuard = CallGuard()
 
     /** The last classification failure, for `status`. logcat is not reachable. */
     var lastClassifyError: String? = null
@@ -187,9 +187,8 @@ class AudioSensor(private val context: Context) {
     suspend fun sample(): Hearing? = withContext(Dispatchers.IO) {
         val am = runCatching { context.getSystemService(AudioManager::class.java) }.getOrNull()
         val mode = runCatching { am?.mode }.getOrNull()
-        if (micIsBusy(mode)) {
+        if (callGuard.standsDown(mode)) {
             Log.i(TAG, "phone is ringing or on a call — not touching the mic")
-            callStandDowns += 1
             return@withContext null
         }
 
@@ -381,3 +380,22 @@ internal fun micSourceFor(unprocessedSupported: Boolean): Int =
 
 internal fun micIsBusy(mode: Int?): Boolean =
     mode != null && mode > AudioManager.MODE_NORMAL
+
+/**
+ * The decision to keep off the mic for one sample, and the count of samples
+ * given up to the telephone, which `status` reports as `mic_call_stand_downs`.
+ * Its own class so the count can be tested without a phone call: the counter
+ * has never yet been on the phone while one came in.
+ */
+internal class CallGuard {
+    @Volatile
+    var standDowns = 0
+        private set
+
+    /** True when this sample must not touch the mic; each such sample is counted. */
+    fun standsDown(mode: Int?): Boolean {
+        if (!micIsBusy(mode)) return false
+        standDowns += 1
+        return true
+    }
+}

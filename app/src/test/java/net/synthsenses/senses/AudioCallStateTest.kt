@@ -1,6 +1,7 @@
 package net.synthsenses.senses
 
 import android.media.AudioManager
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,6 +44,37 @@ class AudioCallStateTest {
         for (mode in 4..12) {
             assertTrue("mode $mode should be treated as a call", micIsBusy(mode))
         }
+    }
+
+    @Test
+    fun `the ring test on 2026-10-29 would have counted four samples`() {
+        // 20 s of ringing at the 5 s default, unanswered: hearing gave up four
+        // samples and came back by itself. That build had no counter, so this
+        // replays the call's modes through the one status now reports.
+        val guard = CallGuard()
+        val modes = listOf(AudioManager.MODE_NORMAL) +
+            List(4) { AudioManager.MODE_RINGTONE } +
+            listOf(AudioManager.MODE_NORMAL, AudioManager.MODE_NORMAL)
+        val stoodDown = modes.map { guard.standsDown(it) }
+        assertEquals(listOf(false, true, true, true, true, false, false), stoodDown)
+        assertEquals("one count per sample given up", 4, guard.standDowns)
+    }
+
+    @Test
+    fun `an answered call keeps counting from the first ring`() {
+        val guard = CallGuard()
+        repeat(2) { guard.standsDown(AudioManager.MODE_RINGTONE) }
+        repeat(6) { guard.standsDown(AudioManager.MODE_IN_CALL) }
+        guard.standsDown(AudioManager.MODE_NORMAL)
+        assertEquals(8, guard.standDowns)
+    }
+
+    @Test
+    fun `an idle day counts nothing, and neither does an unreadable mode`() {
+        val guard = CallGuard()
+        repeat(720) { guard.standsDown(AudioManager.MODE_NORMAL) }
+        guard.standsDown(null)
+        assertEquals("the 35 zeros on v12 are what an idle phone reads", 0, guard.standDowns)
     }
 
     @Test

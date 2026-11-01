@@ -1039,7 +1039,7 @@ UTC on 10-30 to 01:14 on 11-01. Read with `tools/digest.py`.
 | place | p1 from the forget at 16:46 to the end. One place, none minted. Scans held 11 to 17 access points throughout, so the thin-scan rules above were not exercised |
 | `still` | 1,369 of 1,391. The learned ceiling was 0.154 from 120 readings; resting `accel_rms` ran 0.02 to 0.15, mean 0.10 |
 | motion otherwise | 8 `handled` and 5 `walking` in the three minutes of the install, which is right. Then 7 isolated `handled` across 32 hours at `accel_rms` 0.15 to 0.24, just over the ceiling, see below |
-| calls | `mic_call_stand_downs` 0 in all 35 `status` replies, the first build to carry it. No call is known to have come in, so this shows the counter does not count without one, and nothing more |
+| calls | `mic_call_stand_downs` 0 in all 35 `status` replies, the first build to carry it. No call is known to have come in, so on the phone this shows only that the counter does not count without one. The counting itself is now a unit test: `CallGuard` replays the 10-29 ring test's modes, 20 s of `MODE_RINGTONE` at the 5 s default, and counts the four samples it gave up; an answered call counts from the first ring; an idle day counts nothing. What remains for a real call is that Android reports those modes on this phone, which the 10-29 ring already showed for ringing |
 | self | 75 to 77% on the charger, battery 35 to 41 °C, mean 37 |
 
 **The stray `handled` readings did not rotate the phone.** Seven on the 10-29
