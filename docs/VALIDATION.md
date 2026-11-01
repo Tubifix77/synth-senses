@@ -1022,7 +1022,8 @@ window, 22:46 on 10-29 to 16:39 on 10-30, on v11:
 | hearing | classifier `ok` on 919 of 919; the tally covered 12,890 samples and classified all of them |
 | `still` | 912 of 919, resting `accel_rms` 0.03 to 0.15 |
 | motion otherwise | 7 `handled`, see below |
-| calls | no counter yet: v11 predates `mic_call_stand_downs`, and none of its 17 `status` replies carry it |
+| calls | no counter yet: v11 predates `mic_call_stand_downs`, and none of its 17 `status` replies carry it. The one known call, the unanswered ring test, rang at about 22:40, six minutes before this window and on this same build. So the counter has never been on the phone during a call, and its zeros on v12 cannot yet be checked against one |
+| places | the digest counts 34 new places, which is the table above: 17 + 9 + 7 + 1 |
 
 ## Thirty-two hours on v12, 2026-10-30 to 11-01
 
