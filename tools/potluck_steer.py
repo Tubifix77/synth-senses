@@ -12,7 +12,7 @@ Scope, as Tue chose it on 2026-10-31: nudges and sense switches. A sample on
 demand, the lens, the interval, the threshold, and vision, hearing, speech and
 location on or off. Not `speak`, not `forget`, not naming places. Anything
 outside-writable can also be written by whoever can publish on the cell's MQTT
-broker, which he knew when he chose it.
+broker, which Tue knew when choosing it.
 
 How it behaves, each because the alternative goes wrong:
 
