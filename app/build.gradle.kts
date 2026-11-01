@@ -135,7 +135,7 @@ dependencies {
     // the tasks-core 1.0.0 it pulls in. Exactly one class disappears anywhere
     // in that library between the two versions and it belongs to the vision
     // segmenter, which this app never touches.
-    implementation("com.google.mediapipe:tasks-audio:1.0.0")
+    implementation("com.google.mediapipe:tasks-audio:1.2.0")
 
     // Uplink. okhttp 5.5.0, which Dependabot #7 proposed and which could not be
     // built under the old ceiling: okhttp 5 is a multiplatform module whose
