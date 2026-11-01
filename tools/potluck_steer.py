@@ -17,7 +17,8 @@ broker, which he knew when he chose it.
 How it behaves, each because the alternative goes wrong:
 
 - **Only a change is a command.** The first look at the hub is a baseline, so
-  a restart never replays a switch someone flipped last week.
+  a restart never replays a switch someone flipped last week, and a value that
+  comes back after being missing is a baseline too, never a command.
 - **`sample` is a counter.** Writing a value it does not already hold takes a
   sample, the way a speak actor's `say` works. Writing the same number twice
   is one sample, because nothing changed.
@@ -123,7 +124,15 @@ class Steer:
             if self.seen is None:
                 self.seen = dict(values)
                 return []
-            changed = {k: v for k, v in values.items() if self.seen.get(k) != v}
+            # Only a value that held something and now holds something else.
+            # One that was missing and is back -- a board relaying what it
+            # kept through a hub restart, or a fresh service's first look at a
+            # hub that had not filled in yet -- is a new baseline. Counting its
+            # return as a change sent a `set` and a sample after every restart
+            # on Potluck's side: two at 02:46 on 2026-10-31, seven more that
+            # night.
+            changed = {k: v for k, v in values.items()
+                       if k in self.seen and self.seen[k] != v}
             self.seen.update(values)
             # A change the phone already reports is one this wrote back.
             for k in list(changed):

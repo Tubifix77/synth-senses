@@ -1040,6 +1040,15 @@ service now sees the values go `NO_DATA` and writes the phone's state back.
 The hub keeps its event record in memory, so only the last four refills were
 still in it to check, and all four were applied.
 
+Two samples nobody asked for, at 02:46 on 10-31, turned out to be the same
+mechanism seen from the other side. The hub and the service had both just
+restarted; the service's first look found an inbox that had not filled in
+yet, and when the values arrived it read their return as a change and sent a
+sample. Its log shows the same after seven of the night's emptyings, each a
+`set` matching what the phone already did plus one sample. Nothing outside
+wrote them. A value that comes back after being missing is now a baseline,
+and a test replays the 02:46 sequence.
+
 ## Not tested at all
 
 Everything that still needs real hardware and a person with it:

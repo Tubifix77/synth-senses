@@ -42,21 +42,23 @@ check("settings go as one set, before the sample",
       got == [{"cmd": "set", "interval_ms": 30000, "vision": False}, {"cmd": "sample"}], str(got))
 
 print("\nout of range is clamped to what the phone accepts")
+BASE = {"sample": 0, "lens": 0, "interval_s": 5, "threshold": 0.35,
+        "vision": True, "hearing": True, "speech": False, "location": True}
 s = ps.Steer()
-s.commands({})
+s.commands(dict(BASE))
 check("interval below 1 s", s.commands({"interval_s": 0}) == [{"cmd": "set", "interval_ms": 1000}])
 check("interval above 600 s", s.commands({"interval_s": 9999}) == [{"cmd": "set", "interval_ms": 600000}])
 check("threshold above 1", s.commands({"threshold": 4.0}) == [{"cmd": "set", "threshold": 1.0}])
 check("lens by ordinal", s.commands({"lens": 1}) == [{"cmd": "set", "lens": "front"}])
 check("a lens that names nothing is ignored", s.commands({"lens": 7}) == [])
-check("a switch written as a number", s.commands({"hearing": 1}) == [{"cmd": "set", "hearing": True}])
+check("a switch written as a number", s.commands({"hearing": 0}) == [{"cmd": "set", "hearing": False}])
 
 print("\nonly what Tue chose can be asked for")
 asked = set(ps.SWITCHES) | {"interval_ms", "threshold", "lens"}
 check("the switches are vision, hearing, speech and location",
       set(ps.SWITCHES) == {"vision", "hearing", "speech", "location"})
 s = ps.Steer()
-s.commands({})
+s.commands({n: 0 for n, _k, _u in ps.VALUES})
 everything = s.commands({n: 1 for n, _k, _u in ps.VALUES})
 cmds = {c["cmd"] for c in everything}
 keys = {k for c in everything for k in c if k != "cmd"}
@@ -121,6 +123,19 @@ def get_model():
 ps.steer_forever(get_model, lambda n, v: (True, "applied"), sent.append, ps.Steer(), stop,
                  lambda m: None, every_s=0)
 check("the loop asks the phone once when the values go", sent == [{"cmd": "status"}], str(sent))
+
+print("\na value that comes back is not a command")
+s = ps.Steer()
+s.commands(dict(BASE, sample=1))
+s.lost({})
+check("the hub restarted and a board relayed what it kept: no sample, no set",
+      s.commands(dict(BASE, sample=1)) == [], "the 02:46 pair on 2026-10-31")
+check("and after that a real change still is one", s.commands(dict(BASE, sample=2)) == [{"cmd": "sample"}])
+s = ps.Steer()
+s.commands({})
+check("a fresh service whose first look found an empty hub sends nothing as it fills",
+      s.commands(dict(BASE)) == [])
+check("then a press is a press", s.commands(dict(BASE, sample=1)) == [{"cmd": "sample"}])
 
 print("\nthe loop")
 stop = threading.Event()

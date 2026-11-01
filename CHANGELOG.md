@@ -27,6 +27,10 @@ assumes a number will not. Nothing else on the wire changed shape.
   `forget`, not naming places: that scope is Tue's choice. When the hub
   loses the values, as a package change does by restarting the inbox, the
   service notices them go NO_DATA and writes the phone's state back again.
+  A value that comes back after being missing is a baseline, not a command:
+  counting its return as a change sent a `set` and a sample after every
+  restart on Potluck's side, the two unexplained samples at 02:46 on 10-31
+  and seven more that night.
 - **Potluck can see which phone is sending.** `synth_senses_service.py`
   reports to the hub's integration list every 20 s, under the pairing name:
   `connected` with the phone's maker, model and Android version ("HUAWEI
